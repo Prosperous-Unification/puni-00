@@ -265,9 +265,11 @@ MUST NOT render a Flux object, read a remote base, or hold a Secret, encrypted o
 ### Requirement: Rancher manages and Argo CD delivers
 
 Rancher Manager SHALL run in the platform cluster as one replica on the platform node,
-delivered by Argo CD, with no public route. Its bundled Fleet SHALL hold no `GitRepo`, and
-no object of the `fleet.cattle.io` group SHALL be in the tree. The k3s version SHALL be one
-whose minor the locked Rancher version certifies for a cluster that hosts it.
+delivered by Argo CD, with no public route, and every pod it starts SHALL run on the
+platform node. Its bundled Fleet SHALL run without its GitOps part and hold no `GitRepo`
+or `HelmOp`, and no object of the `fleet.cattle.io` group SHALL be in the tree. Rancher
+SHALL NOT manage the k3s version, which SHALL be one whose minor the locked Rancher
+version certifies for a cluster that hosts it.
 
 #### Scenario: A Fleet object in the tree
 
@@ -276,7 +278,20 @@ whose minor the locked Rancher version certifies for a cluster that hosts it.
 
 #### Scenario: A GitRepo in the cluster
 
-- **WHEN** a `GitRepo` exists in the platform cluster
+- **WHEN** a `GitRepo` or a `HelmOp` exists in the platform cluster, or a `Bundle` that is
+  not on the list of Rancher's own
+- **THEN** `tool-fleet:health` fails and names it
+
+#### Scenario: A Rancher pod off the platform node
+
+- **WHEN** a pod in a `cattle-` namespace or a namespace Rancher made runs on a node other
+  than the platform node
+- **THEN** `tool-fleet:health` fails and names the pod and the node
+
+#### Scenario: An upgrade plan
+
+- **WHEN** a `plans.upgrade.cattle.io` object exists, or a node's kubelet version is not
+  the pin
 - **THEN** `tool-fleet:health` fails and names it
 
 #### Scenario: A chart installed beside Argo CD
@@ -291,8 +306,10 @@ whose minor the locked Rancher version certifies for a cluster that hosts it.
 
 #### Scenario: Rancher rendered off its shape
 
-- **WHEN** the `rancher` render has more than one replica, an Ingress, a bootstrap value in
-  its values, or placement values without the platform toleration and capability
+- **WHEN** the `rancher` render has more than one replica, an Ingress of a class other than
+  the Tailscale operator's, a bootstrap value in its values, continuous delivery switched
+  on, a hook pod template without placement, or placement values without the platform
+  toleration and capability
 - **THEN** the `delivery` check fails and names the value
 
 ### Requirement: Secrets come from OpenBao
@@ -924,10 +941,9 @@ serve.
 
 A host of the new inventories SHALL admit on its public interface only the ports its
 inventory lists, which MUST be none unless the host carries `ingress` or is the bastion,
-whose one public port is SSH. It SHALL admit SSH and the Kubernetes API on the tailnet
-interface, SSH on the private interface from the bastion's address alone, and the
-cluster's own ports on the private interface from the private network's range alone. An
-existing inventory's rendered firewall SHALL NOT change.
+whose one public port is SSH. It SHALL admit SSH on the private interface from the
+bastion's address alone and on no other interface. An existing inventory's rendered
+firewall SHALL NOT change.
 
 #### Scenario: Public SSH on a new host
 
@@ -938,7 +954,7 @@ existing inventory's rendered firewall SHALL NOT change.
 #### Scenario: SSH from another private address
 
 - **WHEN** the rendered firewall of a server admits SSH on its private interface from an
-  address other than the bastion's
+  address other than the bastion's, or on its tailnet interface
 - **THEN** the role's test fails
 
 #### Scenario: An old inventory
@@ -946,18 +962,40 @@ existing inventory's rendered firewall SHALL NOT change.
 - **WHEN** the firewall is rendered for an existing inventory
 - **THEN** it is byte-equal to the rendering before this change
 
+### Requirement: The cluster's ports admit enrolled nodes alone
+
+A server of the new inventories SHALL admit the cluster's own ports on its private
+interface from enrolled node addresses alone, of which the bastion is never one, and
+SHALL admit from the bastion's address TCP 22 and nothing else.
+
+#### Scenario: The bastion reaches a cluster port
+
+- **WHEN** the rendered firewall of a server admits 10250 or 8472 from a private address
+  that is not an enrolled node, the bastion's included
+- **THEN** the role's test fails
+
+#### Scenario: The bastion reaches another port
+
+- **WHEN** the rendered firewall admits from the bastion's address any port but TCP 22
+- **THEN** the role's test fails
+
 ### Requirement: The bastion forwards SSH and holds nothing
 
 The bastion SHALL be in no k3s group and in no `gate_hosts`, and its forwarding user SHALL
 have no login shell. That user's `PermitOpen` SHALL list each inventoried server's private
-address at port 22 and nothing else, except the platform server's Kubernetes API while the
-inventory's interim flag is set.
+address at port 22 and nothing else, and the bastion's public firewall SHALL admit port 22
+and nothing else.
 
 #### Scenario: A forward to another port
 
-- **WHEN** the rendered `PermitOpen` names a port other than 22 and the entry is not the
-  platform API under the interim flag
+- **WHEN** the rendered `PermitOpen` names a port other than 22
 - **THEN** the role's test fails and names the entry
+
+#### Scenario: An earlier drop-in wins
+
+- **WHEN** an `sshd` drop-in read before the role's sets another `PermitOpen` for the
+  forwarding user
+- **THEN** the play's read-back of `sshd -T` differs from the render and the play fails
 
 #### Scenario: A server left out
 

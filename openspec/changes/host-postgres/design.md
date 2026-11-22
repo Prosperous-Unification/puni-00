@@ -122,9 +122,11 @@ Every figure is assumed (256 each for the operator and the plugin; 2,048 and 256
 production instance and its sidecar; 1,024 and 256 for the others) and PG-A3 and PG-A4
 measure them. The production instance starts at 2,048 MiB because nothing uses it yet.
 That is the minimal profile's limit, kept low on purpose, since nothing uses it yet. With
-the dump running the platform node keeps 12,666 MiB, so memory alone makes the database
-server due only for an instance above about 13,690 MiB, where it takes the margin under the
-1,024 MiB the plan stops on everywhere; the other triggers of decision 4 come first.
+the dump running the platform node keeps 12,666 MiB, so the node alone would hold an
+instance far larger. The trigger is set lower on purpose: a port that needs the production
+instance above 3,072 MiB starts the database server (decision 4), so that the instance
+moves while it still fits under the 4,096 MiB the database server gives it, with room to
+grow there.
 Harbor's 2,112 MiB and Rancher's 4,096 are planned figures too. The one
 drill of PG-A3 adds a throwaway instance of 1,280 on the non-production node for its run,
 under the same guard.
@@ -429,7 +431,7 @@ the owner says so, after A17 and slice PG-S6, on the server (PG-A4). The owner s
 evaluate when; that now means when to start it, and later when to give it a server.
 
 **The growth step to a database server** (core decision 11). Trigger: a port needs the
-production instance above about 13,690 MiB, the platform node's available memory falls under
+production instance above 3,072 MiB, the platform node's available memory falls under
 1,024 MiB, or the control plane slows with the database's load (apiserver latency, or etcd's
 slow-apply warnings in the server's log; the k3s server template does not expose etcd's
 metrics today, and core slice 1.2 adds `etcd-expose-metrics` so that the latency can be
@@ -590,8 +592,9 @@ It stays here until a number is free, as the core change's two do (task PG-0.2).
 - **The budgets are assumed.** No app has run on PostgreSQL here; PG-A4 measures (decision
   2).
 - **In the minimal profile the production database shares a node with the control plane,
-  the secret store and the registry** (PG8). Its memory is capped at a figure that the first
-  real consumer will probably outgrow, which is the trigger for its own server. Its disk is
+  the secret store and the registry** (PG8). Its memory is capped at 2,048 MiB, which the
+  first real consumer may outgrow; a need above 3,072 MiB is the trigger for its own
+  server, below the 4,096 MiB that server gives it (decision 2). Its disk is
   bounded, so a full database stops PostgreSQL and not etcd; its I/O is not bounded, and a
   heavy query can still slow the control plane. Losing that node loses all four.
 - **The move to a database server is probably a restore, with the apps' writers stopped**

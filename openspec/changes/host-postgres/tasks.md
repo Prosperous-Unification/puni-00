@@ -333,8 +333,9 @@ server (design decision 4) and are not run before its trigger.
       available memory falls under 1,024 MiB, a platform pod restarts, the claim is not on
       the bounded filesystem, or WAL is not archived. A memory stop is the trigger of the
       growth step, not a reason to raise the limit on this node. Rollback: as PG-A3; no app has data there.
-- [ ] PG-A5 Prove the restore, after PG-A4. Who: operator, at an hour with no dump and no
-      Harbor backup. Commands: write a first marker row
+- [ ] PG-A5 Prove the restore, after PG-A4. Who: operator, at an hour the operator picks;
+      the drill fits beside the dump and Harbor's backup on the platform server bought
+      (design decision 2), and its memory guard still applies. Commands: write a first marker row
       into `canary-a` and note the time; write a second; start the suspended drill job
       once by hand;
       then follow `docs/infra/postgres-recovery.md`: restore `platform-db` beside the live

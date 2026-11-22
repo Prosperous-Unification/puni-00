@@ -143,7 +143,12 @@ and the step reads back that the name answers (design decision 12).
       design decision 2, and no CI server: `h8ci` is the one node of the cluster
       `ci-production`, recorded after A9 has created it by slice CI-S2 of the CI change. Each server's tailnet auth key is an input in
       `$OPS`, not a line of the inventory. SSH reaches each server through the bastion
-      m2bast1, which is in no k3s group (R17, R55; slice 1.9). Each revision records the
+      m2bast1 alone, which is in no k3s group (R17, R55; slice 1.9), and the bastion's
+      `ansible_host` is an input in `$OPS` too. The inventory sets
+      `puni_private_mtu: 1442`, and `preflight.yml` asserts that the private interface's
+      MTU as read on the host is not below that input, so a VXLAN sized for 1442 never rides
+      a smaller link; negative: an interface read at 1400 against the input 1442 fails
+      preflight (fault: compare with the default 1500). Each revision records the
       server under the name it was bought with (R3); the placeholders `h6apps`, `h7obs` and
       `h8ci` in these tasks then read as that name. Extend `placement.test.ts` to bind this inventory
       to `platform-2` beside the existing pair. Negatives: a machine id that differs between
@@ -204,26 +209,32 @@ and the step reads back that the name answers (design decision 12).
       package and its repository key in `infra/versions/toolchain.json`. The `base` role
       installs it and joins the host with the single-use key from `$OPS`, with the tag of
       the host's trust class from the inventory, and reads back that the device is tagged
-      and its key does not expire; a second run joins nothing and prints `changed=0`. The
-      first run of a new server arrives through the bastion on its private address with the
-      admin key (R55); every later run uses the tailnet address, or the bastion while the
-      tailnet cannot be used. The same holds for the CI server and the operator host. Add to the `network` role an input for the public ports a host may
+      and its key does not expire; a second run joins nothing and prints `changed=0`. Every
+      run, the first one included, arrives through the bastion on the server's private
+      address with the admin key (R55); the tailnet carries no SSH. The same holds for the
+      CI server and the operator host. Add to the `network` role an input for the public ports a host may
       serve; for the new inventories anything else that arrives on the public interface is
       dropped in the prerouting hook, before destination NAT, so that a forwarded port such
       as a NodePort is covered and not only what the host itself listens on; the two
       NodePorts of the `otel-gateway` Service are admitted from the enrolled private
-      addresses and the CI server's, and from nowhere else; SSH
-      and the Kubernetes API are admitted on the tailnet interface, SSH also on the private
-      interface from the bastion's address alone, and 6443, 10250 and 8472 over UDP on the
-      private interface from the private network's range alone (design decision 12); the
-      default for existing inventories is today's behaviour. Create a local console account that
+      addresses and the CI server's, and from nowhere else; SSH is admitted on the private
+      interface from the bastion's address alone and on no other interface; the Kubernetes
+      API is admitted on the tailnet interface; the cluster's own ports keep today's rule,
+      from the set of enrolled node addresses alone, which never holds the bastion; and for
+      the new inventories everything from the bastion's address on the private interface
+      but TCP 22 is dropped (design decision 12). The default for existing inventories is
+      today's behaviour. Create a local console account that
       `sshd` refuses, its password from `$OPS` (R49). Add `infra/access/policy.hujson` and
       a test that parses it. Tests: the rendered firewall of each new host; the policy
       test. Negatives: a rendered firewall of a new host that admits port 22 on the public
       interface is refused (fault: keep the "retain SSH recovery" rule); one that admits
-      SSH on the private interface from an address other than the bastion's is refused
-      (fault: admit the whole private range); one that admits 10250 from outside the
-      private range is refused (fault: drop the source match); in the rehearsal of
+      SSH on the private interface from an address other than the bastion's, or on the
+      tailnet interface, is refused (fault: admit the whole private range); one that admits
+      10250 or 8472 from a private address that is not an enrolled node, the bastion
+      included, is refused (fault: widen the source to the private range, as an earlier
+      draft of this slice did); one that lets the bastion's address reach any port but
+      TCP 22, the node exporter's among them, is refused (fault: drop the bastion rule);
+      in the rehearsal of
       2.7 a NodePort Service on a new host does not answer on the public interface and the
       `otel-gateway` ports answer from an enrolled private address only (fault: drop in the
       input hook alone, and watch the forwarded port answer); a host without
@@ -236,29 +247,37 @@ and the step reads back that the name answers (design decision 12).
       policy file that names a person is refused (fault: skip the check for groups); the
       console account can log in over SSH (fault: drop the `DenyUsers` line).
 
-- [ ] 1.9 The bastion as code (R55, design decision 12), before A26. m2bast1 was set up by
-      hand on 2026-11-22. Add it to `infra/ansible/inventory/production-hosts.yml` in a group
-      `bastion`, with its private address, in no k3s group and not in `gate_hosts`. Add a
-      role `bastion` and `playbooks/bastion.yml`: the user `jump` with the shell
-      `/usr/sbin/nologin`; an `sshd` drop-in that, for that user, allows keys only, no TTY,
-      no agent, X11 or remote forwarding, and sets `PermitOpen` to each server's private
-      address and port 22, rendered from the inventory's k3s groups and its hosts outside
-      the cluster, plus `10.10.1.11:6443` while the inventory's interim flag of R55 is set;
-      and an nftables set that admits SSH on the public interface, established traffic and
-      nothing else inbound, and sends anything out. The play reads `sshd -T` for the `jump`
-      user back and compares its `PermitOpen` with the render. The placement check of 1.2
-      refuses a `bastion` host in a k3s group or in `gate_hosts`. Tests: the role's
-      rendering for the production inventory; the play's contract test. Negatives, each
-      with its own fault: a `PermitOpen` entry for a port other than 22 is refused unless it
-      is the platform API while the flag is set (fault: render without the port check); the
-      API entry with the flag unset is refused (fault: ignore the flag); a server of the
-      inventory missing from `PermitOpen` fails (fault: render from a literal list); the
-      `jump` user with a login shell fails the role test (fault: drop the shell line); a
-      bastion firewall that admits any public port but 22 is refused (fault: reuse the
-      `network` role's list); a bastion in `k3s_agents` is refused (fault: skip the
-      `bastion` group in the comparison). Stop: `sshd -T` on the live bastion differs from
-      the render after the play; then the difference is reported and nothing is enrolled
-      through it.
+- [ ] 1.9 The bastion as code (R55, design decision 12), after the first revision of 1.3,
+      which creates the inventory file, and before A26. m2bast1 was set up by hand on
+      2026-11-22. Add it to `infra/ansible/inventory/production-hosts.yml` in a group
+      `bastion`, with its private address and its `ansible_host` from `$OPS`, in no k3s
+      group and not in `gate_hosts`. Add a role `bastion` and `playbooks/bastion.yml`: the
+      user `jump` with the shell `/usr/sbin/nologin` and the jump key alone, which is not
+      the servers' admin key; an `sshd` drop-in, named so that it is read before any other,
+      that refuses passwords for every user and, for `jump`, sets `PermitTTY no`,
+      `AllowAgentForwarding no`, `X11Forwarding no`, `AllowStreamLocalForwarding no`,
+      `PermitTunnel no`, `AllowTcpForwarding local` and `PermitOpen` to each server's
+      private address and port 22, rendered from the inventory's k3s groups and its hosts
+      outside the cluster, a temporary server of A6 included while it exists; the
+      operator's own login with a shell, by a key of its own, on the same public port; a
+      console account as slice 1.8 makes one; and an nftables set that admits TCP 22 on the
+      public interface, established traffic and nothing else inbound, and sends anything
+      out. The play reads `sshd -T -C user=jump,...` back and compares every option above
+      with the render. The placement check of 1.2 refuses a `bastion` host in a k3s group or
+      in `gate_hosts`, and slice 3.2's outside probes include the bastion, with an alert
+      when it stops answering on port 22 (R16). Tests: the role's rendering for the
+      production inventory; the play's contract test. Negatives, each with its own fault: a
+      `PermitOpen` entry for any port but 22 is refused (fault: render without the port
+      check); a server of the inventory missing from `PermitOpen` fails (fault: render from
+      a literal list); the `jump` user with a login shell fails the role test (fault: drop
+      the shell line); a rendered public port set other than exactly {22} is refused, an
+      empty set included (fault: check that 22 is present rather than that it is alone); a
+      bastion in `k3s_agents` is refused (fault: skip the `bastion` group in the
+      comparison); a fixture host with an earlier drop-in that sets another `PermitOpen` for
+      `jump` fails the read-back (fault: compare the rendered file rather than `sshd -T`);
+      `AllowTcpForwarding` other than `local` for `jump` is refused (fault: check
+      `PermitOpen` alone). Stop: `sshd -T` on the live bastion differs from the render after
+      the play; then the difference is reported and nothing is enrolled through it.
 
 ## 2. Argo CD delivery (agent slices)
 
@@ -613,40 +632,68 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       URL, its SHA-256 (read as `343888c6…` on 2026-11-22 and read again when locking), the
       images the chart renders by digest, and the k3s minors SUSE's matrix certifies for a
       cluster that hosts that version, `v1.34` to `v1.36`, with the page and the date read;
-      the archive goes to `infra/platform/charts` beside the others (R21). Add the wrapper
-      chart `infra/argocd/units/rancher` with the values of design decision 14;
-      `cattle-system` in the `namespaces` unit; its SecretStore and the ExternalSecret
-      `bootstrap-secret` in `secret-sync`; the Application file at order 7 with its needs;
-      the `rancher` Service exposed by the Tailscale operator. Rule 2.4(x), lettered after
-      (w): an object of the `fleet.cattle.io` group under any source path. Rule 2.4(y): a
-      `rancher` render with other than one replica, an Ingress or a Gateway route, a
-      `hostname`, a non-empty `bootstrapPassword`, `useBundledSystemChart` off, or without
-      the platform toleration and capability term in its own values and in its `webhook`
-      and `fleet` values. The toolchain check refuses a k3s pin whose minor the Rancher
-      lock does not list, and a Rancher lock without that list. `tool-fleet:health` fails
-      on a `GitRepo` in the cluster and on a Helm release that is not on the list of
-      Rancher's own, which A27 records. Tests: the wrapper's locked `helm template` with the
-      network disabled holds no Secret and no Ingress, and equals the archive's render with
-      those values; the health and toolchain suites. Negatives, each with its own fault and
-      `Proof:` comment: a `Bundle` of `fleet.cattle.io` in a unit fails rule (x) (fault:
-      look for `GitRepo` alone); a render with two replicas, and one whose `fleet` values
-      carry no toleration, each fail rule (y) (fault: read the top-level values only); a
-      k3s pin of `v1.37.0+k3s1` against this lock is refused (fault: compare the major
-      alone); a `GitRepo` in `fleet-default` fails health (fault: list `fleet-local`
-      alone); a Helm release in a `cattle-` namespace that is not on the list fails health
-      (fault: count every release in a `cattle-` namespace as Rancher's). Rehearsal, part
-      **2.7/A27** of slice 2.7, before A27, on the k3d lab with the platform node tainted
-      and one untainted agent: `rancher` Synced and Healthy from the playbook; the first
-      login with the password the ExternalSecret wrote; every pod Rancher installed on the
-      tainted node and none on the agent; the interface reached by `kubectl port-forward`
-      and, where the lab has a tailnet, through the operator's proxy with `tls: external`;
-      one write that Rancher's webhook validates, tried with the webhook scaled to zero,
-      and what happened; Argo CD's difference for the unit after an hour, which starts its
-      `ignoreDifferences` list. Stop: Rancher is not Ready with one replica, a pod it
-      installs cannot be placed on the platform node through the values, or the password
-      is not read from the Secret and the fallback of design decision 14 fails as well.
-      Then the owner decides between removing Rancher and accepting the gap, and the
-      decision is recorded in verify.md.
+      the archive goes to `infra/platform/charts` beside the others (R21). Add the kustomize
+      unit `infra/argocd/units/rancher`, which inflates the archive with the values of
+      design decision 14, deletes the five pre-upgrade objects and the PriorityClass
+      `rancher-critical`, adds the `remotedialer-proxy` and `system-upgrade-controller`
+      keys to `rancher-config`, and adds the Ingress of the Tailscale operator's class;
+      the class `puni-platform-interface` in the `policy` unit; `cattle-system` in the
+      `namespaces` unit; its SecretStore and the ExternalSecret `bootstrap-secret` in
+      `secret-sync`, landing with A27's revision and not with A7's; the Application file at
+      order 7 with its needs; an alert when `rancher-webhook` has no ready pod for ten
+      minutes; and, in the runbook of slice 2.9, the step that deletes the
+      `rancher.cattle.io` webhook configurations while the webhook is down, and the removal
+      order of design decision 14. Rule 2.4(x), lettered after (w): an object of the
+      `fleet.cattle.io` group under any source path. Rule 2.4(y), the `rancher` render, at
+      any depth of its values and of its rendered objects: other than one replica; an
+      Ingress of a class other than the Tailscale operator's, or a Gateway route; a
+      `hostname`; a non-empty `bootstrapPassword`; `useBundledSystemChart` off;
+      `continuous-delivery` or `turtles` not set to false in `features`; no
+      `CATTLE_IMPORTED_CLUSTER_VERSION_MANAGEMENT=false`; a pod template, hook pods
+      included, without the platform toleration and capability term; `webhook` or `fleet`
+      values or a `rancher-config` key without them; a `priorityClassName` other than
+      `puni-platform-interface`; a PriorityClass object. The toolchain check refuses a k3s
+      pin whose minor the Rancher lock does not list, and a Rancher lock without that list,
+      and renders the chart with `helm template --kube-version` set to the k3s pin.
+      `tool-fleet:health` fails on a `GitRepo` or a `HelmOp`; on a `Bundle` or a Helm
+      release not on the lists of Rancher's own, which A27 records; on a
+      `plans.upgrade.cattle.io` object; on a node whose kubelet version is not the pin; on
+      a shell pod; and on any pod in a `cattle-` namespace or a namespace Rancher made that
+      runs on a node other than the platform node. Tests: the unit's locked render with the
+      network disabled holds no Secret, no hook object and no PriorityClass but the plan's,
+      and equals the archive's render with those values and those patches; the health and
+      toolchain suites. Negatives, each with its own fault and `Proof:` comment: a `Bundle`
+      of `fleet.cattle.io` in a unit fails rule (x) (fault: look for `GitRepo` alone); for
+      rule (y), one negative per item above, each with the fault that drops that item's
+      comparison, and in particular: a render with two replicas set in the deployment
+      patch, not in the values (fault: read the values file only); a `fleet` value without
+      the toleration (fault: read the top-level values only); the pre-upgrade Job left in
+      the render without placement (fault: exempt hook objects); an Ingress of Traefik's
+      class (fault: allow any Ingress); a `priorityClassName` left at `rancher-critical`
+      (fault: check that a class is set rather than which); `continuous-delivery` left on
+      (fault: read `turtles` alone); a k3s pin of `v1.37.0+k3s1` against this lock is
+      refused (fault: compare the major alone); a Rancher lock without its list of minors
+      is refused (fault: treat a missing list as any minor); a `GitRepo` in `fleet-default`
+      fails health (fault: list `fleet-local` alone); a `HelmOp` fails health (fault: list
+      `GitRepo` alone); a Helm release in a `cattle-` namespace that is not on the list
+      fails health (fault: count every release in a `cattle-` namespace as Rancher's); a
+      `plans.upgrade.cattle.io` object fails health (fault: read nodes alone); a Rancher
+      pod on a second node fails health (fault: compare against the node list's first
+      entry). Rehearsal, part **2.7/A27** of slice 2.7, before A27, in two passes on the k3d
+      lab. First on a cluster of the tainted server alone, with no agent: `rancher` Synced
+      and Healthy from the playbook, every sync finishing with no Pending pod; the Helm
+      operation pods, the webhook, Fleet, the remote dialer proxy and the local Fleet agent
+      Ready there after A27's hand-set customization; the first login with the password the
+      ExternalSecret wrote and no Secret written by Rancher before it; the interface through
+      the Tailscale Ingress, websockets included, where the lab has a tailnet; one Namespace
+      create refused with the webhook at zero replicas, and accepted again after its
+      configurations are deleted; Argo CD's difference for the unit after an hour, which
+      starts its `ignoreDifferences` list. Then with one untainted agent added: no Rancher
+      pod on it, and health failing when one is moved there by hand. Last, the removal order
+      of design decision 14, with Namespace writes working afterwards and API discovery
+      reporting no error. Stop: Rancher is not Ready with one replica on the tainted server
+      alone, or a pod it starts cannot be placed there. Then the owner decides between
+      removing Rancher and accepting the gap, and the decision is recorded in verify.md.
 
 ## 3. Custody, probes and what other owners provide (agent slices)
 
@@ -672,11 +719,13 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       complete; refuse only the bare `sqlite`; compare prefixes within one environment only; skip the credential comparison;
       compare the age against four intervals; drop the `absent()` branch.
 - [ ] 3.2 Before A14, whose `probes` unit it fills. Outside liveness probes (R16): one probe
-      per k3s node and per gate host from the observability stack's blackbox exporter, and a
+      per k3s node, per gate host and for the bastion's port 22 (R55) from the observability
+      stack's blackbox exporter, and a
       host timer on the platform node that probes the observability node. The node rules of
       slice 2.8 (available memory, memory kills) are the alerts decision 2's triggers
       name; this slice checks that every k3s node of `desired.yaml` is in their scope.
-      Test: the rules render. Negative: a node in `desired.yaml`, or a host in `gate_hosts`, with no probe on
+      Test: the rules render. Negative: a node in `desired.yaml`, a host in `gate_hosts`, or
+      a host in `bastion`, with no probe on
       another node fails the `delivery` check. Fault to inject: read `desired.yaml` only and
       watch the gate-host negative pass wrongly.
 - [ ] 3.3 The rewrite of the gate sections of `AGENTS.md` and `docs/infra/gate-hosts.md` is
@@ -988,11 +1037,15 @@ this change reserves is step A25, so those namespaces are not an open end.
       10.10.1.11, with its public SSH closed in the panel firewall and reached through the
       bastion; its receipt is still to be read, through the bastion, and its `free -m`
       replaces the assumed 31,204 MiB of design decision 2 by a commit. Receipt: `/etc/machine-id`, the SSH host key fingerprint, the private address and
-      interface and its MTU, `nproc`, `free -m`, `df -h /`; for each server, that the panel
-      firewall allows outbound traffic explicitly and holds no inbound public rule but what
-      the role serves, read as yes or no, with no address. Stop: the host is not on the
-      private network, answers on any public port, or its root disk is under its role's
-      minimum, 182 GiB here (design decision 2); the same stop holds for every server this
+      interface and its MTU, `nproc`, `free -m`, `df -h /` and `df -B1 --output=size /`; for
+      each server, that the panel firewall allows outbound traffic explicitly, admits
+      Tailscale's UDP port inbound so that connections are direct, and holds no other
+      inbound public rule but what the role serves, read as yes or no, with no address.
+      Stop: the host is not on the private network, answers on any public port, or its root
+      filesystem's size in bytes is under its role's minimum, 182 × 2³⁰ bytes here (design
+      decision 2). For m1plat1 the exit is already decided: under that floor and at or above
+      169 × 2³⁰ bytes, the drill's row of design decision 2 shrinks to 20 GiB by a commit and
+      the step goes on; under 169, it stops; the same stop holds for every server this
       plan creates, each against its own minimum, whatever provider it comes from. Rollback: delete the server. A server used
       for the rehearsal of 2.7 is deleted first; this receipt is of the server that stays.
       If the rehearsal runs on m1plat1, its system is reinstalled afterwards and this
@@ -1003,7 +1056,9 @@ this change reserves is step A25, so those namespaces are not an open end.
 - [ ] A2 Make and escrow the new cluster's secrets (R6), after 0.5 and 0.6. Who: owner.
       Commands: two 64-hex k3s credentials, `age-keygen`, read-only deploy keys for the fleet
       repository and the WBS deploy repository, the Argo CD local account's password and
-      the hosts' console account password of slice 1.8, into `$OPS` on the controller,
+      the hosts' console account password of slice 1.8, the bastion's jump key and the
+      servers' admin key as two separate keys (R55; if the key set up by hand on 2026-11-22
+      serves both, a new jump key replaces it in A26), into `$OPS` on the controller,
       which is the operator's laptop; the encrypted files of design decision 5 into the fleet repository's directory;
       a copy of each original into both escrow places. Receipt: "escrowed" per secret beside
       its escrow entry, and "restored on a second machine" for the age identity. Stop: an
@@ -1014,8 +1069,8 @@ this change reserves is step A25, so those namespaces are not an open end.
       `fleet_ansible --limit m1plat1 playbooks/bootstrap.yml` twice (the second prints
       `changed=0`), `playbooks/validate-enrollment.yml`, then preflight with
       `puni_preflight_stage=after-enrollment`. Read both join tokens into `$OPS` and escrow.
-      Receipt: the device is tagged `tag:platform` and its key does not expire; SSH answers on
-      the tailnet address and through the bastion, and no public port answers; `kubectl get nodes -o wide` shows m1plat1 Ready with roles `control-plane,etcd` and the internal address 10.10.1.11,
+      Receipt: the device is tagged `tag:platform` and its key does not expire; SSH answers
+      through the bastion and not on the tailnet address, and no public port answers; `kubectl get nodes -o wide` shows m1plat1 Ready with roles `control-plane,etcd` and the internal address 10.10.1.11,
       `flannel.1` with an MTU of 1392,
       the label `puni.dev/capability-platform-services=true`, the taint
       `CriticalAddonsOnly=true:NoSchedule` and no enrollment taint; CoreDNS, the metrics
@@ -1028,7 +1083,7 @@ this change reserves is step A25, so those namespaces are not an open end.
       then sync `argocd`, `namespaces`, `policy`, `storage`, `tailscale-operator` and
       `cert-manager`.
       Receipt: `kubectl get applications -n argocd` shows the root and orders 0 to 3 Synced
-      and Healthy; the root is in the project `root` and has no prune; every Argo CD and cert-manager pod is on m1plat1; the bastion's interim `10.10.1.11:6443` entry removed by slice 1.9's play once the API answers on the tailnet, and `sshd -T` there listing port 22 alone (R55); the interface answers
+      and Healthy; the root is in the project `root` and has no prune; every Argo CD and cert-manager pod is on m1plat1; the Kubernetes API answering on the tailnet address; the interface answers
       on its tailnet name and on no public address; the local account logs in and is refused a sync of a
       platform unit; `admin` cannot log in; no Service of type LoadBalancer or Ingress exists
       in `argocd`. Stop: a unit is not Healthy after 20 minutes. Rollback: delete the server.
@@ -1074,52 +1129,74 @@ this change reserves is step A25, so those namespaces are not an open end.
       killed for memory. Rollback: raise that limit in Git and sync `argocd`.
 - [ ] A24 Break-glass drill (R49), after A3. Who: owner. Commands: on his device, turn
       Tailscale off; confirm that m1plat1 answers on no public port; log in to m1plat1
-      through the bastion and read `kubectl get nodes` there; in the provider's
-      console open the server's console, log in as the console account with the password
-      from escrow, and read `tailscale status`; add one temporary firewall rule for his
-      current address, log in over SSH, remove the rule; turn Tailscale on. Receipt: the
-      five readings and the time taken; the rule gone from `nft list ruleset`; no value.
-      Stop: the login through the bastion or the console login fails, or a public port
-      answered. Rollback: none needed; if
-      the rule cannot be removed over SSH, remove it from the console.
+      through the bastion, which needs no tailnet, and read `kubectl get nodes` there; then,
+      as if the bastion were lost, open m1plat1's console in the provider's panel, log in as
+      the console account with the password from escrow, and read `tailscale status` and
+      `nft list ruleset`; do the same on the bastion's console; turn Tailscale on. No
+      firewall rule is added: the console is where the path through the bastion is
+      repaired (design decision 12). Receipt: the readings, the time each path took, and the
+      ruleset read on the console equal to the one A26 recorded; no value. Stop: the login
+      through the bastion or either console login fails, or a public port answered.
+      Rollback: none needed.
 - [ ] A26 The host firewall of m1plat1 and the bastion as code (R55, design decision 12),
-      before A3, after slices 1.8 and 1.9. Numbered after A25 so that the other steps keep
-      their ids. m1plat1 has had no host firewall since it was created; until this step
-      the panel firewall, with no public SSH, is its only filter. Who: operator. Commands:
+      before A3, after the first revision of 1.3 and slices 1.8 and 1.9. Numbered after A25
+      so that the other steps keep their ids. m1plat1 has had no host firewall since it was
+      created; until this step the panel firewall, with no public SSH, is its only filter.
+      Who: operator; owner for the console and the panel. Commands: first prove the way
+      back: the owner logs in on m1plat1's console as the console account and on the
+      bastion's console, and both logins are recorded before anything changes. Then
       `fleet_ansible --limit m2bast1 playbooks/bastion.yml` twice, the second printing
-      `changed=0`, with the interim flag of R55 set; then `playbooks/firewall.yml` limited to
-      m1plat1, which renders the `network` role for it. Receipt: `nft list ruleset` on
-      m1plat1 admitting SSH from 10.10.1.12 alone and 6443, 10250 and 8472 over UDP from
-      10.10.1.0/24 alone, and nothing on the public interface; SSH through the bastion
-      answering; from the controller, no answer on the public address at 22, 6443 or 10250;
-      `sshd -T` on the bastion with the `PermitOpen` of the render. Stop: SSH through the
-      bastion fails after the apply. Rollback: from the provider's console flush the
-      ruleset on m1plat1, correct the input, and run the step again.
+      `changed=0`. Then, on m1plat1, save the current ruleset and arm a timer
+      (`systemd-run --on-active=10min`) that restores it; run `playbooks/firewall.yml`
+      limited to m1plat1, which renders the `network` role for it; open a second SSH session
+      through the bastion, and only from that session stop the timer. Then prove the public
+      drop on the host itself: the owner opens the panel firewall for the controller's
+      public address alone, the controller probes 22, 6443 and 10250 on the public address,
+      the panel rule is removed, and the drop rule's counters are read before and after.
+      Receipt: the two console logins; `nft list ruleset` on m1plat1 with counters, admitting
+      SSH from 10.10.1.12 alone, the cluster's ports from the enrolled set alone, which does
+      not hold 10.10.1.12, nothing else from 10.10.1.12, and nothing on the public
+      interface; the drop counters raised by the probe and no answer to it; the timer
+      stopped by the second session; `sshd -T` on the bastion equal to the render. Stop: the
+      second session cannot connect, in which case the timer restores the ruleset by itself;
+      a probe is answered; or the panel rule cannot be removed. Rollback: the timer, or from
+      the console restore the saved ruleset, correct the input, and run the step again.
 - [ ] A27 Rancher Manager (R54, design decision 14), after A7, slice 2.11 and the receipt
       2.7/A27. Who: operator; owner for the passwords. Commands: the owner generates the
       bootstrap password, puts it in escrow and writes it into OpenBao; merge the revision
       that adds the `rancher` Application file and its ExternalSecret; sync `secret-sync`,
       then `rancher`; the owner signs the device the Tailscale operator made for `rancher`,
       logs in with the bootstrap password, sets the administrator's password and escrows
-      it, and sets the server URL to the tailnet name. Receipt: `rancher` Synced and Healthy
-      with one replica; every pod in a namespace Rancher made, listed with its node, all on
-      m1plat1; `kubectl get gitrepos.fleet.cattle.io -A` empty; the Helm releases in the
-      cluster, which become the list of Rancher's own kept beside the check of slice 2.11;
-      no Ingress and no Service of type LoadBalancer or NodePort in those namespaces; the
-      interface answering on its tailnet name and on no public address; the bootstrap
-      password refused after the first login; the version shown as v2.15.3 on k3s
-      v1.36.4+k3s1; "escrowed" for both passwords, no value. Stop: a pod Rancher installs
-      runs on another node or stays Pending; a `GitRepo` exists; Rancher is not Healthy
-      after 20 minutes; the bootstrap Secret is not read, and the fallback of design
-      decision 14 is then taken first. Rollback: reduce `rancher` to its marker and sync,
-      then remove its file (design decision 3); the namespaces and resources Rancher made
-      stay until Rancher's own clean-up procedure, which is read before it is run and is not
-      designed here.
+      it, and sets the server URL to the tailnet name; the operator sets
+      `fleetAgentDeploymentCustomization` on the management cluster object `local` to the
+      platform toleration and capability term and waits for the local Fleet agent to move.
+      Receipt: `rancher` Synced and Healthy with one replica and no Pending pod; every pod in
+      a `cattle-` namespace or a namespace Rancher made, listed with its node, all on
+      m1plat1, which health also reads; no shell pod; `kubectl get gitrepos,helmops -A`
+      empty; the bundles and the Helm releases in the cluster, which become the lists of
+      Rancher's own kept beside the check of slice 2.11; no `plans.upgrade.cattle.io` object
+      and no `system-upgrade-controller`; the feature flags read from Rancher's API, with
+      `continuous-delivery` and `turtles` off; the token settings at 720 minutes; one
+      Ingress, of the Tailscale operator's class, and no Service of type LoadBalancer or
+      NodePort in those namespaces; the interface answering on its tailnet name with a valid
+      certificate and on no public address; the bootstrap password refused after the first
+      login; the version shown as v2.15.3 on k3s v1.36.4+k3s1; "escrowed" for both
+      passwords, no value. Stop: a pod Rancher starts runs on another node or stays Pending;
+      a `GitRepo` or `HelmOp` exists; Rancher is not Healthy after 20 minutes; Rancher wrote
+      a bootstrap Secret of its own. Rollback: the removal order of design decision 14:
+      reduce `rancher` to its marker and sync; delete the `rancher.cattle.io` webhook
+      configurations and the `APIService` `v1.ext.cattle.io`; list what Rancher made and
+      remove its finalizers where they hold; then delete its namespaces and custom resource
+      definitions, and remove the unit's file (design decision 3). Receipt of a rollback: a
+      Namespace created and deleted, and `kubectl api-resources` with no error.
 - [ ] A28 Measure Rancher (R54), as A8 measures Argo CD. Who: operator. After 24 hours and
       one sync of another platform unit, read each container's working set and `memory.stat`
-      in the namespaces Rancher made and in `cattle-system`. Receipt: the per-container table
-      in verify.md; the limits of design decision 14 kept or changed by a commit; the
-      platform node's sum of design decision 2 written again with A1's `free -m`. Stop: a
+      in the namespaces Rancher made and in `cattle-system`, and again for Argo CD's
+      application controller and for the k3s server, which Rancher's watches load. Receipt:
+      the per-container table in verify.md, the pods without a limit marked; the limits of
+      design decision 14 kept or changed by a commit; the Argo CD controller and k3s server
+      readings beside A8's; the platform node's sum of design decision 2 written again with
+      A1's `free -m`. Stop: a
       container was killed for memory, or the node's available memory is under 1,024 MiB.
       Rollback: raise that limit in Git and sync `rancher`.
 - [ ] Harbor lands on m1plat1 by its own change, amended as design decision 9 lists, synced on
@@ -1157,8 +1234,13 @@ this change reserves is step A25, so those namespaces are not an open end.
       `fleet_ansible --limit m1plat1 playbooks/firewall.yml`, so the server admits the new
       address; preflight limited to h7obs; `fleet_ansible --limit h7obs playbooks/join.yml`
       twice; `fleet_ansible --limit m1plat1 playbooks/validate-enrollment.yml`, whose hosts
-      are the bootstrap servers. Receipt: h7obs Ready with
-      `puni.dev/capability-observability=true`, no enrollment taint. Stop: validation fails.
+      are the bootstrap servers; then a ping with do-not-fragment set at the pod MTU, 1392
+      bytes in all (`ping -M do -s 1364`), from a pod on m1plat1 to a pod on h7obs and back;
+      then `tool-fleet:health`. Receipt: h7obs Ready with
+      `puni.dev/capability-observability=true`, no enrollment taint; both pings answered and
+      one of 1393 bytes refused as too large; health passing with no Rancher pod on h7obs,
+      the first reading of that check that could fail. Stop: validation fails, a ping at
+      1392 is lost, or a Rancher pod runs on h7obs.
       Rollback: `playbooks/rollback-host.yml`, delete the Node object, delete the server.
 - [ ] A14 Bring up and measure the stack, after A7 and 3.2. Who: operator; owner for the
       values. Commands: generate the Velero repository password and put it in escrow first;
@@ -1234,7 +1316,8 @@ this change reserves is step A25, so those namespaces are not an open end.
       install, read as their restart counts before and after; a Traefik pod Ready on each and answering on ports 80 and
       443; one supervisor on each node with one pod caller's rule, the non-production one's
       naming no caller image; a pod applied by hand to a staging namespace with the
-      `product` selector, denied. Stop: Traefik cannot bind 80 or 443, that pod is
+      `product` selector, denied; `tool-fleet:health` passing with no Rancher pod on either
+      node. Stop: Traefik cannot bind 80 or 443, a Rancher pod runs on h6apps or h7obs, that pod is
       admitted, an observability pod restarted, or the sum of design decision 2 did not hold
       at the reading after A15 and the owner has not chosen an exit. Rollback: reduce
       `traefik` to its marker and sync, remove its Application file, then as A13.

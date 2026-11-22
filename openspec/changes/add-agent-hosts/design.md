@@ -159,8 +159,8 @@ Slice AH-S1 adds one play, `playbooks/base-host.yml`, for two new inventory grou
 - It turns password and keyboard-interactive login off in `sshd`, which `base` does not
   touch.
 - It joins the private access network through the `base` role (core slice 1.8) and
-  installs a firewall that drops inbound traffic except SSH on the tailnet interface; no
-  public port answers. The `network` role's firewall is written for k3s nodes and their
+  installs a firewall that drops inbound traffic except SSH from the bastion's private
+  address, since every SSH session passes the bastion (core R55); no public port answers. The `network` role's firewall is written for k3s nodes and their
   enrolled peers, so this is a small rule set of the play's own.
 - **The key check is an assert in the play**, not a static check. The authorized keys are an
   `$OPS` input, so no check over the repository can read them. Before any task changes a
