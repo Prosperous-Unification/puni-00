@@ -501,8 +501,8 @@
       `docker builder prune -af` whatever it was, and exits with the smoke's status, or non-zero
       naming the prune when the prune fails. Test: `bin/h2puni-gate.test.sh` case 49; negatives:
       the prune deleted, its status ignored, the smoke's status dropped, the prune moved above
-      the smoke, the smoke unguarded (verify.md, 2026-11-21). The host proof is the next
-      calibration series on h2puni (S27-A3).
+      the smoke, the smoke unguarded (verify.md, 2026-11-21). Host proof: series 2026-11-22b cold
+      on h2puni printed `Total: 3.735GB` after the smoke and warm1 was admitted (S27-A3).
 - [x] 6.28 a host-service container removed before its bounds were read is attributed from its
       create and die events (A-ATTR-ENDED-1): h2puni's gate calibration e1b18304 (2026-11-22) recorded
       two `unverified` verdicts, `No such container`, for the hourly one-second
@@ -515,4 +515,5 @@
       `unverified`; the job's own removed containers stay `unverified` as before. Tests:
       `containers.test.ts` (stub and real Docker), `run-records.test.ts`, `audit.test.ts`,
       `propose.test.ts`; negatives: each new check removed in turn (verify.md, 2026-11-22). The
-      host proof is the next calibration series on h2puni after the launcher refresh (S28-A2).
+      host proof: series 2026-11-22b cold on h2puni, job ad0a8150, attributed the backup container
+      from its create event with no attribution gap (verify.md, task 6.28 host proof).
