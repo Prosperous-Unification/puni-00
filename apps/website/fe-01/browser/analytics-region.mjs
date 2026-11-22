@@ -46,7 +46,7 @@ try {
             body: `<!doctype html><title>Owned regional request fixture</title><script type="module">
               import { createBrowserAnalytics } from '/controller.js';
               window.analytics = createBrowserAnalytics(window, {
-                enabled: true, environment: 'development', measurementId: 'G-R0JM3R4SSV'
+                enabled: true, environment: 'development', measurementId: 'G-1FGH62F56G'
               });
             </script>`,
           });

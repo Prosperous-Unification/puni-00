@@ -6,7 +6,7 @@ import { createBrowserAnalytics } from './browser';
 const options = {
   enabled: true,
   environment: 'development',
-  measurementId: 'G-R0JM3R4SSV',
+  measurementId: 'G-1FGH62F56G',
 } as const;
 function browser(url = 'https://dev.request.puni.dev/?email=secret@example.test#private') {
   const dom = new JSDOM('<title>secret private title</title>', {
@@ -79,7 +79,7 @@ test('one browser controller refuses incompatible configuration and cancels stal
   analytics.accept();
   const stale = window.document.scripts[0];
   analytics.reject();
-  expect(Reflect.get(window, 'ga-disable-G-R0JM3R4SSV')).toBe(true);
+  expect(Reflect.get(window, 'ga-disable-G-1FGH62F56G')).toBe(true);
   expect(queue(window)).toHaveLength(0);
   stale.dispatchEvent(new window.Event('load'));
   await Promise.resolve();
@@ -712,7 +712,7 @@ test('failed preference remains recoverable across operator navigation and expli
   expect(analytics.getChoice()).toBe('unavailable');
   expect(analytics.getState()).toEqual({ status: 'unavailable', reason: 'storage' });
   expect(window.document.scripts).toHaveLength(1);
-  expect(Reflect.get(window, 'ga-disable-G-R0JM3R4SSV')).toBe(true);
+  expect(Reflect.get(window, 'ga-disable-G-1FGH62F56G')).toBe(true);
   expect(queue(window)).toEqual([]);
   analytics.setRegion('elsewhere');
   expect(analytics.getChoice()).toBe('unavailable');

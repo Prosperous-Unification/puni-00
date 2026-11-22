@@ -221,7 +221,7 @@ for (const action of ['Allow analytics cookies', 'Disable measurement'])
     const analytics = createBrowserAnalytics(isolated.window, {
       enabled: true,
       environment: 'development',
-      measurementId: 'G-R0JM3R4SSV',
+      measurementId: 'G-1FGH62F56G',
     });
     const container = isolated.window.document.getElementById('choices');
     const request = isolated.window.document.getElementById('request');
@@ -286,7 +286,7 @@ for (const [preference, visible] of [
     const analytics = createBrowserAnalytics(isolated.window, {
       enabled: true,
       environment: 'development',
-      measurementId: 'G-R0JM3R4SSV',
+      measurementId: 'G-1FGH62F56G',
     });
     const container = isolated.window.document.body;
     const root = createRoot(container);
@@ -342,7 +342,7 @@ for (const action of ['Allow analytics cookies', 'Disable measurement'])
     const analytics = createBrowserAnalytics(isolated.window, {
       enabled: true,
       environment: 'development',
-      measurementId: 'G-R0JM3R4SSV',
+      measurementId: 'G-1FGH62F56G',
     });
     const container = isolated.window.document.body;
     const root = createRoot(container);
@@ -415,7 +415,7 @@ for (const [enabled, url] of [
     const analytics = createBrowserAnalytics(isolated.window, {
       enabled,
       environment: 'development',
-      measurementId: 'G-R0JM3R4SSV',
+      measurementId: 'G-1FGH62F56G',
     });
     const root = createRoot(isolated.window.document.body);
     try {
@@ -444,7 +444,7 @@ test('focus sync observes another host choice while vendor stays loading', () =>
   const analytics = createBrowserAnalytics(isolated.window, {
     enabled: true,
     environment: 'development',
-    measurementId: 'G-R0JM3R4SSV',
+    measurementId: 'G-1FGH62F56G',
   });
   const root = createRoot(isolated.window.document.body);
   try {
@@ -485,7 +485,7 @@ for (const action of ['Allow analytics cookies', 'Disable measurement'])
     const analytics = createBrowserAnalytics(isolated.window, {
       enabled: true,
       environment: 'development',
-      measurementId: 'G-R0JM3R4SSV',
+      measurementId: 'G-1FGH62F56G',
     });
     const root = createRoot(isolated.window.document.body);
     try {
@@ -529,7 +529,7 @@ test('regional arrival visibility updates during vendor loading while footer rej
   const analytics = createBrowserAnalytics(isolated.window, {
     enabled: true,
     environment: 'development',
-    measurementId: 'G-R0JM3R4SSV',
+    measurementId: 'G-1FGH62F56G',
   });
   const root = createRoot(isolated.window.document.body);
   try {
@@ -589,7 +589,7 @@ test('regional grant cannot hide a failed preference write and unknown remains a
   const analytics = createBrowserAnalytics(isolated.window, {
     enabled: true,
     environment: 'development',
-    measurementId: 'G-R0JM3R4SSV',
+    measurementId: 'G-1FGH62F56G',
   });
   const root = createRoot(isolated.window.document.body);
   try {
@@ -640,7 +640,7 @@ test('region notification hides arrival even after optional vendor failure', asy
   const analytics = createBrowserAnalytics(isolated.window, {
     enabled: true,
     environment: 'development',
-    measurementId: 'G-R0JM3R4SSV',
+    measurementId: 'G-1FGH62F56G',
   });
   const root = createRoot(isolated.window.document.body);
   try {
@@ -689,7 +689,7 @@ test('failed preference recovery controls return after operator navigation and a
   const analytics = createBrowserAnalytics(isolated.window, {
     enabled: true,
     environment: 'development',
-    measurementId: 'G-R0JM3R4SSV',
+    measurementId: 'G-1FGH62F56G',
   });
   const root = createRoot(isolated.window.document.body);
   try {

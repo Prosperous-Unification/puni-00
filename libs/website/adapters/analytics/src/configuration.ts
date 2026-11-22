@@ -68,13 +68,14 @@ export function configureAnalytics(
     (options.preferenceName !== undefined && options.preferenceName !== preferenceName)
   )
     throw new Error('Incompatible analytics cookie isolation');
-  // Proof: removing ID refusal admitted a wrong dev ID; separately allowing the dev ID on production
-  // failed configuration-isolates at its production refusal assertion.
+  const measurementId = configuration.measurementId;
+  // Proof: the old guard refused the new ID on dev and admitted it on production.
+  // Both failures were observed through configureAnalytics in analytics.test.ts.
   if (
-    !/^G-[A-Z0-9]{6,20}$/.test(configuration.measurementId) ||
+    !/^G-[A-Z0-9]{6,20}$/.test(measurementId) ||
     (environment === 'development'
-      ? configuration.measurementId !== 'G-R0JM3R4SSV'
-      : configuration.measurementId === 'G-R0JM3R4SSV')
+      ? measurementId !== 'G-1FGH62F56G'
+      : measurementId === 'G-1FGH62F56G' || measurementId === 'G-R0JM3R4SSV')
   )
     throw new Error('Incompatible analytics measurement ID');
   assertHost(configuration, new URL(href));

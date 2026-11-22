@@ -24,7 +24,7 @@ const tag = officialTag
   ? readFileSync(officialTag, 'utf8')
   : await (
       await globalThis.fetch(
-        'https://www.googletagmanager.com/gtag/js?id=G-R0JM3R4SSV&l=puniAnalyticsLayer',
+        'https://www.googletagmanager.com/gtag/js?id=G-1FGH62F56G&l=puniAnalyticsLayer',
       )
     ).text();
 if (tag.length < 100000) throw new Error('Official Google tag unavailable');
@@ -32,7 +32,7 @@ writeFileSync(
   `${screenshots}/tag-identity.json`,
   JSON.stringify(
     {
-      source: 'https://www.googletagmanager.com/gtag/js?id=G-R0JM3R4SSV&l=puniAnalyticsLayer',
+      source: 'https://www.googletagmanager.com/gtag/js?id=G-1FGH62F56G&l=puniAnalyticsLayer',
       runtime: 'official-google-non-debug',
       suppliedPath: officialTag ?? null,
       capturedAt: new Date().toISOString(),
@@ -245,7 +245,7 @@ async function open(
     } else if (
       url.hostname === 'www.googletagmanager.com' &&
       url.pathname === '/gtag/js' &&
-      url.searchParams.get('id') === 'G-R0JM3R4SSV'
+      url.searchParams.get('id') === 'G-1FGH62F56G'
     ) {
       loaders++;
       if (hold) await held;

@@ -4,6 +4,6 @@ import { createBrowserAnalytics } from '../../../../libs/website/adapters/analyt
 const analytics = createBrowserAnalytics(globalThis.window, {
   enabled: true,
   environment: 'development',
-  measurementId: 'G-R0JM3R4SSV',
+  measurementId: 'G-1FGH62F56G',
 });
 Reflect.set(globalThis.window, 'analyticsFixture', analytics);

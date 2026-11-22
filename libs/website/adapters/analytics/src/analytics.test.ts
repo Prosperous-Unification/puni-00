@@ -8,7 +8,7 @@ import {
 } from './analytics';
 import { configureAnalytics, resolvePage } from './configuration';
 
-const dev = { enabled: true, environment: 'development', measurementId: 'G-R0JM3R4SSV' } as const;
+const dev = { enabled: true, environment: 'development', measurementId: 'G-1FGH62F56G' } as const;
 const href = 'https://dev.request.puni.dev/?email=secret@example.test#private';
 function fixture(initialLocation = href, initialPreference: string | null = null) {
   let preference: string | null = initialPreference;
@@ -264,6 +264,24 @@ test('lead receipts stay in consented local markers and mark only successful ven
   expect(again.dispatchLead('another-receipt', lead)).toBe('unavailable');
   f.analytics.reject();
   expect(f.markers.size).toBe(0);
+});
+
+test('development initializes only the dedicated dev property', () => {
+  for (const host of ['https://dev.puni.dev/', 'https://dev.request.puni.dev/']) {
+    expect(configureAnalytics({ ...dev, measurementId: 'G-1FGH62F56G' }, host).measurementId).toBe(
+      'G-1FGH62F56G',
+    );
+    expect(() => configureAnalytics({ ...dev, measurementId: 'G-R0JM3R4SSV' }, host)).toThrow(
+      'Incompatible analytics measurement ID',
+    );
+  }
+});
+
+test('production refuses current and retired development identities', () => {
+  for (const measurementId of ['G-1FGH62F56G', 'G-R0JM3R4SSV'])
+    expect(() =>
+      configureAnalytics({ ...dev, environment: 'production', measurementId }, 'https://puni.dev/'),
+    ).toThrow('Incompatible analytics measurement ID');
 });
 
 test('configuration isolates environments and refuses wrong hosts, IDs, cookie domains and prefixes', () => {
@@ -888,7 +906,7 @@ test('failed preference restores storage recovery after leaving and returning to
 for (const [environment, measurementId, hosts, refused] of [
   [
     'development',
-    'G-R0JM3R4SSV',
+    'G-1FGH62F56G',
     ['dev.puni.dev', 'dev.request.puni.dev'],
     ['dev.app.puni.dev', 'app.puni.dev', 'puni.dev', 'request.puni.dev', 'unknown.puni.dev'],
   ],

@@ -9,7 +9,7 @@ For example, start these commands from the repository root, using separate termi
 ```sh
 WEBSITE_API_PORT=32861 APP_ORIGIN=https://dev.request.puni.dev PUBLIC_ORIGIN=https://dev.puni.dev WEBSITE_DATABASE_PATH=/tmp/puni-analytics.sqlite bun apps/website/fe-01/browser/conversation-api.mjs
 
-VITE_ANALYTICS_ENABLED=true VITE_ANALYTICS_ENVIRONMENT=development VITE_ANALYTICS_MEASUREMENT_ID=G-R0JM3R4SSV VITE_API_ORIGIN=https://dev.puni.dev/api VITE_SITE_ORIGIN=https://dev.puni.dev bunx vite build --config apps/website/fe-01/vite.config.ts
+VITE_ANALYTICS_ENABLED=true VITE_ANALYTICS_ENVIRONMENT=development VITE_ANALYTICS_MEASUREMENT_ID=G-1FGH62F56G VITE_API_ORIGIN=https://dev.puni.dev/api VITE_SITE_ORIGIN=https://dev.puni.dev bunx vite build --config apps/website/fe-01/vite.config.ts
 
 bunx vite preview --config apps/website/fe-01/vite.config.ts --host 127.0.0.1 --port 42861
 
