@@ -999,6 +999,91 @@ Each of these faults failed a test:
 The next AWS death's journal and network sections either show the host-side trigger or show
 nothing before the link dies. Neither outcome changes the lever order.
 
+### Amendment, 2026-11-22 (third): refuse AWS hosts for the tool-fleet leaf and requeue
+
+The second amendment's first lever is now in place, as assumption **A-CI-LEAF-AWS-1**, for Dany to
+confirm. It does not explain the fault. It stops the fault from costing about 68 minutes of red
+main per AWS draw.
+
+**Refusal.** Both copies of the shared step check the start record's cloud right after writing
+it. On `partition=heavy-tool-fleet` with `cloud=aws` the step does four things before the sampler,
+the recorder or the gate scope starts. It writes the refusal line to `nx-gate.log` and stderr,
+`aws_refused=true` to the step outputs, a line to the job summary and `aws-refused.txt` to the
+workspace. Then it exits 78. The gate-log upload still carries `nx-gate.log`. A new
+`if: always()` upload, gated on `aws_refused == 'true'`, publishes the marker artifact
+`aws-refused-heavy-tool-fleet-attempt-${{ github.run_attempt }}`. Every other partition runs
+unchanged, and so does the leaf on `cloud=azure`, `cloud=other:*` or `cloud=unavailable`. An
+unreadable DMI file proves nothing about the host, so it must not refuse.
+
+**Requeue.** A new job, `requeue tool-fleet leaf`, needs `gate_heavy` and runs when that job
+failed on attempt 1, 2 or 3. It is the only job in `ci.yml` with `actions: write`, and it is
+`continue-on-error`, so its own failure is visible but changes no verdict. It lists this run's
+artifacts by the marker's name and goes on only if this attempt's marker exists, so an ordinary
+failure is never rerun automatically. A fork pull request's token cannot requeue, so that case
+logs a line and stops.
+
+The brief asked this job to run `gh run rerun --failed` itself. This change makes an assumption
+instead, **A-CI-LEAF-AWS-2**, which is unverified: a run cannot rerun its own failed jobs while
+one of its jobs, this one, is still running. GitHub's re-run documentation describes re-runs of
+finished runs only. So the job dispatches `ci-requeue.yml` with the run id and attempt. That
+workflow checks the inputs and the marker again. It then polls the run every 20 s, for at most 15
+minutes, until it completes, and runs `gh run rerun <run> --failed`. It prints
+`A-CI-LEAF-AWS-1: requeued attempt N+1 after an AWS refusal`. It stops without rerunning if the
+run has already moved to another attempt. The rerun includes the requeue job, a dependent of the
+failed leaf, so the chain carries itself to attempt 4 and no further. `--failed` also reruns any
+other failed job of the same attempt.
+
+`gate` keeps failing every refused attempt: `Require every gate shard` neither waits on nor reads
+the requeue. Main stays red until an attempt draws Azure.
+
+**Arithmetic.** About two thirds of today's runners were AWS. The chance that all four attempts
+draw AWS is 0.67^4 ≈ 0.20, so about 80% of runs reach an Azure leaf within four attempts. The
+expected number of attempts is 1 + 0.67 + 0.45 + 0.30 ≈ 2.4, or about 1.4 reruns. A refused
+attempt costs the job's setup, about 1 to 2 minutes of runner time, plus the requeue job and the
+waiter, instead of a 68-minute loss. The other 20% end red after four attempts, with four refusal
+lines and no lost runner. The figure is only as good as the two-thirds share.
+
+**Proof plan.** On the next main runs:
+
+- refused attempts show `aws_refused=true`, the refusal line in the uploaded `nx-gate.log` and the
+  marker artifact;
+- the requeue job logs a dispatch and `ci-requeue` logs `requeued attempt N+1`;
+- a requeued attempt on Azure finishes the leaf in 31 to 40 minutes;
+- no `tool-fleet` leaf is lost after 67 minutes any more.
+
+A loss after this change on `cloud=azure` would refute the "AWS only" reading.
+
+`pr-merge-base.test.ts` runs the production step on an `Amazon EC2` DMI fixture: exit 78, the
+refusal line after the start record, `aws_refused=true`, the summary line and the marker file, no
+sample, no recorder, no gate scope and no runtime call. Azure, another vendor, an absent or
+unreadable vendor, another heavy leaf on AWS and the workspace shard on AWS all run their phase.
+`gate-workflow.test.ts` pins the requeue job's condition, permissions and marker upload. It also
+runs both requeue scripts against a fake `gh`. Each of these faults failed a test:
+
+- deleting `exit 78` or the output line;
+- dropping the partition check;
+- refusing every cloud but Azure, or also `cloud=unavailable`;
+- changing one step copy alone;
+- dropping `< 4`, adding `actions: write` to `gate_heavy`, or making `gate` need the requeue;
+- dropping `always()` from the marker upload;
+- skipping either marker check or the fork guard;
+- widening the attempt bound, admitting any run id, or skipping the completion wait, the
+  moved-attempt check or the poll bound;
+- dropping `--failed`.
+
+**What stays unexplained.** The AWS host-side fault itself. A refused leaf never starts the
+recorder, so from now on no AWS host carries the #963 journal and network sections. Those
+sections were the evidence that could show the trigger. Other leaves on AWS keep their
+`nx-gate.log` samples but have no recorder. Seeing the fault again needs the recorder on another
+leaf that runs long on AWS, or a deliberate AWS run of this leaf.
+
+**Structural options for Dany.** The requeue is a workaround that depends on GitHub's host mix.
+Options that remove the dependence:
+
+- a runner label that avoids the AWS pool, if GitHub offers one;
+- larger runners, whose pool and host type differ;
+- running `tool-fleet`'s tests on the gate hosts and dropping the hosted leaf.
+
 ## A race measured in one shape can lose in another
 
 **R5-33**, observed 2026-11-22 on h2puni (gate calibration e1b18304). Dash's container watch

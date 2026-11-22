@@ -560,7 +560,9 @@ exec '${process.execPath}' "$@"
   const calls = join(h.root, 'calls');
   const scopeCalls = join(h.root, 'scope-calls');
   const ghCalls = join(h.root, 'gh-calls');
+  const summary = join(h.root, 'step-summary');
   mkdirSync(ghCalls);
+  writeFileSync(summary, '');
   writeFileSync(output, '');
   writeFileSync(calls, '');
   writeFileSync(scopeCalls, '');
@@ -570,6 +572,7 @@ exec '${process.execPath}' "$@"
       ...process.env,
       ...h.env,
       GITHUB_OUTPUT: output,
+      GITHUB_STEP_SUMMARY: summary,
       NX_CALLS: calls,
       SCOPE_CALLS: scopeCalls,
       GH_CALLS: ghCalls,
@@ -597,6 +600,7 @@ exec '${process.execPath}' "$@"
   return {
     invocation,
     output: Bun.file(output),
+    summary: Bun.file(summary),
     calls: Bun.file(calls),
     scopeCalls: Bun.file(scopeCalls),
     ghCalls: () => readGhCalls(ghCalls),
@@ -1144,14 +1148,115 @@ test.each(headroomShards)("%s step's start record names the host's cloud", async
       { GATE_MODE: 'affected', GATE_BASE: h.base },
       { dmi },
     );
+    // The tool-fleet leaf writes its start record, then refuses an AWS host (A-CI-LEAF-AWS-1).
     expect(
       execution.invocation.exitCode,
       `${label}: ${execution.invocation.stderr.toString()}`,
-    ).toBe(0);
+    ).toBe(job === 'gate_heavy' && label === 'aws' ? 78 : 0);
     const { lines, at } = headroomLog(await Bun.file(join(h.root, 'nx-gate.log')).text());
     expect(lines[at('runtime headroom start ')], label).toMatch(
       new RegExp(` scope=ci-gate-\\S+\\.scope ${expected.replaceAll('.', '\\.')}$`),
     );
+  }
+});
+
+const awsRefusal =
+  'A-CI-LEAF-AWS-1: AWS-hosted runner refused for the tool-fleet leaf (the leaf dies about 20 minutes into its phase on AWS hosts, R5-32); requeue';
+const awsHost = { sys_vendor: 'Amazon EC2', product_name: 'm7a.xlarge' };
+
+// A-CI-LEAF-AWS-1 (R5-32): on the start record's `cloud=aws` the tool-fleet leaf refuses with exit 78
+// before the sampler, the recorder or the gate scope, and leaves the refusal line, the step output
+// and the marker file the requeue job reads.
+// Proof (2026-11-22): deleting `exit 78` let the leaf reach ci-run-runtime.ts and failed this test
+// and the aws case of `names the host's cloud`; deleting the `aws_refused=true` output failed this
+// test; changing the exit in one step copy alone failed the byte-equality test.
+test('the heavy leaf step refuses an AWS-hosted runner for the tool-fleet leaf', async () => {
+  const h = history();
+  const execution = runStep(
+    h,
+    step('gate_heavy', 'Heavy leaf — test, lint, typecheck, build'),
+    { GATE_MODE: 'affected', GATE_BASE: h.base },
+    { dmi: awsHost },
+  );
+  expect(execution.invocation.exitCode, execution.invocation.stderr.toString()).toBe(78);
+  expect(execution.invocation.stderr.toString()).toContain(`${awsRefusal}\n`);
+  const { lines, at } = headroomLog(await Bun.file(join(h.root, 'nx-gate.log')).text());
+  expect(lines[at('runtime headroom start ')]).toEndWith(' cloud=aws dmiProduct=m7a.xlarge');
+  expect(at(awsRefusal)).toBeGreaterThan(at('runtime headroom start '));
+  expect(at('runtime headroom sample '), lines.join('\n')).toBe(-1);
+  expect(at('runtime recorder '), lines.join('\n')).toBe(-1);
+  expect(at('runtime phase end '), lines.join('\n')).toBe(-1);
+  expect(await execution.output.text()).toBe('aws_refused=true\n');
+  expect(await execution.summary.text()).toBe(`${awsRefusal}\n`);
+  expect(readFileSync(join(h.root, 'aws-refused.txt'), 'utf8')).toBe(`${awsRefusal}\n`);
+  expect(await execution.calls.text()).not.toContain('ci-run-runtime.ts');
+  // Only the probe scope opened: the gate scope never started.
+  const scopes = (await execution.scopeCalls.text())
+    .split('\n')
+    .filter((line) => line.startsWith('systemd-run '));
+  expect(scopes).toHaveLength(1);
+  expect(scopes[0]).toMatch(/ --unit=ci-gate-heavy-tool-fleet-[0-9]+-probe /);
+  expect(execution.ghCalls()).toEqual([]);
+});
+
+// A-CI-LEAF-AWS-1: Azure, another vendor and an unavailable cloud run the tool-fleet leaf, and every
+// other partition runs on AWS. `cloud=unavailable` proves nothing about the host, so it must not refuse.
+// Proof (2026-11-22): dropping the partition check refused the workspace shard and the other heavy
+// leaf on AWS; refusing every cloud but azure, or also `cloud=unavailable`, refused the
+// unavailable case; each failed this test.
+test('the AWS refusal leaves other clouds and other partitions unchanged', async () => {
+  const heavy = step('gate_heavy', 'Heavy leaf — test, lint, typecheck, build');
+  const workspace = step('gate_workspace', 'Gate — test, lint, typecheck, build');
+  const cases: [string, string, Record<string, string>, ScopeFixture['dmi'], string][] = [
+    ['the tool-fleet leaf on azure', heavy, {}, {}, 'heavy-tool-fleet'],
+    [
+      'the tool-fleet leaf on another vendor',
+      heavy,
+      {},
+      { sys_vendor: 'QEMU' },
+      'heavy-tool-fleet',
+    ],
+    [
+      'the tool-fleet leaf with an unavailable cloud',
+      heavy,
+      {},
+      { sys_vendor: null },
+      'heavy-tool-fleet',
+    ],
+    [
+      'the tool-fleet leaf with an unreadable vendor',
+      heavy,
+      {},
+      { sys_vendor: 'unreadable' },
+      'heavy-tool-fleet',
+    ],
+    [
+      'another heavy leaf on aws',
+      heavy,
+      { RUNTIME_PARTITION: 'heavy-wbs-core' },
+      awsHost,
+      'heavy-wbs-core',
+    ],
+    ['the workspace shard on aws', workspace, {}, awsHost, 'workspace'],
+  ];
+  for (const [label, script, env, dmi, partition] of cases) {
+    const h = history();
+    const execution = runStep(
+      h,
+      script,
+      { GATE_MODE: 'affected', GATE_BASE: h.base, ...env },
+      { dmi },
+    );
+    expect(
+      execution.invocation.exitCode,
+      `${label}: ${execution.invocation.stderr.toString()}`,
+    ).toBe(0);
+    expect(await execution.calls.text(), label).toContain(`ci-run-runtime.ts ${partition} `);
+    expect(await execution.output.text(), label).not.toContain('aws_refused');
+    expect(await Bun.file(join(h.root, 'nx-gate.log')).text(), label).not.toContain(
+      'A-CI-LEAF-AWS-1',
+    );
+    expect(existsSync(join(h.root, 'aws-refused.txt')), label).toBe(false);
   }
 });
 
