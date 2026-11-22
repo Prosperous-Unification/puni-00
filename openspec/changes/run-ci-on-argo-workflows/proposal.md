@@ -33,8 +33,9 @@ This change is the fourth of four that together are the new setup plan, beside
 No second tenant, no Kueue, no autoscaled or second-provider nodes, no limits adjusted from
 measurements, no submission through the `puni-user-platform`: each is a seam and a
 follow-up. No port of the gate to Dagger. No change to the pull-request checks on the
-provider's hosted runners, to `dash-host-jobs`, to the gate documents or to the release
-scripts. No host or cluster changes.
+provider's hosted runners, to `dash-host-jobs` or to the release scripts; the gate
+documents are rewritten with their owner only after a gate has passed here. No host or
+cluster changes.
 
 ## Constraints
 

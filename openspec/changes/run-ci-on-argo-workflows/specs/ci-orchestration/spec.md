@@ -64,7 +64,8 @@ Applications SHALL have automated sync off.
 
 The CI cluster SHALL accept no inbound traffic from the internet. Its tree SHALL hold no
 Ingress, IngressRoute or Service of type LoadBalancer or NodePort other than an Ingress of
-the Tailscale operator's class, and no EventSource of a type other than `calendar`. The
+the Tailscale operator's class, and no EventSource of a type other than `calendar` and
+`resource`, neither of which listens on a network. The
 Argo Workflows server and the cluster's API SHALL be reachable over the private access
 network only.
 
@@ -81,9 +82,8 @@ network only.
 ### Requirement: Only a push to main starts a job by itself
 
 A trigger workflow file SHALL start on `push` to `main` and on a manual dispatch on `main`
-and on no other event. The identity it joins the private access network with SHALL be
-bound to a Role that may create, get, list and watch Workflows in the tenant's namespace
-and nothing else. A `staging-build` SHALL fail unless its `sha` is on `main`.
+and on no other event. The key it joins the private access network with SHALL be a secret
+of an environment whose deployment branch rule admits `main` only.
 
 #### Scenario: Pull request
 
@@ -95,11 +95,30 @@ and nothing else. A `staging-build` SHALL fail unless its `sha` is on `main`.
 - **WHEN** a commit is pushed to a ref other than `refs/heads/main`
 - **THEN** no Workflow starts
 
+#### Scenario: Workflow on a branch asks for the key
+
+- **WHEN** a workflow on a ref other than `main`, from a fork or from a branch of the
+  repository, names the trigger's environment
+- **THEN** the provider refuses it the environment and no device joins the network
+
 #### Scenario: Trigger file with another event
 
 - **WHEN** a trigger workflow file names `pull_request_target`
 - **THEN** the lint in `gate` fails, because the rule allows `push` to `main` and a manual
   dispatch on `main` and refuses the rest
+
+### Requirement: The trigger identity starts staging builds only
+
+The trigger identity SHALL be bound to a Role that may create, get, list and watch
+Workflows in the tenant's ordinary namespace and nothing else, and SHALL have no binding in
+a `-build` namespace. A `staging-build` SHALL fail unless its `sha` is on `main`. A gate
+SHALL be started only by an operator identity or by the tenant's schedule.
+
+#### Scenario: Trigger identity asks for a gate
+
+- **WHEN** a device tagged `tag:ci-trigger` creates a Workflow in the tenant's `-build`
+  namespace
+- **THEN** the API refuses it
 
 #### Scenario: Trigger identity asking for more
 

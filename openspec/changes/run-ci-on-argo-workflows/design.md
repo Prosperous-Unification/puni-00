@@ -47,22 +47,22 @@ Read in source on 2026-11-22, at `origin/main` `b17861f83`:
 
 Numbered so that the owner can overrule by id. "Decided" marks his own words.
 
-| Id   | Assumption or decision                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | Alternative and its cost                                                                                                           |
-| ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| CI1  | **Decided.** The owner on 2026-11-22: "i want a self-hosted tool that will help orchestrate the CI so that i don't need to build one"; then, after "let's keep in mind that all this has to be multitenant", "ok let's replan for argo workflows and argo events". Argo Workflows runs jobs, Argo Events triggers them, and Dagger defines what a new job does ("ok let's plan for dagger + …")                                                                                                                                                                                                                               | See the decision record                                                                                                            |
-| CI2  | **Decided.** Asked whether the orchestrator alone admits jobs or the Dash host pool stays underneath, he chose the orchestrator ("ok let's go for the woodpecker", said of the tool then planned, and carried over when he replanned). The new CI capacity is not enrolled in the pool and is not calibrated by it. The old gate hosts keep the pool until they are retired                                                                                                                                                                                                                                                   | The pool under the orchestrator. Cost: two schedulers, and a calibration of three five-hour gates per host                         |
-| CI3  | **Decided.** His principle: "i want to reuse as much software as possible, however it all has to be dynamic/configurable and be orchestrated with the puni user platform (wbs is core of it now)", and "all that must be orchestratable by the puni user platform, must be multitenant". He agreed to the layering: the `puni-user-platform` decides, the orchestrator triggers and runs, Dagger defines a job, Kubernetes enforces limits, Prometheus measures, and a small adapter, what is left of Dash, connects the platform and the orchestrator                                                                        | none weighed                                                                                                                       |
-| CI4  | This change builds phase 1 only: static limits written by hand, one tenant. Phases 2 to 5 are seams and follow-ups (decision 7). He asked about autoscaling and a second provider ("maybe we can connect the AWS to provide additional scale?") and did not ask to start there                                                                                                                                                                                                                                                                                                                                                | Start elastic. Cost: a provider with an API and hourly billing is then a precondition of CI at all                                 |
-| CI5  | CI runs on a cluster of its own: a single-node k3s on the CI server, of a new fleet purpose `ci`. It is not the production cluster                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | A node of the platform cluster. Cost: branch code under the control plane that holds the secret store, and a gate's load beside it |
-| CI6  | The platform cluster's Argo CD delivers the CI cluster as a second destination, in a project of its own, synced on command. The CI cluster holds no credential for the platform cluster                                                                                                                                                                                                                                                                                                                                                                                                                                       | An Argo CD on the CI cluster. Cost: about 1.5 GiB on a node that a gate fills, and a delivery tool that branch code can reach      |
-| CI7  | The pull-request checks of the public repository stay on the provider's hosted runners. The owner did not object when this was stated                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | Move them. Cost: outside pull requests would need a way onto the CI cluster                                                        |
-| CI8  | Host maintenance sweeps stay systemd timers installed by Ansible. They are not workflows                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | Workflows. Cost: a job with host access that stops when the orchestrator does                                                      |
-| CI9  | The gate keeps its script and runs it inside a workflow pod with a Docker daemon beside it. Its port to Dagger is a follow-up. The staging build is a Dagger module from the start, beside `tools/tool-dagger`                                                                                                                                                                                                                                                                                                                                                                                                                | Port the gate first. Cost: stage 2 waits for a rewrite of the gate                                                                 |
-| CI10 | One tenant, `puni`, is built, in the shape decision 4 gives every tenant. On one node its privileged pods make the node one trust zone; a second tenant needs nodes of its own first                                                                                                                                                                                                                                                                                                                                                                                                                                          | A shared engine for all tenants. Cost: one tenant's build reads another's cache and can take the node                              |
-| CI11 | No public path. Assumed for the owner on 2026-11-22 while he was away, on the planning session's earlier recommendation, which he had not answered; it follows his words "i want to use tailscale to safely access the services that run the platform without exposing them to the internet" (core R47, R51). A push to `main` starts a small job on the provider's hosted runner, which joins the private access network for the length of the job and submits the Workflow through the CI cluster's API server proxy. The Argo Workflows server, the cluster's API and SSH are reached over that network (core decision 12) | A signed webhook on one public path. Cost: one public endpoint, with an ingress and a certificate issuer on the CI cluster         |
-| CI12 | Assumed for the owner on 2026-11-22: a result is written to GitHub in phase 1, as a commit status by a GitHub App that may write statuses and nothing else, under a context no required check uses                                                                                                                                                                                                                                                                                                                                                                                                                            | No status. Cost: a failed nightly gate is seen only in the interface and the alert channel                                         |
-| CI13 | Assumed for the owner on 2026-11-22 (core R50): the CI server is 12 vCPUs and 24 GiB. He had said "CI let's start at" the 8 vCPU and 16 GiB class; on the sizes of decision 5, most of them assumed, one gate does not fit that class beside the cluster's own pods                                                                                                                                                                                                                                                                                                                                                           | 8 vCPUs and 16 GiB with a lower limit for the gate. Cost: the limit would be under the gate's measured use                         |
-| CI14 | Workflow history is kept in the cluster for a bounded time and logs in object storage. No database is added for an archive                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | The workflow archive. Cost: a PostgreSQL the CI cluster does not have; it is the step once `platform-db` exists                    |
+| Id   | Assumption or decision                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | Alternative and its cost                                                                                                           |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| CI1  | **Decided.** On 2026-11-22 the owner asked for a self-hosted tool that orchestrates CI so that he does not have to build one, required that all of it be multitenant, and chose Argo Workflows and Argo Events. Argo Workflows runs jobs, Argo Events triggers them, and Dagger defines what a new job does                                                                                                                                                                                                                                                         | See the decision record                                                                                                            |
+| CI2  | **Decided.** Asked whether the orchestrator alone admits jobs or the Dash host pool stays underneath, he chose the orchestrator (decided for the tool then planned, and carried over when he replanned). The new CI capacity is not enrolled in the pool and is not calibrated by it. The old gate hosts keep the pool until they are retired                                                                                                                                                                                                                       | The pool under the orchestrator. Cost: two schedulers, and a calibration of three five-hour gates per host                         |
+| CI3  | **Decided.** His principle: reuse as much existing software as possible, keep all of it dynamic and configurable, and have it orchestrated by the `puni-user-platform` and multitenant. He agreed to the layering: the `puni-user-platform` decides, the orchestrator triggers and runs, Dagger defines a job, Kubernetes enforces limits, Prometheus measures, and a small adapter, what is left of Dash, connects the platform and the orchestrator                                                                                                               | none weighed                                                                                                                       |
+| CI4  | This change builds phase 1 only: static limits written by hand, one tenant. Phases 2 to 5 are seams and follow-ups (decision 7). He asked about autoscaling and a second provider and did not ask to start there                                                                                                                                                                                                                                                                                                                                                    | Start elastic. Cost: a provider with an API and hourly billing is then a precondition of CI at all                                 |
+| CI5  | CI runs on a cluster of its own: a single-node k3s on the CI server, of a new fleet purpose `ci`. It is not the production cluster                                                                                                                                                                                                                                                                                                                                                                                                                                  | A node of the platform cluster. Cost: branch code under the control plane that holds the secret store, and a gate's load beside it |
+| CI6  | The platform cluster's Argo CD delivers the CI cluster as a second destination, in a project of its own, synced on command. The CI cluster holds no credential for the platform cluster                                                                                                                                                                                                                                                                                                                                                                             | An Argo CD on the CI cluster. Cost: about 1.5 GiB on a node that a gate fills, and a delivery tool that branch code can reach      |
+| CI7  | The pull-request checks of the public repository stay on the provider's hosted runners. The owner did not object when this was stated                                                                                                                                                                                                                                                                                                                                                                                                                               | Move them. Cost: outside pull requests would need a way onto the CI cluster                                                        |
+| CI8  | Host maintenance sweeps stay systemd timers installed by Ansible. They are not workflows                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | Workflows. Cost: a job with host access that stops when the orchestrator does                                                      |
+| CI9  | The gate keeps its script and runs it inside a workflow pod with a Docker daemon beside it. Its port to Dagger is a follow-up. The staging build is a Dagger module from the start, beside `tools/tool-dagger`                                                                                                                                                                                                                                                                                                                                                      | Port the gate first. Cost: stage 2 waits for a rewrite of the gate                                                                 |
+| CI10 | One tenant, `puni`, is built, in the shape decision 4 gives every tenant. On one node its privileged pods make the node one trust zone; a second tenant needs nodes of its own first                                                                                                                                                                                                                                                                                                                                                                                | A shared engine for all tenants. Cost: one tenant's build reads another's cache and can take the node                              |
+| CI11 | No public path. Assumed for the owner on 2026-11-22 while he was away, on the planning session's earlier recommendation, which he had not answered; it follows his decision that platform services are not exposed to the internet (core R47, R51). A push to `main` starts a small job on the provider's hosted runner, which joins the private access network for the length of the job and submits the Workflow through the CI cluster's API server proxy. The Argo Workflows server, the cluster's API and SSH are reached over that network (core decision 12) | A signed webhook on one public path. Cost: one public endpoint, with an ingress and a certificate issuer on the CI cluster         |
+| CI12 | Assumed for the owner on 2026-11-22: a result is written to GitHub in phase 1, as a commit status by a GitHub App that may write statuses and nothing else, under a context no required check uses                                                                                                                                                                                                                                                                                                                                                                  | No status. Cost: a failed nightly gate is seen only in the interface and the alert channel                                         |
+| CI13 | Assumed for the owner on 2026-11-22 (core R50): the CI server is 12 vCPUs and 24 GiB. He had chosen to start at the 8 vCPU and 16 GiB class; on the sizes of decision 5, most of them assumed, one gate does not fit that class beside the cluster's own pods                                                                                                                                                                                                                                                                                                       | 8 vCPUs and 16 GiB with a lower limit for the gate. Cost: the limit would be under the gate's measured use                         |
+| CI14 | Workflow history is kept in the cluster for a bounded time and logs in object storage. No database is added for an archive                                                                                                                                                                                                                                                                                                                                                                                                                                          | The workflow archive. Cost: a PostgreSQL the CI cluster does not have; it is the step once `platform-db` exists                    |
 
 ## Decisions
 
@@ -80,7 +80,9 @@ workers server free of execution exists so that one server and one agent cannot 
 execution floor of two, and a CI cluster declares no such floor. A `ci` cluster may not
 require or carry a platform capability or `execution`, and no other purpose may carry `ci`.
 The cluster id is `ci-production`, with `controlPlane: single`. The server is `h8ci`, the one
-the core change creates in A9.
+the core change creates in A9. Its entry in `desired.yaml` and its inventory, with the host
+in the bootstrap servers' group and in no gate group, are written by slice CI-S2 after A9
+has created the server, so no step waits for an identity that does not exist yet.
 
 **Bootstrap.** The existing server bootstrap runs with the new cluster id; the bundled
 Traefik, load balancer and metrics server stay off, as on every cluster here, and no
@@ -92,7 +94,10 @@ credential between the two clusters, and it points from the platform to the CI c
 the other direction there is none: the CI cluster's pods read OpenBao through a JWT mount
 that trusts this cluster's service-account issuer by a pinned key, the arrangement pull
 request #935 designs for workers clusters, so no token for the platform side is stored on
-the CI side.
+the CI side. Both paths run on the provider's private network and not on the tailnet: Argo
+CD reaches this cluster's API on the server's private address, admitted from the platform
+node only, and this cluster's External Secrets Operator reaches the store's private
+listener, admitted from this server only (core decision 12).
 
 **Delivery.** A tree `infra/argocd/ci`, beside the platform tree and under the same rules
 (R21). An AppProject `ci` whose only destination is the CI cluster and whose sources are
@@ -103,15 +108,15 @@ project names the in-cluster destination only, and an Application of project `ci
 CI cluster only. So a merge cannot point a staging or platform unit at the CI cluster, nor
 a CI unit at the platform.
 
-| Order | Unit                    | Needs                                                  | Holds                                                                                                                                                                                       |
-| ----- | ----------------------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| C0    | `ci-namespaces`         | none; the play applied them                            | every namespace of this cluster with its Pod Security level                                                                                                                                 |
-| C1    | `ci-policy`             | `ci-namespaces`                                        | default-deny NetworkPolicies, quotas and limit ranges, the admission rules of decision 3                                                                                                    |
-| C2    | `ci-tailscale-operator` | `ci-namespaces`; its OAuth client Secret from the play | the Tailscale operator, the API server proxy in `auth` mode, and the Argo Workflows server's tailnet name (decision 2; core decision 12)                                                    |
-| C4    | `ci-external-secrets`   | `ci-policy`                                            | the operator; one SecretStore per tenant namespace                                                                                                                                          |
-| C6    | `argo-workflows`        | `ci-policy`                                            | controller, server, CRDs, the controller ConfigMap                                                                                                                                          |
-| C7    | `argo-events`           | `ci-policy`                                            | controller and CRDs                                                                                                                                                                         |
-| C8    | `ci-puni`               | C2, C4, C6, C7                                         | the tenant: its build engine and cache claim, EventBus, a calendar EventSource and its Sensor, WorkflowTemplates, limits, ServiceAccounts, and the Role its trigger identities are bound to |
+| Order | Unit                    | Needs                                                  | Holds                                                                                                                                                                                                                                              |
+| ----- | ----------------------- | ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| C0    | `ci-namespaces`         | none; the play applied them                            | every namespace of this cluster with its Pod Security level                                                                                                                                                                                        |
+| C1    | `ci-policy`             | `ci-namespaces`                                        | default-deny NetworkPolicies, quotas and limit ranges, the admission rules of decision 3                                                                                                                                                           |
+| C2    | `ci-tailscale-operator` | `ci-namespaces`; its OAuth client Secret from the play | the Tailscale operator, the API server proxy in `auth` mode, and the Argo Workflows server's tailnet name (decision 2; core decision 12)                                                                                                           |
+| C4    | `ci-external-secrets`   | `ci-policy`                                            | the operator; one SecretStore per tenant namespace                                                                                                                                                                                                 |
+| C6    | `argo-workflows`        | `ci-policy`                                            | controller, server, CRDs, the controller ConfigMap                                                                                                                                                                                                 |
+| C7    | `argo-events`           | `ci-policy`                                            | controller and CRDs                                                                                                                                                                                                                                |
+| C8    | `ci-puni`               | C2, C4, C6, C7                                         | the tenant, in two revisions: for gates (CI-A3), then the staging build's part (CI-A5). Its build engine and cache claim, EventBus, a calendar and a resource EventSource with their Sensors, WorkflowTemplates, limits, ServiceAccounts and Roles |
 
 Argo Workflows is installed from its release manifest, which since 4.0 carries full CRDs
 that must be applied server-side, and Argo Events from its release manifest; the engine from
@@ -126,28 +131,32 @@ default class for scratch.
 ### 2. Triggers, with no public path
 
 **From a merge.** A workflow file in each repository the tenant builds, on the provider's
-hosted runner, started by `push` to `main` and by nothing else. Its one job joins the
+hosted runner, started by `push` to `main` or by a manual dispatch on `main`. Its one job joins the
 private access network with the vendor's GitHub Action as an ephemeral device tagged
 `tag:ci-trigger`, creates one Workflow object through the CI cluster's API server proxy,
 and leaves; the coordination service removes an ephemeral device when it logs out. The
 policy grants that tag the proxy and nothing else (core decision 12). The proxy runs in
 `auth` mode: it impersonates the caller as its device name with its tags as Kubernetes
-groups, so the group `tag:ci-trigger` is bound to a Role in the tenant's namespace that may
-create Workflows and read them. No Kubernetes token and no kubeconfig secret is stored with
+groups, so the group `tag:ci-trigger` is bound to a Role in the tenant's ordinary namespace
+that may create Workflows and read them. That namespace holds the `staging-build` template
+and not the gate's, and the identity has no binding in the `-build` namespace, so it cannot
+start a gate (decision 3). No Kubernetes token and no kubeconfig secret is stored with
 the provider.
 
 **What the job holds, and what it reaches if it leaks.** The vendor recommends a federated
 identity for this Action, with no stored secret. Under Tailnet Lock a device joins only
 with a signed key, and a key minted per job cannot be signed beforehand, so the job uses a
-tagged, reusable, ephemeral auth key that the owner signs once and stores as a secret of
-the repository; it expires after at most 90 days and CI-A3 renews it. Whether federation
-works under Tailnet Lock was not found in the documentation. Whoever holds that key can
-join the tailnet as `tag:ci-trigger` and do what the Role allows: start the tenant's
-templates with chosen parameters, and read its Workflows. They cannot read a Secret, reach
-a server, the platform cluster or any other Service, nor change a template. A workflow file
-in a pull request from a fork gets no secret; one from a branch of the repository could
-read it, which is why the `build` template refuses a `sha` that is not on `main` and the
-gate holds no secret (decision 3).
+tagged, reusable, ephemeral auth key that the owner signs once; it expires after at most 90
+days and CI-A3 renews it. Whether federation works under Tailnet Lock was not found in the
+documentation. The key is not a secret of the repository. It is a secret of a GitHub
+environment in each repository, `staging-trigger`, whose deployment branch rule admits
+`main` only, and the trigger job names that environment. A workflow on another ref, whether
+from a fork or from a branch of the repository itself, is refused the environment and so
+never holds the key. CI-A3 reads the rule back and CI-A5 tests the refusal. Whoever holds
+the key all the same can join the tailnet as `tag:ci-trigger` and do what its Role allows:
+start a `staging-build` with chosen parameters, which fails unless its `sha` is on `main`,
+and read the Workflows of that namespace. They cannot start a gate, read a Secret, reach a
+server, the platform cluster or any other Service, nor change a template.
 
 **What an event may start.** The job submits a Workflow that references a WorkflowTemplate
 and passes the commit and the changed app as parameters. The workflow file has no trigger
@@ -158,7 +167,9 @@ trigger their owner adds.
 **By hand and by agents.** `kubectl create` of a Workflow that references a template, or
 `argo submit --from workflowtemplate/<name> -p sha=<sha>` with the same kubeconfig, through
 the API server proxy: the owner as himself, a session on the operator host as
-`tag:operator-host`, each bound to the same Role. This replaces "log in and start the
+`tag:operator-host`, each bound to a second Role, in the tenant's `-build` namespace, that
+may create and read Workflows there. A gate is started by these identities and by the
+nightly Sensor, and by nothing else: a gate at a branch's commit is an operator's act. This replaces "log in and start the
 launcher". The Argo Workflows server is reached under a tailnet name, in `server` auth mode
 with a ServiceAccount that may only read, so the interface shows runs and starts nothing;
 single sign-on with its own RBAC is a later step.
@@ -167,7 +178,9 @@ single sign-on with its own RBAC is a later step.
 `calendar` and one Sensor, which submits the gate on `main` nightly from its template. That
 is all Argo Events does in phase 1. It is installed so that the path from an event to a
 Workflow is built and proven, because that is the path events from the `puni-user-platform`
-take later (decision 7); it has no event source of a type that listens on a network.
+take later (decision 7). A second event source, of type `resource`, watches Workflows
+finish, and its Sensor submits the report of a result (below). Neither type listens on a
+network, and no other type is allowed.
 
 **Templates come from `main`.** WorkflowTemplates are files of the tenant's unit, delivered
 by Argo CD from `main` on command. The controller runs with `workflowRestrictions:
@@ -189,9 +202,12 @@ repository's: the gate script and the Dagger module at that commit. A job at a c
 branch's code with what the gate pod holds, which is why the gate pod holds no secret
 (decision 3).
 
-**Result to GitHub.** Every template has an exit handler, which runs whatever the outcome.
-It posts a commit status for the commit, with a context under `argo/`, through a GitHub App
-that may write commit statuses and nothing else. A status could stand in for a required
+**Result to GitHub.** A finished Workflow is reported by a small Workflow of its own,
+`report-status`, in the tenant's ordinary namespace: the Sensor on the resource event
+source submits it with the finished Workflow's name, commit and result, and it posts a
+commit status with a context under `argo/`, through a GitHub App that may write commit
+statuses and nothing else. So the gate holds no credential and its namespace no Secret.
+Every template still has an exit handler, which records the outcome in the Workflow. A status could stand in for a required
 check of the same name only if the rule accepted any source: in CI-A3 the owner pins the
 required checks `gate` and `pixels` to GitHub Actions as their source before the status
 App's key is written, and that is read back there. Failures of the nightly gate also raise an alert.
@@ -210,8 +226,9 @@ this change does not claim more. What changes is what that zone holds.
 except that the operator's proxy pods need the capability the vendor's chart states, which
 its namespace alone is allowed. A tenant has two
 namespaces: `ci-<tenant>` for events, templates and ordinary job pods, at `baseline`, and
-`ci-<tenant>-build` at `privileged`, which holds the engine and the gate pod and nothing
-else. An admission rule refuses a privileged container, a host path or the host network in
+`ci-<tenant>-build` at `privileged`, which holds the engine, the gate's template, its
+Workflows and the two ConfigMaps they read, the Role for operator identities and the
+Sensor, and nothing else. An admission rule refuses a privileged container, a host path or the host network in
 any namespace but a `-build` one, and in a `-build` namespace refuses a pod that mounts a
 Secret other than the registry pull configuration.
 
@@ -226,8 +243,10 @@ a Secret made by the External Secrets Operator from the tenant's path in OpenBao
 None is mounted into a gate pod. The build workflow's
 steps that push and commit mount the first two.
 
-**Their blast radius.** The same as the core change states for the CI host, with one more
-item. Code in a privileged pod can read every Secret on the node, so a gate at a branch's
+**Their blast radius.** A holder of the trigger key cannot start a gate, so what follows is
+reached through a gate that an operator identity starts at a branch's commit, or through a
+build of a commit of `main` that is itself hostile. It is the same as the core change
+states for the CI cluster, with one more item. Code in a privileged pod can read every Secret on the node, so a gate at a branch's
 commit can read all three, and the Tailscale operator's OAuth client, which can create
 devices with the operator's own tag and no other. With them it can push any image to the
 staging project, commit any manifest the `staging` AppProject and admission allow, and
@@ -326,9 +345,12 @@ does not fit what is left, before the engine. On 24 GiB (23,400 read in proporti
 are left. By requests, which is what the scheduler admits on, a gate (10,240), a
 `staging-build` step (2,048) and the engine (4,096) fit together, with 1,214 to spare. By
 limits they do not: a gate at its limit and a build with its engine at theirs exceed what
-is left by 5,954. So a build runs beside a gate only while both stay near their measured
-use, and the tenant's quota is set so that the kernel's choice, if memory runs out, falls
-on the build and not on the gate: the build's pods carry the lower priority. Lowering the
+is left by 5,954. Pod priority does not settle which one dies: it orders the kubelet's eviction,
+while the kernel's own kill follows each container's score, which falls on the larger user,
+the gate. So in phase 1 a build does not run beside a gate: the tenant's quota for memory
+requests admits one gate, or one build with its engine, and not both, and a build waits.
+CI-A2 measures; if both fit by measured use with the reserve kept, the quota is raised by a
+commit. Lowering the
 gate's limit to fit 16 GiB would put it under its measured use, where the kernel kills it.
 Every figure in the table but one is assumed, and CI-A2 measures them before the gate
 runs.
@@ -343,11 +365,16 @@ images, with a fifth kept free: (40 + 20 + 11 + 30) / 0.8 = 127 GiB. The floor h
 clones the repository at `sha` into an empty volume and fails unless `HEAD` is that commit;
 the main container, from an image that carries the gate's locked tools, which runs the gate
 steps the script runs today; and a Docker daemon as a sidecar, privileged, with its data on
-node-local scratch that is removed with the pod. It mounts no Secret. Its exit handler
-posts the status. It runs on demand and nightly, the nightly run started by the calendar
+node-local scratch that is removed with the pod. It mounts no Secret and posts nothing;
+`report-status` does (decision 2). It runs on demand and nightly, the nightly run started by the calendar
 Sensor. Whether the gate passes inside a pod, with
 `bwrap` and the solver smoke against a sidecar daemon, has not been tried: CI-S5 rehearses
-it and CI-A4 stops on it.
+it. Stage 2 does not rest on it. If the gate cannot pass in that form, its step becomes one
+pod in the same namespace that enters the host's namespaces and runs the gate script on
+the CI server itself, in a transient systemd scope with the gate's memory bound and a
+Docker daemon installed on the host by the gate hosts' tool tasks, without their pool
+enrolment. Trigger, semaphore, log and report stay the Workflow's. Stage 2's receipt is a
+full gate started through a Workflow in either form, and CI-A4 records which.
 
 **`staging-build`.** Parameters: `sha`, `app`. Its first step fails unless `sha` is the tip
 of `main` or an ancestor of it. Steps after that, each a call of a Dagger function in a
@@ -473,19 +500,22 @@ Dynamic environments per pull request belong to the dev follow-up, `add-dev-envi
   three credentials (decision 3). They reach staging and a status context; image integrity
   is the accepted risk, as in R35.
 - **The gate in a pod is untried.** It needs unshared namespaces and a Docker daemon. If it
-  cannot pass, the old gate hosts are not retired and the owner decides.
+  cannot pass, the gate runs on the CI server's host from a Workflow step (decision 6),
+  which keeps the node one trust zone and adds host packages to patch.
 - **A hard memory limit kills where the pool throttled.** A gate that the pool slowed is
   killed here; the limit is the pool's bound, and CI-A4 reads the kill counter.
 - **One node.** No gate and no staging build while it is down. Staging then does not follow
   `main`; the old gate hosts cover gates until they are retired.
-- **A build beside a gate rests on measured use, not on limits.** When memory runs short the
-  build is the one killed, and it is started again; until CI-A2 measures, that is a guess.
+- **A build waits behind a gate in phase 1.** A merge reaches staging after the gate that
+  was running ends, which can be hours; CI-A2's measurement may lift that.
 - **The trigger depends on three outside services:** the provider's hosted runner, the
   private access vendor's coordination service and its relays. When any is down a merge
   starts no build; a person starts it by hand, and the alert for a stale staging pin
   shows it.
-- **The trigger key is a stored secret that expires.** It can start the tenant's templates
-  and nothing else; unrenewed, builds stop being triggered, which the same alert shows.
+- **The trigger key is a stored secret that expires.** It is held in an environment that
+  only `main` may use, and it can start a staging build and nothing else; unrenewed, builds
+  stop being triggered, which the freshness check reports 14 days ahead and the stale-pin
+  alert afterwards.
 - **The status App can write a status on a public repository.** A required check is safe
   from it only while its source is pinned.
 - **Run history is short.** Seven days of Workflow objects, and logs in object storage.
@@ -520,6 +550,14 @@ whether `Secure` template referencing replaces `Strict`, after CI-A4.
   ephemeral key; and whether its federated identity can be used there instead.
 - That the API server proxy's group for a tagged device is the tag's literal name, as a
   RoleBinding subject needs it.
-- That a `calendar` event source needs no Service and opens no port.
+- That a `calendar` event source needs no Service and opens no port; that a `resource`
+  event source and a Sensor trigger into another namespace work as decision 2 uses them.
+- That a deployment branch rule on a GitHub environment withholds its secrets from a
+  workflow on any other ref (from memory of the provider's documentation), which CI-A3
+  reads back and CI-A5 tests.
+- That the gate script runs from a pod in the host's namespaces under a systemd scope,
+  which is the fallback of decision 6.
+- Whether a proxy device the Tailscale operator makes keeps its identity across a restart,
+  and so how often the owner signs one (core decision 12).
 - Memory use of the Tailscale operator and its proxy, and the Pod Security level its proxy
   pods need.

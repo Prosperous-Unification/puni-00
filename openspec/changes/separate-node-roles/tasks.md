@@ -6,12 +6,15 @@ removed, and an adjacent `Proof:` comment. Nothing here has been done yet.
 
 `fleet_ansible` is the controller wrapper of
 [enroll h4claw and h3mon](../../../docs/infra/enroll-h4claw-h3mon.md#1-prepare-the-controller-on-h2puni),
-extended by slice 2.5 and run against the new inventory of slice 1.3, always with `--limit`:
-an unlimited play also targets the CI server, which is a cluster of its own (change
-`run-ci-on-argo-workflows`). `$OPS` is its owner-only
+extended by slice 2.5 and run against the new inventory of slice 1.3, always with `--limit`.
+The CI cluster has a `desired.yaml` entry and an inventory of its own (change
+`run-ci-on-argo-workflows`, slice CI-S2). The controller is the operator's laptop and no
+machine that runs gates (design decision 10). `$OPS` is its owner-only
 input directory. "Sync" of a platform unit means
 `fleet_ansible --limit h5plat --extra-vars puni_sync_units=<units> playbooks/argocd-sync.yml`
-(design decision 3).
+(design decision 3). Every step that syncs a unit which exposes a Service on the tailnet
+includes one more action: the owner signs the device the Tailscale operator made for it,
+and the step reads back that the name answers (design decision 12).
 
 ## 0. Decisions
 
@@ -19,8 +22,9 @@ input directory. "Sync" of a platform unit means
       This change has no open question. He may overrule R34 (dev is delivered by a
       follow-up change), R35 (the CI cluster is one trust zone), and R49 to R52, which the
       planning session set on 2026-11-22 while he was away: no public SSH rule, the CI
-      server's size, no public webhook, Tailnet Lock with `sshd`. Rows marked decided record his
-      answers of 2026-11-21 and 2026-11-22. Receipt: the overrules, dated and quoted, in verify.md. Until then only
+      server's size, no public webhook, Tailnet Lock with `sshd`; and the controller on
+      his laptop only (design decision 10). Rows marked decided record his
+      answers of 2026-11-21 and 2026-11-22. Receipt: the overrules, dated, as decisions in verify.md. Until then only
       slices 1.1, 1.2 and 2.1 to 2.5 may start; the rehearsal 2.7 needs 2.1 to 2.5 and
       follows them.
 - [ ] 0.2 File the three decision records from design.md as ADRs under the next free numbers
@@ -34,7 +38,8 @@ input directory. "Sync" of a platform unit means
       bootstrap and of the WBS deploy tooling what design decision 9 asks of each: slice
       3.7's list, the withdrawal of the old gate hosts, the solver per environment in every
       ACME issuer (design decision 3), and, for the release bootstrap's owner, whether the
-      website takes the staging build path. Tell them too that this change edits no path
+      website takes the staging build path, by which step a merge to its source reaches
+      staging with no command, and how its store applies a migration. Tell them too that this change edits no path
       the old cluster reconciles, so its pin needs no freeze. Receipt: the four messages,
       dated, in verify.md.
 - [ ] 0.5 Escrow what the new cluster needs (guard 2), before stage 1 and before h1claw is
@@ -71,13 +76,13 @@ input directory. "Sync" of a platform unit means
       in design.md.
 - [ ] 0.7 The tailnet's settings and its policy (design decision 12), before A1 and after
       slice 1.8. Who: owner, in the vendor's admin console and from his own device.
-      Commands: create the tags of design decision 12; turn Tailnet Lock on from his device
-      and put the disablement secret in escrow; turn on names with certificates; make one
+      Commands: create the tags of design decision 12; turn Tailnet Lock on from his device,
+      add a second device of his as a signer, and put the disablement secret in escrow; turn on names with certificates; make one
       OAuth client per cluster for its operator, limited to that operator's tag, and one
       credential that may write the policy file and nothing else, all into `$OPS` and
       escrow; apply `infra/access/policy.hujson` through the API. Receipt: the policy read
-      back equals the file at its commit; the lock reads enabled and names his device as
-      the only signer; the tags listed; no value and no tailnet name. Stop: the policy read
+      back equals the file at its commit; the lock reads enabled and names two devices of his as
+      its signers; the tags listed; no value and no tailnet name. Stop: the policy read
       back differs, or the lock is off. Rollback: apply the file's previous revision; the
       lock is turned off only with the disablement secret, by the owner.
 
@@ -119,18 +124,21 @@ input directory. "Sync" of a platform unit means
       patch). The existing two-node path keeps passing its tests unchanged. Stop: validation
       cannot pass on one node with both taints. Then the cause is reported and the owner
       decides; R25's alternative (selectors and rule 2.4(f) alone) is not applied silently.
-- [ ] 1.3 Repeats once per server, after A1, A9, A12 and A16 and before the step that enrolls
+- [ ] 1.3 Repeats once per server of the platform cluster, after A1, A12 and A16 and before the step that enrolls
       the host, and once more before A17, to give h7obs the capabilities `nonproduction` and
       `ingress` and raise those two floors (minimal profile, once the sum of design decision 2 holds at the reading after A15). The first revision follows the A1 that creates the server that stays: a
       server used for the rehearsal of 2.7 is never recorded. Each revision records the
       node's machine id and private address where the fleet model already records them for
-      the two existing nodes (`desired.yaml`, the inventory) (R5); a public address or a
+      the two existing nodes (`desired.yaml`, the inventory): that is R5, decided on
+      2026-11-21, and its alternative, a private inventory with only the capability
+      layout public, stays open to the owner until the first revision is merged; a public address or a
       provider id goes to `$OPS` only and never into this repository. Add the cluster
       `platform-2` (R5) to `infra/fleet/desired.yaml` with its first node and the floor
       `platform-services: 1`; later revisions add each node, raise the floor for its
       capability, and extend `puni_enrolled_private_addresses`. Add
       `infra/ansible/inventory/production-hosts.yml` with the same nodes, the reservations of
-      design decision 2, and `h8ci` under `gate_hosts` only. Each server's tailnet auth key is an input in
+      design decision 2, and no CI server: `h8ci` is the one node of the cluster
+      `ci-production`, recorded after A9 has created it by slice CI-S2 of the CI change. Each server's tailnet auth key is an input in
       `$OPS`, not a line of the inventory, and there is no jump host (R17). Extend `placement.test.ts` to bind this inventory
       to `platform-2` beside the existing pair. Negatives: a machine id that differs between
       the two files is refused; a node present in one file only is refused. Fault to inject:
@@ -193,18 +201,27 @@ input directory. "Sync" of a platform unit means
       and its key does not expire; a second run joins nothing and prints `changed=0`. The
       first run of a new server arrives over the public address with the admin key, as a
       bootstrap does today; the same run closes that path, and every later run uses the
-      tailnet address. Add to the `network` role an input for the public ports a host may
-      serve; for the new inventories anything else on the public interface is dropped, SSH
+      tailnet address. The same holds for the CI server and the operator host. Add to the `network` role an input for the public ports a host may
+      serve; for the new inventories anything else that arrives on the public interface is
+      dropped in the prerouting hook, before destination NAT, so that a forwarded port such
+      as a NodePort is covered and not only what the host itself listens on; the two
+      NodePorts of the `otel-gateway` Service are admitted from the enrolled private
+      addresses and the CI server's, and from nowhere else; SSH
       and the Kubernetes API are admitted on the tailnet interface only, and the default
       for existing inventories is today's behaviour. Create a local console account that
       `sshd` refuses, its password from `$OPS` (R49). Add `infra/access/policy.hujson` and
       a test that parses it. Tests: the rendered firewall of each new host; the policy
       test. Negatives: a rendered firewall of a new host that admits port 22 on the public
-      interface is refused (fault: keep the "retain SSH recovery" rule); a host without
+      interface is refused (fault: keep the "retain SSH recovery" rule); in the rehearsal of
+      2.7 a NodePort Service on a new host does not answer on the public interface and the
+      `otel-gateway` ports answer from an enrolled private address only (fault: drop in the
+      input hook alone, and watch the forwarded port answer); a host without
       `ingress` that admits 80 or 443 is refused (fault: render the list for every host);
       an old inventory's rendering is byte-equal to today's (fault: change the default); a
       policy file in which a server tag may reach another device, or `tag:ci-trigger`
-      anything but the CI cluster's proxy, is refused (fault: compare tag names only); a
+      anything but the CI cluster's proxy, or in which the Kubernetes operator's tag or its
+      proxies' tag may open a connection to another device, is refused (fault: compare tag
+      names only); a
       policy file that names a person is refused (fault: skip the check for groups); the
       console account can log in over SSH (fault: drop the `DenyUsers` line).
 
@@ -268,9 +285,10 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       `infra/argocd/clusters/platform-production`; and `tools/tool-fleet/src/argocd.ts`,
       wired into `tool-fleet:check`. The check refuses each of the following. Each letter has
       its own negative and its own row in `check-faults.ts`, whose fault is that rule removed.
-      (a) An Application outside its project's sources or destinations, with a destination
-      other than the in-cluster API, or with a `targetRevision` other than `main` in its
-      file. A `staging` or `production` project whose destinations are not exactly the
+      (a) An Application outside its project's sources or destinations, one of a project
+      other than `ci` with a destination other than the in-cluster API (a `ci`
+      Application names the CI cluster only, by the CI change's rule), or one with a
+      `targetRevision` other than `main` in its file. A `staging` or `production` project whose destinations are not exactly the
       namespaces the `namespaces` unit declares for it, named one by one: a wildcard,
       `argocd`, the store's namespace or any namespace outside that list is refused; one
       that admits a cluster-scoped kind or a Namespace; one without a
@@ -283,7 +301,7 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       3). A fleet-sourced Application in `platform` other than `public-issuers` at its one
       path. Three negatives of its own: a `staging` project widened to `argocd`; one widened
       to the store's namespace (fault: refuse only a namespace of the other environment, as
-      the fifth draft did); and a platform unit other than those three that renders into a
+      an earlier draft did); and a platform unit other than those three that renders into a
       staging namespace (fault: exempt the whole `platform` project). (b) Automation in the
       wrong place: a `staging`
       Application without automated `prune`, `selfHeal` and a retry policy, or with
@@ -291,7 +309,8 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       or `platform` Application with automated sync; a root without automated self-heal, or with
       prune; any Application with the resources finalizer. (c) A `puni.dev/sync-order`,
       `puni.dev/needs` or project that is missing or differs from the table of design
-      decision 3; a need of the same or a higher order; and a unit ordered at or below the
+      decision 3 or, for a unit of the `ci` project, from the table of the CI change's
+      decision 1; a need of the same or a higher order; and a unit ordered at or below the
       unit that provides a Secret it reads, with the same-unit Job exception of that decision.
       (d) A rendered object of a `toolkit.fluxcd.io` group, a remote kustomize base, a
       document with a `sops` key or a Secret object under an Application source path, or a
@@ -335,12 +354,16 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       template of an observability unit or of `mlflow` without the PriorityClass of slice
       2.8, and a pod template of a staging or dev Application that names any
       `priorityClassName`; negatives: one of each (faults: read the Prometheus stack's
-      templates only; allow the cluster's default class by name). (q) No public route for
-      a platform or CI unit (design decision 12): an Ingress, an IngressRoute, a Gateway
-      route or a Service of type LoadBalancer or NodePort in a unit of the `platform` or
-      `ci` project is refused, except an Ingress of the Tailscale operator's class and the
-      `traefik` unit itself; negatives: one of each kind (fault: check Ingress only), and
-      an Ingress of the operator's class passes. (r) The tenant label (design decision 13):
+      templates only; allow the cluster's default class by name). (q) No public route but Traefik's
+      (design decision 12): an Ingress, an IngressRoute or a Gateway route in a unit of
+      the `platform` or `ci` project is refused, except an Ingress of the Tailscale
+      operator's class and the `traefik` unit itself; a Service of type LoadBalancer or
+      NodePort is refused in a unit of every project, with two exemptions by name: the
+      `otel-gateway` Service, whose ports the firewall of slice 1.8 admits from enrolled
+      private addresses only, and the store's private listener in whatever form pull
+      request #935 gives it; negatives: one of each kind (fault: check Ingress only), a
+      NodePort Service in a staging overlay (fault: read the `platform` and `ci`
+      projects only), and an Ingress of the operator's class passes. (r) The tenant label (design decision 13):
       a namespace of a `staging`, `production`, CI or database unit without
       `puni.dev/tenant`, and an object in such a namespace that carries another tenant's
       label; negatives: one of each (fault: read namespaces only).
@@ -353,14 +376,16 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       decrypt each bootstrap Secret of design decision 5 on the controller with `sops` and
       apply it through the API under `no_log`; apply the install with a server-side apply;
       wait for the workloads; apply `infra/argocd/root`, which is the root Application and its project.
-      `playbooks/argocd-sync.yml`: take a list of platform units; refuse a unit that is not
-      in the `platform` project, and a unit while one of the units its `puni.dev/needs`
+      `playbooks/argocd-sync.yml`: take a list of units; refuse a unit that is in neither
+      the `platform` nor the `ci` project, and a unit while one of the units its `puni.dev/needs`
       names is not Synced and Healthy; sync each in order with the locked `argocd` CLI in core
       mode on the server and wait for Synced and Healthy. Its removal mode deletes the
       Application object of a unit of any project, since nothing else can delete a staging or
       production Application, and refuses one that still has a file on `main` or whose live
       source renders more than the marker ConfigMap. The controller: add the locked `sops` binary to
-      `infra/controller/Containerfile`, and a read-only mount of a fleet repository checkout
+      `infra/controller/Containerfile`, whose image is locked by digest and may be built
+      on any machine, the provider's hosted runner included; it is run, with the age
+      identity and the admin key, on the operator's laptop only (design decision 10). Add a read-only mount of a fleet repository checkout
       to `fleet_ansible`, named by an input in `$OPS`. Test: `infra/ansible/tests`, including
       a second run of `argocd.yml` with one more secret file, which changes that Secret and
       nothing else; the image test finds `sops` at its locked digest. Negatives, each with
@@ -371,7 +396,7 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       ConfigMap unchanged; the sync playbook refuses a production or staging unit (fault:
       drop the project comparison) and a unit one of whose needs is unhealthy (fault: skip
       the needs read), and syncs a unit whose needs are healthy while an unrelated unit of a
-      lower order is not (fault: compare orders, as the fourth draft did); the removal mode
+      lower order is not (fault: compare orders, as an earlier draft did); the removal mode
       refuses a unit whose file is still on `main` (fault: skip the file read) and removes a
       fixture production Application reduced to its marker (fault: apply the sync mode's
       project comparison to removal).
@@ -434,7 +459,12 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       retry, with the retries counted; with a fixture pins repository, a commit of
       rendered manifests applied by a staging Application with no command, and a manifest
       removed from it pruned; a solver-shaped pod in a staging namespace admitted with
-      the `nonproduction` selector and denied without it; a route with no host denied.
+      the `nonproduction` selector and denied without it; a route with no host denied; a
+      Service of type NodePort in a staging namespace denied at admission; two fixture
+      builds of one app finishing in reverse order, the later commit's render staying in
+      the pins directory and the earlier one refused; a fixture build whose source commit
+      adds a migration refused by the render step; a recreated Tailscale proxy pod
+      answering again under its name, and what that needed from the owner.
       Stop: a unit cannot become Healthy, or validation cannot pass with one node. Then
       design decisions 3 and 6 are revised before the step that part gates. Fallbacks already
       decided: for (e), the Secret leaves the managed set; for (f), the wrapper holds a copy,
@@ -447,7 +477,10 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       `includeCRDs: true`; kustomize units for Elasticsearch, Kibana, `elastic-settings`,
       signals, alerts and the Elasticsearch snapshots, with `Force=true,Replace=true` on the
       three Jobs and the cluster name in the Prometheus stack's values file;
-      `ServerSideApply=true` where CRDs need it. One PriorityClass, `puni-observability`,
+      `ServerSideApply=true` where CRDs need it. The `otel-gateway` Service keeps its two
+      NodePorts, because collectors on other clusters, the CI cluster among them, reach
+      it on the provider's private network; rule 2.4(q) exempts it by name and the
+      firewall of slice 1.8 admits its ports from enrolled private addresses only. One PriorityClass, `puni-observability`,
       above the cluster default, in the first of these units, and named by every pod
       template of the units and of `mlflow`, so that the pods have it from their first
       start in A14 and no later change restarts them (design decision 2; rule 2.4(p)).
@@ -494,7 +527,9 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       that denies an Ingress, a Traefik `IngressRoute` or `IngressRouteTCP`, or a
       Certificate whose host is not in its namespace's list, or that names no host, a
       wildcard or a host pattern; the lists as one ConfigMap in a platform namespace,
-      which the policy's binding names as its parameter; a ResourceQuota and a
+      which the policy's binding names as its parameter; an admission policy that denies a Service of type
+      LoadBalancer or NodePort in every staging, dev and production namespace, because
+      a pins commit is not read by `gate`; a ResourceQuota and a
       default-deny NetworkPolicy in every non-production namespace, the three dev ones
       included, the quotas summing to no more than the non-production rows of design
       decision 2; an admission policy that denies a pod in a `staging` or `dev` namespace
@@ -520,7 +555,8 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       is refused the solver port (fault: allow the whole pod network); an IngressRoute in
       a staging namespace that names a production host is denied (fault: validate Ingress
       alone); a route with no host, and one with a wildcard host, is denied (fault: skip
-      a rule that has no host); a Certificate for a host on no list is denied (fault:
+      a rule that has no host); a Service of type NodePort in a staging namespace is
+      denied (fault: deny LoadBalancer alone); a Certificate for a host on no list is denied (fault:
       allow an empty list); a host list placed in the app namespace is not read (fault:
       resolve the parameter in the request's namespace); a namespace relabelled by a
       writer other than the `namespaces` unit is denied (fault: drop the reservation); a
@@ -587,22 +623,33 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       refused. Faults to inject: compare the two renders by kind only and watch the shared
       namespace pass; search object names only
       and watch the staging value that names a production Service pass.
-- [ ] 3.6 Before A15 (R15). A unit `mlflow` under `infra/argocd/units`: the MLflow server
-      pinned by digest, selecting `observability`, with a `Retain` claim carrying
-      `Prune=false` and `Delete=false`, the apps' backup and verify CronJobs with a prefix
-      per decision 7, and the stale-backup rule of 3.1. How MLflow lays out its store on
-      h3mon is read first and recorded; if it is more than one SQLite file and one
-      directory, the slice stops and reports. Test: the render passes the `delivery` check
-      and the backup runner's suite restores a fixture store. Negative: the unit without its
-      backup CronJob fails rule 2.4(n). Fault to inject: add `mlflow` to that rule's
-      exemption table.
+- [ ] 3.6 After the reading of A15's first part and before its second (R15, guard 1). MLflow
+      keeps a metadata store and an artifact store, and the apps' backup runner cannot
+      hold either: it refuses a database without the apps' migration table and uploads
+      one file (`tools/tool-fleet/src/backup-sqlite.ts`). Where both stores are on h3mon
+      is not written in this repository, so the slice starts from that reading. It adds a
+      unit `mlflow` under `infra/argocd/units`: the MLflow server pinned by digest,
+      selecting `observability`, with `Retain` claims for metadata and artifacts carrying
+      `Prune=false` and `Delete=false`; a backup CronJob of its own that takes a
+      consistent copy of the metadata store, archives the artifact store with a manifest
+      of every file's SHA-256, and writes both under one stamp to a prefix per decision 7;
+      a verify CronJob that restores a stamp into scratch, opens the metadata and checks
+      every artifact against the manifest; and the stale-backup rule of 3.1. Test: the
+      backup and verify pair against a fixture store with two runs and three artifacts.
+      Negatives, each with its own fault: a stamp whose artifact differs from its
+      manifest fails verify (fault: compare file counts); a stamp with metadata and no
+      artifact archive fails verify (fault: verify the metadata alone); the unit without
+      its backup CronJob fails rule 2.4(n) (fault: add `mlflow` to that rule's exemption
+      table). Stop: the layout read in A15 is not a database file and a directory, for
+      example a database server or an object store. Then the slice reports, and the owner
+      decides before h3mon may be deleted.
 - [ ] 3.7 Before A23, which A18's WBS part waits for (R20, R31, R35, design decision 9).
       Owners: the WBS deploy tooling's owner for the build entrypoint and a staging
       overlay that renders at a commit; the release bootstrap's owner for whether the
       website takes this path; the owner for the staging pins repository, its two rulesets
       and the App; the change `run-ci-on-argo-workflows` for the trigger, the template and
       the Dagger module that calls this slice's step (its slice CI-S7); this change for the
-      render-and-commit step and the promotion check. The eleventh draft's workflow, hook
+      render-and-commit step and the promotion check. an earlier draft's workflow, hook
       and lint for a self-hosted runner are not built (R31).
       In this repository: the render step, which renders the app's staging overlay at
       the built commit with the new digests, using the `kustomize` binary locked in
@@ -625,7 +672,14 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       project's kind list and rely on that list alone); an empty render, and one whose
       command exits nonzero, is refused and leaves the directory as it was (fault: commit
       the output directory whatever the exit code); a render made with a `kustomize`
-      other than the locked one is refused (fault: take the binary from the path); the
+      other than the locked one is refused (fault: take the binary from the path); a render
+      that holds a Service of type NodePort or LoadBalancer is refused (fault: check
+      kinds only); a commit whose source commit is not a descendant of the one the
+      directory's head names is refused, so a build that finishes late cannot replace a
+      newer render (fault: compare timestamps); a source commit whose migration set for
+      the app differs from that of the commit the directory's head names is refused with
+      a message that names the attended path of design decision 9 (fault: compare image
+      digests only); the
       promotion check refuses a base manifest changed since the commit staging ran
       (fault: compare the overlay directory only) and passes a difference of digests
       alone.
@@ -661,7 +715,7 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       Staging would need the operator's two writes for each backend, as production does, and
       the owner is told that R20 does not hold for the WBS backend until that is solved.
 
-The sixth draft's slice 3.9, the dev environment, is not in this change: it is the follow-up
+an earlier draft's slice 3.9, the dev environment, is not in this change: it is the follow-up
 `add-dev-environment` (R34, design decision 9).
 
 ## 4. Attended steps
@@ -681,8 +735,9 @@ The sixth draft's slice 3.9, the dev environment, is not in this change: it is t
       decision 12).
 - [ ] A2 Make and escrow the new cluster's secrets (R6), after 0.5 and 0.6. Who: owner.
       Commands: two 64-hex k3s credentials, `age-keygen`, read-only deploy keys for the fleet
-      repository and the WBS deploy repository, and the local account's password, into
-      `$OPS`; the encrypted files of design decision 5 into the fleet repository's directory;
+      repository and the WBS deploy repository, the Argo CD local account's password and
+      the hosts' console account password of slice 1.8, into `$OPS` on the controller,
+      which is the operator's laptop; the encrypted files of design decision 5 into the fleet repository's directory;
       a copy of each original into both escrow places. Receipt: "escrowed" per secret beside
       its escrow entry, and "restored on a second machine" for the age identity. Stop: an
       escrow place is unavailable. Rollback: discard the files; nothing uses them yet.
@@ -760,12 +815,13 @@ The sixth draft's slice 3.9, the dev environment, is not in this change: it is t
 
 ### Stage 2: continuous integration
 
-- [ ] A9 Create the CI server, after its 1.3 revision. Who: owner creates as in A1, at 12
+- [ ] A9 Create the CI server. Who: owner creates as in A1, at 12
       vCPUs and 24 GiB (R50): design decision 5 of the change `run-ci-on-argo-workflows`
       shows that one gate does not fit 16 GiB on paper. Receipt:
       the server's memory and its disk, at or above 150 GiB. Stop: a smaller disk.
       Rollback: delete the server. The gate-host role is not applied: the server is not
-      enrolled in the host pool (R31).
+      enrolled in the host pool (R31). Its identity is recorded afterwards, by slice
+      CI-S2 of the CI change, which CI-A1 waits for.
 - [ ] A10 Replaced by steps CI-A1 to CI-A4 of the change `run-ci-on-argo-workflows`: the CI
       cluster's bootstrap, its units, its tenant and a full gate through a Workflow. Where
       another step names A10's receipt, it means CI-A4's. The id is kept so that the other
@@ -812,16 +868,25 @@ The sixth draft's slice 3.9, the dev environment, is not in this change: it is t
       available memory falls under 1,024 MiB, the sum does not hold, or the disk would fill within 60 days.
       Rollback: nothing depends on the stack yet. Reduce the units to their markers and sync,
       then remove their Application files (design decision 3). Claims stay.
-- [ ] A15 MLflow (R15, guard 1), after 3.6. Who: operator. Commands: the owner writes the
-      MLflow backup credentials into OpenBao; merge the `mlflow` unit at zero replicas with
-      its backup job suspended, together with its ExternalSecrets; sync `secret-sync`, then
-      `mlflow`; stop MLflow on h3mon; take the final backup there
-      as design decision 7 states; restore it into the unit's claim; merge one replica and
-      the job resumed, and sync; run the backup job once. Receipt: the final backup's stamp
-      and SHA-256; one known run read back from the new instance; one backup and one verify
-      under the new prefix, taken after the restore. Stop: the restore differs from the
-      backup's SHA-256, or a backup under the new prefix predates the restore.
-      Rollback, while h3mon exists: start MLflow there again.
+- [ ] A15 MLflow (R15, guard 1), in two parts. **First part**, any time after A13,
+      read-only. Who: operator. Commands on h3mon: read how MLflow is started, its
+      backend store and its artifact root, and the size and file count of each; pick one
+      run and one artifact of it and record the artifact's SHA-256. Receipt: the layout
+      in verify.md without any credential; the run id, the artifact's path and its
+      SHA-256. Stop: the stores are not a database file and a directory; slice 3.6 then
+      reports before anything else. **Second part**, after 3.6. Who: operator. Commands:
+      the owner writes the MLflow backup credentials into OpenBao; merge the `mlflow`
+      unit at zero replicas with its backup job suspended, together with its
+      ExternalSecrets; sync `secret-sync`, then `mlflow`; stop MLflow on h3mon; take the
+      final copy of both stores there under one stamp with the unit's own tool; restore
+      metadata and artifacts together into the unit's claims; merge one replica and the
+      job resumed, and sync; run the backup job and the verify job once. Receipt: the
+      final stamp and its manifest's SHA-256; the recorded run read back from the new
+      instance and its artifact fetched through MLflow with the recorded SHA-256; one
+      backup and one verify under the new prefix, taken after the restore. Stop: the
+      artifact's SHA-256 differs, the verify fails, or a backup under the new prefix
+      predates the restore. Rollback: as design decision 7 states for every store: start
+      MLflow on h3mon again only while the new instance has recorded nothing.
 
 ### Stage 4: apps
 
@@ -873,7 +938,8 @@ The sixth draft's slice 3.9, the dev environment, is not in this change: it is t
       merge one replica and the CronJob resumed; point the names the staging overlay declares
       at that node; wait for the certificates from the issuer each overlay names; run the new
       backup job once. Receipt, per app: the stamp and SHA-256, and the check's "OK"; a
-      listing of a production prefix refused with the staging credential; no pod of the app
+      read of one of staging's own backup objects with the staging credential, and a read of a
+      named production object refused with an authorisation error; no pod of the app
       and no backup run on the new side before the restore finished; the restored store's
       check equals the backup's; for WBS, the project list of the tracker read back through
       its API, and the WBS owner's word on what `wbs-mcp` held; the pages read back on their
@@ -881,16 +947,26 @@ The sixth draft's slice 3.9, the dev environment, is not in this change: it is t
       issuer its overlay names and is not trusted by a browser; the solver pod of one
       issuance seen on that node; the node's available memory after the first solve, which
       must stay above 1,024 MiB; one backup and one verify
-      under the staging prefix, taken after the restore and holding a restored record; a
-      later merge applied with no command; for WBS, a merge to `main` of the app deployed as
-      a second backend digest with no command, no pin moved by hand and no run of
-      `solver.yml`, or, under the waiver, the person's commit that deployed it. Stop: the Application file would be merged while the
+      under the staging prefix, taken after the restore and holding a restored record; for
+      the first app moved, one edit made on the new side after the names were pointed,
+      and the comparison of design decision 7 reporting that the new store differs from
+      the restored stamp; for each of the three apps, a merge to the app's source
+      deployed to staging with no command, or the owner's dated waiver for that app: for
+      WBS as a second backend digest with no pin moved by hand and no run of
+      `solver.yml`, for the website and the request app by their owner's tooling (design
+      decision 9). Stop: the Application file would be merged while the
       pins directory's head, or for the website the fleet overlay on `main`, is not the
       zero-replica render; the SHA-256 differs;
-      the staging credential can list a production prefix; the restore differs from the
+      the staging credential can read a named production object, or the refusal is anything
+      but an authorisation error; the restore differs from the
       backup; a backup under the new prefix predates the restore or is empty; or a
-      certificate is not Ready after 15 minutes. Rollback, while the old hosts exist: point
-      the names back and start the old side again.
+      certificate is not Ready after 15 minutes. Rollback: as design decision 7 states.
+      Before the names are pointed, start the old side again. After that, compare the
+      new store with the restored stamp first: if it is unchanged, point the names back
+      and start the old side; if it has changed, recover forward on the new side, or
+      stop the new writer, take its final backup, restore that onto the old side, check
+      it, and only then start the old side. The old writer is never started while the
+      new one runs.
 - [ ] A19 The production website and request app (R26), after A18's receipt for them. Who:
       operator, with the website's owner; owner for the Secrets and for the sync. As A18 for
       production: the owner writes the production Secrets into OpenBao; the old side is
@@ -902,8 +978,7 @@ The sixth draft's slice 3.9, the dev environment, is not in this change: it is t
       available memory at rest and during one backup run (design decision 2). Stop: as A18, the
       Application syncs without a command, or the node's available memory is under 1,024
       MiB at either reading: then the node is rescaled before A20 adds WBS (design
-      decision 11). Rollback, while h4claw exists: point the names
-      back and resume the old units.
+      decision 11). Rollback: as A18, with h4claw as the old side.
 - [ ] A20 WBS production, the simple way (R28), after 3.5, Harbor and A18's WBS receipt. Who:
       operator, with the WBS deploy tooling's owner; owner for the Secrets and for the sync.
       As A19 for WBS: Secrets and Harbor's pull credential written into OpenBao; production
@@ -914,12 +989,12 @@ The sixth draft's slice 3.9, the dev environment, is not in this change: it is t
       during the hourly backup and during one solve, with the owner's decision to keep
       the trial size or rescale (design decision 2). Stop: as A19, the node's available memory under 1,024 MiB at any of those readings, a pod
       killed for memory, or the WBS owner names a step a
-      first start needs that this simple move skips. Rollback, while h2puni exists: point the
-      name back and start production there.
+      first start needs that this simple move skips. Rollback: as A18, with h2puni as the
+      old side.
 
 - [ ] A23 The staging build path (R20, R31, R35), in two parts. Numbered last so that
       the other steps keep their ids. **First part**, after A17, slices 3.5, 3.7 and 3.8,
-      Harbor's project and push robot, and task 0.6; before the CI change's CI-A3. Who:
+      Harbor's project and push robot, and task 0.6; before the CI change's CI-A5. Who:
       owner and operator. Commands: create the staging pins repository with its two
       rulesets; create the GitHub App with write access to contents only, install it on
       that repository alone and name it as the pull-request ruleset's only bypass actor;
@@ -946,19 +1021,28 @@ The sixth draft's slice 3.9, the dev environment, is not in this change: it is t
       the website and request app; A15's receipt; A10's receipt, no caller launching gates on
       h4claw (slice CI-S8), and the pool owner's withdrawal of h4claw or written confirmation
       that none is needed; a test alert delivered in `#puni-alerts-dev`; the
-      word of the session that owns `release-pin.ts` that the old fleet directory may go.
+      word of the session that owns `release-pin.ts` that the old fleet directory may go;
+      and the owner's dated sign-off of a list of what the two hosts still hold, each
+      entry marked restored, with its receipt, or discarded. The list starts from
+      `production-existing-hosts.yml` and is completed by a read-only reading of each
+      host: on h4claw the `openhands-app` container and its mounts, the old registry's
+      volume and the gate trees; on h3mon the Victoria and Grafana data, the Docker
+      services its inventory entry preserves, and MLflow's old stores.
       Commands: delete both servers in the console; remove the old cluster's directory from
       the fleet repository. Receipt: the provider's server list without those names; the two
       confirmations, dated. Stop: a DNS record still points at either host. Rollback: none;
       that is why the preconditions are receipts.
 - [ ] A22 Delete h2puni. Who: owner. Preconditions: A18's WBS receipt and A20's receipt, or
-      the owner's word for each that the data is not wanted; the owner's word that the two
-      other dev databases there and the configuration archive may go (design decision 7); a
+      the owner's word for each that the data is not wanted; the owner's dated sign-off of a list of what the host still holds, read from the
+      host and marked restored or discarded entry by entry: the two other dev databases
+      and the configuration archive (design decision 7), the Compose dev stacks' volumes,
+      the gate trees, and any controller input left there; a
       test alert delivered in
       `#puni-alerts-dev`; A11's receipt; A10's receipt,
       no caller launching gates on h2puni, and the pool owner's withdrawal of h2puni or
       written confirmation that none is needed; A23's receipt or the owner's waiver, so that
       retiring the poller left staging following `main` or left that accepted in writing;
-      the controller no longer runs there (design decision 10). Command: delete the server in the console. Receipt: the provider's server
+      the controller does not run there, and no age identity or admin key of the new
+      cluster was ever placed there (design decision 10). Command: delete the server in the console. Receipt: the provider's server
       list. Stop: the staging tracker or WBS production has no verified backup under the new
       cluster's prefixes. Rollback: none; that is why the preconditions are receipts.

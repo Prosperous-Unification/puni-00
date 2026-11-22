@@ -152,8 +152,10 @@ used, and Velero MUST NOT back up a database namespace.
 
 #### Scenario: Non-production key against a production bucket
 
-- **WHEN** a production bucket is listed with the non-production database key
-- **THEN** the object store refuses, and the step does not complete otherwise
+- **WHEN** a named object of a production bucket is read with the non-production database
+  key
+- **THEN** the object store refuses with an authorisation error, while the same key reads
+  one of its own objects, and the step does not complete otherwise
 
 #### Scenario: Velero schedule includes a database namespace
 

@@ -14,7 +14,7 @@ comment. Nothing here has been done yet.
       the working-out of PG8, and PG7, that Harbor keeps its own database. Two things are
       his to settle at a step and block nothing: when PG-A4 runs, and when PG-A1 does.
       Receipt: the
-      overrules, dated and quoted, in verify.md. No slice starts before the core change's
+      overrules, dated, as decisions in verify.md. No slice starts before the core change's
       task 0.1 has its receipt.
 - [ ] PG-0.2 File the decision record from design.md as an ADR under the next free number,
       once the core change's two have theirs, link it from proposal.md, and delete the
@@ -125,7 +125,12 @@ which they extend.
       string is redacted by the collector's rules (fault: remove the pattern). Stop: the
       collector's redaction cannot cover it. Then statement logging stays off and the owner
       is told.
-- [ ] PG-S5 Dumps, the restore drill and the one-database rollback. In each cluster's unit: a
+- [ ] PG-S5 Dumps, the restore drill and the one-database rollback. The unit's
+      NetworkPolicies allow the dump job's and the drill's pods their SQL connection and
+      the object storage endpoint, and nothing else (design decision 3); negatives on
+      k3d: with the allow removed the dump job times out (fault: test with the namespace's
+      default-deny absent), and a pod in the namespace without either label is refused
+      port 5432 (fault: allow the whole namespace). In each cluster's unit: a
       nightly CronJob that dumps each database to its own object under a prefix of its
       own, connecting as that database's owner role, kept 90 days by the planner of slice
       3.1. In `platform-db`'s unit: a CronJob, weekly on a database server and
@@ -227,12 +232,15 @@ server (design decision 4) and are not run before its trigger.
       and its job pods admitted there; both canary databases present and the role of one
       refused on the other; a first recoverability point and a completed base backup read
       from the plugin's metrics; one dump object per database; the drill's sanity result,
-      and no Released volume or directory of its throwaway cluster left; a listing of a
-      production bucket refused with this key; the WAL alert seen firing in Alertmanager
+      and no Released volume or directory of its throwaway cluster left; a read of a
+      named object of a production bucket refused with this key by an authorisation
+      error, and one of its own objects read; both jobs' pods seen connected to the instance under
+      the namespace's policies; the WAL alert seen firing in Alertmanager
       and cleared; the per-container memory table and the limits kept or changed by a
       commit. Stop: a unit is not Healthy after 20 minutes, a pod of the cluster is
       denied by the placement policy, WAL is not archived, the restore fails or leaves a
-      volume, or the key can list a production bucket. Rollback: nothing reads the
+      volume, a dump or drill pod is refused its SQL connection or reaches anything else,
+      or the key can read a production object. Rollback: nothing reads the
       cluster yet. Reduce `nonproduction-db` and `barman-plugin` to their markers and
       sync, then remove their Application files; the `Cluster` and its claim carry
       `Prune=false` and are removed by hand, the canary data being disposable. The

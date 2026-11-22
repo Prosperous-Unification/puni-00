@@ -8,7 +8,7 @@ the plan, on 2026-11-22, in a worktree at `origin/main` `b17861f83`.
 
 ## Where this came from
 
-On 2026-11-22 the owner asked for a self-hosted tool to orchestrate CI. The eleventh draft
+On 2026-11-22 the owner asked for a self-hosted tool to orchestrate CI. an earlier draft
 of `separate-node-roles` carried it as an open question. He chose Woodpecker CI with Dagger,
 then, with multitenancy in mind, Argo Workflows and Argo Events. This change is the planning
 session's working-out of that choice; its split from the core change is the session's
@@ -62,23 +62,22 @@ pinned.
 
 ## Owner's decisions recorded
 
-| Date       | Decision, in his words                                                                                                                                                | Where           |
-| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
-| 2026-11-22 | "i want a self-hosted tool that will help orchestrate the CI so that i don't need to build one"                                                                       | CI1             |
-| 2026-11-22 | "ok let's plan for dagger + woodpecker ci for the ci"; then "ok let's replan for argo workflows and argo events"                                                      | CI1             |
-| 2026-11-22 | "ok let's go for the woodpecker", in answer to whether the orchestrator alone admits jobs or the host pool stays underneath                                           | CI2             |
-| 2026-11-22 | "i want to reuse as much software as possible, however it all has to be dynamic/configurable and be orchestrated with the puni user platform (wbs is core of it now)" | CI3             |
-| 2026-11-22 | "let's keep in mind that all this has to be multitenant"; "all that must be orchestratable by the puni user platform, must be multitenant"                            | CI3, CI10       |
-| 2026-11-22 | "autoscaler is promising - maybe we can connect the AWS to provide additional scale?"; "dynamic environments are promising and interesting"                           | CI4, decision 7 |
-| 2026-11-22 | "i'll use tailscale for access"                                                                                                                                       | CI11            |
-| 2026-11-22 | "i want to use tailscale to safely access the services that run the platform without exposing them to the internet"                                                   | CI11            |
+| Date       | Decision                                                                                               | Where           |
+| ---------- | ------------------------------------------------------------------------------------------------------ | --------------- |
+| 2026-11-22 | A self-hosted tool orchestrates CI, so that the owner does not have to build one                       | CI1             |
+| 2026-11-22 | First Woodpecker CI with Dagger, then, for multitenancy, Argo Workflows and Argo Events with Dagger    | CI1             |
+| 2026-11-22 | The orchestrator alone admits jobs; the host pool is not used on the new capacity                      | CI2             |
+| 2026-11-22 | Reuse existing software; all of it dynamic, configurable and orchestrated by the `puni-user-platform`  | CI3             |
+| 2026-11-22 | All of it is multitenant                                                                               | CI3, CI10       |
+| 2026-11-22 | Autoscaling, a second provider and per-pull-request environments are of interest, not a starting point | CI4, decision 7 |
+| 2026-11-22 | Tailscale is the access path; platform services are not exposed to the internet                        | CI11            |
 
 ## The pass of 2026-11-22 that removed the public path
 
 The owner was away and had set the goal of finalizing and merging the plan. Three points
 were settled for him, each an assumption he can overrule: no public path (CI11), a status
 written to GitHub (CI12), and a server of 12 vCPUs and 24 GiB (CI13). The two open
-questions of the first draft are closed by them.
+questions of an earlier draft are closed by them.
 
 What changed: the GitHub event source, its webhook secret, the ingress route, and the units
 `ci-cert-manager`, `ci-traefik` and `ci-issuers` are gone; the unit `ci-tailscale-operator`
@@ -101,3 +100,14 @@ calendar event source opens a port.
 ## Checks run on this draft
 
 Recorded in the core change's verify.md with the checks of the same commit.
+
+## The pass of 2026-11-22 that folded two reviews
+
+Two reviews read the commit `08507cb8e`; the core change's verify.md lists every finding and
+its outcome. In this change: the trigger key moved into an environment that admits `main`
+only; the gate's template, Workflows and ConfigMaps moved to the `-build` namespace, with a
+Role for operator identities and the schedule only; results are posted by `report-status`
+from the ordinary namespace; a build waits behind a gate by quota; the host form of the
+gate is the stated fallback; CI-A3 no longer waits on stage 4, and the staging build's part
+of the tenant moved to CI-A5; slice CI-S9 is new; CI-S2 writes the cluster's inventory after
+the server exists; the rules of CI-S3 are lettered (s) to (v). None of this was run.

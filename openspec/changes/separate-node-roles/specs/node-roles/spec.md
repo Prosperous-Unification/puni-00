@@ -851,9 +851,9 @@ without failing. The cold-restore verification SHALL accept such a cluster.
 
 ### Requirement: Platform services have no public route
 
-No unit of the `platform` or `ci` project SHALL define an Ingress, an IngressRoute, a route
-of a Gateway, or a Service of type LoadBalancer or NodePort, except the `traefik` unit and
-an Ingress of the Tailscale operator's class.
+No unit of the `platform` or `ci` project SHALL define an Ingress, an IngressRoute or a
+route of a Gateway, except the `traefik` unit and an Ingress of the Tailscale operator's
+class.
 
 #### Scenario: A platform tool given a public route
 
@@ -866,6 +866,26 @@ an Ingress of the Tailscale operator's class.
 - **WHEN** a unit of the `platform` project defines an Ingress of the Tailscale operator's
   class
 - **THEN** the `delivery` check passes
+
+### Requirement: No Service opens a public port
+
+No unit of any project SHALL define a Service of type LoadBalancer or NodePort, except the
+telemetry gateway and the secret store's private listener, each by name. Admission SHALL
+deny one in a staging, dev or production namespace. A host of the new inventories SHALL
+drop, before destination NAT, what arrives on its public interface for a port it does not
+serve.
+
+#### Scenario: A NodePort from the pins repository
+
+- **WHEN** a staging render or a pins commit holds a Service of type NodePort
+- **THEN** the render step refuses it, and admission denies it if it is applied
+
+#### Scenario: A forwarded port on the public interface
+
+- **WHEN** a NodePort Service exists on a new host and a connection arrives for it on the
+  public interface
+- **THEN** the host drops it, and the telemetry gateway's ports answer from an enrolled
+  private address only
 
 ### Requirement: New hosts admit nothing public but what they serve
 
@@ -923,3 +943,55 @@ label.
 
 - **WHEN** an object in a namespace labelled for one tenant carries another tenant's label
 - **THEN** the `delivery` check refuses the tree
+
+### Requirement: An old writer does not restart over newer data
+
+After an app's names point at the new cluster, its old instance SHALL be started again only
+when the new store is unchanged since the restore, or after the new writer has been
+stopped and its latest state restored onto the old side and checked. The old and the new
+writer of one store SHALL never run at the same time.
+
+#### Scenario: Going back after an edit
+
+- **WHEN** an edit has been made on the new side and a rollback is considered
+- **THEN** the comparison with the restored stamp reports a difference, and the old side
+  is not started until the new side's final backup has been restored there
+
+#### Scenario: Going back before any write
+
+- **WHEN** the new store equals the restored stamp
+- **THEN** the names may be pointed back and the old side started
+
+### Requirement: A staging render never moves backwards and carries no schema change
+
+The staging build SHALL refuse to commit a render whose source commit is not a descendant
+of the one the app's pins directory names. It SHALL refuse a source commit whose migration
+set for the app differs from that of the commit staging runs, until an automated schema
+path exists.
+
+#### Scenario: Builds finishing in reverse order
+
+- **WHEN** a build of an older commit finishes after a build of a newer one
+- **THEN** its commit is refused and the pins directory keeps the newer render
+
+#### Scenario: A merge that adds a migration
+
+- **WHEN** the source commit adds a migration for the app
+- **THEN** the render step refuses it and names the attended path
+
+### Requirement: MLflow is restored whole before its old host is deleted
+
+MLflow's backup SHALL hold its metadata store and its artifact store under one stamp, with
+a manifest of every artifact's SHA-256. The old host SHALL NOT be deleted before both have
+been restored together and one known artifact has been fetched through MLflow with its
+recorded SHA-256.
+
+#### Scenario: Metadata without artifacts
+
+- **WHEN** a stamp holds the metadata store and no artifact archive
+- **THEN** the verify job fails
+
+#### Scenario: A known artifact after the move
+
+- **WHEN** the recorded run's artifact is fetched from the new instance
+- **THEN** its SHA-256 equals the one recorded on the old host

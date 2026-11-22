@@ -9,7 +9,7 @@ with a production-path negative, watched failing with the check removed, and an 
 ## 0. Decisions
 
 - [ ] AH-0.1 Owner reads assumptions AH1 to AH4 and what design.md leaves him to settle at
-      a step, and overrules by id. Receipt: the overrules and the answers, dated and quoted, in
+      a step, and overrules by id. Receipt: the overrules and the answers, dated, as decisions in
       verify.md.
 - [ ] AH-0.2 File the decision record from design.md as an ADR under the next free number,
       once the core change's two have theirs, link it from proposal.md, and delete the
@@ -102,4 +102,10 @@ retires h1claw (AH3).
       preconditions held, dated. Stop: a store on an old host still has h1claw's pull as
       its only off-host backup and the owner has not accepted that window; he has, on
       2026-11-21 (R30), so this stop applies only if he withdraws it. Rollback: none; that
-      is why the preconditions are receipts. He may delete it before this step (R30).
+      is why the preconditions are receipts. He may delete it earlier than this step's place
+      in the order (R30), and then the same preconditions hold: what R30 lets him skip is
+      waiting for the backups to move, not the escrow read-back or his recorded yes or no
+      on OpenClaw's state. With either goes his dated sign-off of a list of what the host
+      still holds, read from the host and marked moved or discarded entry by entry:
+      OpenClaw's state, the pulled backup sets, the secret files, and repository work that
+      is not pushed.
