@@ -93,7 +93,9 @@ which they extend.
       which its template marks with the label `puni.dev/throwaway`, on a class that
       retains, with a WAL archiver, or with a selector other than its unit's capability;
       the drill CronJob of `platform-db` not suspended while the inventory gives the
-      server `database`, or suspended once another node carries it; any `Cluster` with superuser access on; an `ObjectStore` of one cluster that reads the credential
+      server `database`, or suspended once another node alone carries it (while both
+      carry it, during PG-A2, the schedule stays suspended and one attended drill
+      pinned to the destination is run); any `Cluster` with superuser access on; an `ObjectStore` of one cluster that reads the credential
       of the other; a `Database` whose owner role owns another database; a `Cluster`, a
       `Database` or a `DatabaseRole` in a `staging` or `production` Application; a Velero
       schedule that includes a database namespace. Rule 2.4(n)'s exemption table gains the
@@ -199,7 +201,14 @@ which they extend.
       PersistentVolume on it with a class of its own that no provisioner serves. The
       `platform-db` unit names that class when the inventory says the server carries
       `database`, and `puni-retain` otherwise; which one is a value of the unit's overlay,
-      checked by rule (o) against the inventory. On a node that carries `database` and
+      checked by rule (o) against the inventory. During PG-A2 the check admits the
+      classes of the move in progress, which the inventory names: on the restore path
+      the source's static class on h5plat together with `puni-retain` on `h10db` while
+      h5plat still carries `database`, and on the replica path a static class on both;
+      after the move it admits the class of the node that carries `database`, which is
+      a static one after a switchover and `puni-retain` after a restore. A class
+      outside the move the inventory names is refused (fault: drop the move from the
+      inventory and see the destination's claim refused). On a node that carries `database` and
       not `control-plane` the role provisions nothing by default: there the claim is on
       `puni-retain` (design decision 3). It makes a volume of the static class on such
       a node only when the inventory sets the replica path for it, which PG-A2 does if
@@ -208,12 +217,16 @@ which they extend.
       replica path set. Test: the role's contract test; on the
       disposable lab a claim of that class binds to the volume and a write past its size
       fails with no change in the host's free space. Negatives, each with its own fault:
-      a `platform-db` on `puni-retain` while the server carries `database` fails the
-      `delivery` check (fault: read the unit without the inventory); the volume's path
+      a `platform-db` claim bound for the server on `puni-retain` while the server
+      carries `database` fails the `delivery` check (fault: read the unit without the
+      inventory), and beside it a passing case: the restore destination's claim on
+      `puni-retain` on `h10db` during the move the inventory names; the volume's path
       outside the bounded mount fails the role's verification (fault: skip the mount
       comparison). Stop: the provisioner or the operator cannot use a static volume for an
       instance. Then `platform-db` does not start on the server and the database server
-      is created first.
+      is created first (PG-A1, PG-A2's join); PG-A4 then installs the first instance
+      there on `puni-retain`, with its commands limited to `h10db` and without the
+      storage role, and the drill is weekly from the start.
 
 ## 2. Attended steps
 
@@ -234,10 +247,14 @@ server (design decision 4) and are not run before its trigger.
       no other capability, the taint `puni.dev/role=database:NoSchedule` and no enrollment taint; the
       only pods on it are the three node agents; then one of two paths, chosen before the
       move and recorded. The replica path: the inventory sets it for `h10db`, PG-S6's
-      role is applied there so that a volume of the server's static class exists, and
-      the receipt is that volume, a replica caught up on it and a switchover. The
+      role is applied there so that a volume of the server's static class exists; a
+      marker row is written on h5plat before the switchover; and the receipt is that
+      volume, a replica caught up on it, a switchover, and the marker row read on
+      `h10db` through the apps' database endpoint. The
       restore path, taken if the replica path is not chosen or the operator places no
-      replica on that volume: the new cluster's claim is on `puni-retain`; a static
+      replica on that volume: the switch to the restore path is first recorded in the
+      inventory, so that PG-S6's check judges the destination claim against the move
+      in force; the new cluster's claim is on `puni-retain`; a static
       volume already made on `h10db` is left in place only after it is read unbound
       and unused, and none is made otherwise. With the apps' writers stopped and their
       pods read gone, the operator records a named restore point on the source, forces
@@ -245,12 +262,20 @@ server (design decision 4) and are not run before its trigger.
       the new cluster recovers through that restore point, and a row written just
       before the writers stopped is read on it. The receipt is that restore of design
       decision 4, its start and end noted, the restore point's name and LSN, the
-      archived segment and the row. Either way: the drill CronJob resumed and one run
-      seen. Stop: validation fails, another pod is scheduled there, a restore would
+      archived segment and the row. Either way: with the schedule still suspended, one
+      attended drill pinned to `h10db` is run and seen; the weekly schedule is resumed
+      only after the capability play has taken `database` from h5plat. Stop: validation fails, another pod is scheduled there, a restore would
       start without the owner's word on the hour, the segment is not in the archive,
       or recovery ends before the restore point; writes are not reopened and the
-      source is not removed in either case. Rollback: as A13; the instance on h5plat
-      is removed only after the new one serves with that row read.
+      source is not removed in either case. Rollback: as A13, which deletes the
+      server, only until the instance on `h10db` accepts writes. From its first write
+      the server is kept and the way is forward: a failed drill or validation is
+      repaired there. If the server has to go all the same, the writers are stopped
+      first, another primary is proven to hold its final commits by the same restore
+      point, WAL switch and archived segment, and to serve the apps, and only then is
+      `h10db` deleted. The instance and volume on h5plat are removed only after the
+      new one serves with its path's row read and that attended drill has run on
+      `h10db`.
 - [ ] PG-A3 The operator, the plugin and the non-production cluster, after A17, stage 3's
       receipt, slices 2.10 and PG-S2 to PG-S5, and the store paths design decision 3 asks of
       pull request #935. Who: operator; owner for the values. Commands: first run
@@ -291,7 +316,7 @@ server (design decision 4) and are not run before its trigger.
       `Prune=false` and are removed by hand, the canary data being disposable. The
       operator's CRDs stay until no object of their kinds is left (core decision 3).
 - [ ] PG-A4 The production cluster, on the platform node in the minimal profile (PG8),
-      when the owner says so, after A17, PG-A3's receipt and slices PG-S5 and PG-S6. Who:
+      or on the database server by PG-S6's stop, when the owner says so, after A17, PG-A3's receipt and slices PG-S5 and PG-S6. Who:
       operator; owner for the values. Commands: merge the inventory revision of PG-S1 and
       run `playbooks/capabilities.yml` limited to h5plat; apply the storage
       role of PG-S6 limited to h5plat; the owner writes the production database bucket's key

@@ -356,8 +356,8 @@ by a restart of that app, and the port's change says how.
   And the first app's data is already where this arrangement ends: each port's change
   either waits for the database server, where the CronJob is resumed, or carries the
   owner's dated word that attended drills continue for that app. Rule (o) holds the two
-  states to the inventory: suspended while the server carries `database`, not suspended
-  once another node does.
+  states to the inventory: suspended while the server carries `database`, which includes
+  the overlap of a move, and not suspended once the database server alone carries it.
 - _The non-production cluster's restore_ is proven once, in PG-A3, before the tracker's
   port puts data there. The `nonproduction-db` unit carries the same drill CronJob,
   suspended: it restores into a throwaway cluster in `postgres-nonproduction` on the
@@ -447,10 +447,15 @@ is made otherwise. The apps' writers are stopped for its length, which PG-A5 has
 planned downtime, the size of the data. Stopping the writers does not put the last WAL
 segment in the archive, so after they stop the operator records a named restore point,
 forces a WAL switch and reads the segment archived, and the new cluster recovers through
-that point before writes are reopened or the source is removed. Either way the core's capability play then takes `database` from h5plat
-(the volume there is empty or removed first, slice 1.7's guard), the drill CronJob is
-resumed, and the instance's limit is raised to the full profile's 4,096 MiB. No app's
-manifest changes.
+that point before writes are reopened or the source is removed. Either way one
+attended drill pinned to `h10db` is run first, with the weekly schedule still suspended
+while both nodes carry `database`; then the core's capability play takes `database` from
+h5plat (the volume there is empty or removed, slice 1.7's guard), the schedule is resumed,
+and the instance's limit is raised to the full profile's 4,096 MiB. No app's manifest
+changes. Deleting `h10db` is a rollback only until its instance accepts writes: after
+that its commits may not be in the archive yet, so the server is kept and repaired, or
+its final commits are proven on another primary, by the same restore point and archived
+segment, before it goes.
 
 **What is missing in source.** Each row is an agent slice in [tasks.md](tasks.md).
 

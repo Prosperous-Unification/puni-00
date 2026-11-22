@@ -51,8 +51,14 @@ data.
 #### Scenario: Unbounded claim on the server
 
 - **WHEN** the inventory gives the control-plane node `database` and the production cluster's
-  claim names a class other than the bounded one
+  claim on that node names a class other than the bounded one
 - **THEN** the delivery check fails and names the cluster
+
+#### Scenario: Restore destination during a move
+
+- **WHEN** the inventory names a move by restore and the destination server's claim is on the
+  retaining class while the control-plane node still carries `database`
+- **THEN** the delivery check passes
 
 #### Scenario: Bounded claim fills
 
@@ -62,8 +68,14 @@ data.
 #### Scenario: Scheduled drill beside the control plane
 
 - **WHEN** the production cluster's drill job is not suspended while the inventory gives the
-  control-plane node `database`, or is suspended once another node carries it
+  control-plane node `database`, or is suspended once another node alone carries it
 - **THEN** the delivery check fails and names the job
+
+#### Scenario: Drill during a move
+
+- **WHEN** both the control-plane node and the destination server carry `database`
+- **THEN** the drill's schedule stays suspended, one attended drill pinned to the destination
+  runs, and the schedule resumes only after the control-plane node no longer carries it
 
 #### Scenario: Drill pod under the placement policy
 
@@ -165,7 +177,7 @@ used, and Velero MUST NOT back up a database namespace.
 ### Requirement: A restore is proven before production data arrives
 
 Every cluster SHALL be dumped per database every night. The production cluster SHALL be
-restored into a throwaway cluster: weekly once a database node carries it, and by an
+restored into a throwaway cluster: weekly once a database node alone carries it, and by an
 attended run while the control-plane node does. A drill MUST NOT archive WAL or leave a
 copy of the data on the node. No production data SHALL be written before one restore and
 one single-database rollback have a receipt, and no staging data before one restore of the
