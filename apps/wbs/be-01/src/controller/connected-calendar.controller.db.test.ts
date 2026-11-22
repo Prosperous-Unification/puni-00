@@ -2,6 +2,7 @@ import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-ac
 import { afterEach, expect, test } from 'bun:test';
 
 import { OrganizationHarness } from '../testing/organization-harness';
+import { createFixturePackage, readFixturePackage } from '../testing/space-rollup';
 
 let harness: OrganizationHarness;
 afterEach(async () => {
@@ -26,32 +27,23 @@ async function open(mode: 'isolated' | 'shared', days: number) {
     ['Monday', '2026-10-19'],
     ['Wednesday', '2026-10-21'],
   ]) {
-    expect(await harness.call('ada', 'POST', '/api/work-packages', { name })).toMatchObject({
-      status: 200,
-    });
-    const workPackage = harness.sqlite
-      .query<{ id: string }, [string]>('SELECT id FROM work_package WHERE name=?')
-      .get(name);
-    if (workPackage === null) throw new Error('missing calendar fixture work package');
-    const step = harness.sqlite
-      .query<{ id: string }, [string]>(
-        'SELECT id FROM step WHERE work_package_id=? ORDER BY position LIMIT 1',
-      )
-      .get(workPackage.id);
-    if (step === null) throw new Error('missing calendar fixture step');
+    const workPackageId = await createFixturePackage(harness, 'ada', name);
+    const { steps } = await readFixturePackage(harness, 'ada', workPackageId);
+    const step = steps.at(0);
+    if (step === undefined) throw new Error('missing calendar fixture step');
     harness.sqlite.run(
       "UPDATE work_package SET start_date=?,estimate_method='realistic',estimate_rounding='exact' WHERE id=?",
-      [start, workPackage.id],
+      [start, workPackageId],
     );
     harness.sqlite.run(
       'INSERT INTO work_item(id,work_package_id,position,name,readiness) VALUES (?,?,10,?,?)',
-      [name, workPackage.id, name, 'ready'],
+      [name, workPackageId, name, 'ready'],
     );
     harness.sqlite.run(
       'INSERT INTO estimate(work_item_id,step_id,optimistic,realistic,pessimistic) VALUES (?,?,?,?,?)',
       [name, step.id, days, days, days],
     );
-    endpoints.push({ workPackageId: workPackage.id, stepId: step.id, workItemId: name });
+    endpoints.push({ workPackageId, stepId: step.id, workItemId: name });
   }
   const monday = endpoints.at(0);
   const wednesday = endpoints.at(1);
@@ -159,15 +151,9 @@ for (const mode of ['isolated', 'shared'] as const) {
   // Proof: defaulting missing anchors to Monday failed both explicit-unavailable cases.
   test(`${mode} mounted missing connected anchor stays explicit and unrelated undated work package stays outside`, async () => {
     const { monday, wednesday } = await open(mode, 2.5);
+    const unrelated = await createFixturePackage(harness, 'ada', 'Unrelated undated');
     expect(
-      await harness.call('ada', 'POST', '/api/work-packages', { name: 'Unrelated undated' }),
-    ).toMatchObject({ status: 200 });
-    const unrelated = harness.sqlite
-      .query<{ id: string }, []>("SELECT id FROM work_package WHERE name='Unrelated undated'")
-      .get();
-    if (unrelated === null) throw new Error('missing unrelated fixture work package');
-    expect(
-      await harness.call('ada', 'POST', `/api/work-packages/${unrelated.id}/commands`, {
+      await harness.call('ada', 'POST', `/api/work-packages/${unrelated}/commands`, {
         commands: [{ kind: 'createWorkItem', name: 'Undated independent work' }],
       }),
     ).toMatchObject({ status: 200 });

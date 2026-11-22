@@ -125,15 +125,34 @@ function stream(bytes: string) {
     },
   });
 }
+function bindBuildStep(sqlite: ReturnType<typeof openDatabase>, workPackage: string) {
+  const project = 'project-' + workPackage;
+  const step = workPackage + '-s';
+  sqlite.run(
+    "INSERT INTO project(id,organization_id,name,created_at,created_by) VALUES(?,'org-a',?,1,'ada')",
+    [project, project],
+  );
+  sqlite.run('UPDATE work_package SET project_id=? WHERE id=?', [project, workPackage]);
+  sqlite.run(
+    "INSERT INTO step_definition(id,organization_id,code,name,estimate_unit,default_allowance_bps,position,defined_at_scope_kind,defined_at_scope_id,origin) VALUES(?,'org-a',?,?,'workdays',0,0,'project',?,'authored')",
+    [step, step, 'Build ' + workPackage, project],
+  );
+  sqlite.run(
+    "INSERT INTO step_binding(id,organization_id,scope_kind,scope_id,step_id,position,origin) VALUES(?,'org-a','project',?,?,0,'authored')",
+    ['binding-' + step, project, step],
+  );
+  sqlite.run(
+    "INSERT INTO work_package_step(work_package_id,step_id,estimate_unit,allowance_bps,allowance_revision) VALUES(?,?,'workdays',0,0)",
+    [workPackage, step],
+  );
+}
+
 async function fixture() {
   const folder = mkdtempSync(join(tmpdir(), 'connected-composition-'));
   const path = await openSpaceDatabase(folder);
   seedDependencyAuthority(path);
   const sqlite = openDatabase(path);
   sqlite.run("UPDATE organization_activation SET state='activated',activated_at=1");
-  sqlite.run(
-    "INSERT INTO organization_membership(organization_id,user_id,role,created_at) VALUES('org-a','ada','member',1)",
-  );
   sqlite.run(
     "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES(?,?,'organization',?,'user',?,?,'route',1)",
     ['connected-ada', 'org-a', 'org-a', 'ada', 'org-admin'],
@@ -188,7 +207,6 @@ async function fixture() {
   sqlite.run('DELETE FROM external_dependency');
   sqlite.run('DELETE FROM estimate');
   sqlite.run('DELETE FROM work_item');
-  sqlite.run('DELETE FROM step');
   sqlite.run("UPDATE work_package SET schedule_objective='pri' WHERE id='a1'");
   for (const workPackage of ['a1', 'a2']) {
     sqlite.run('INSERT INTO service_team(id,name) VALUES(?,?)', [workPackage, workPackage]);
@@ -200,11 +218,7 @@ async function fixture() {
       'INSERT INTO work_package_team_capacity(work_package_id,service_team_id,size) VALUES(?,?,1)',
       [workPackage, workPackage],
     );
-    sqlite.run('INSERT INTO step(id,work_package_id,name,position) VALUES(?,?,?,0)', [
-      workPackage + '-s',
-      workPackage,
-      'Build',
-    ]);
+    bindBuildStep(sqlite, workPackage);
     for (const [position, suffix] of (workPackage === 'a1'
       ? ['long', 'short']
       : ['foreign']
@@ -348,7 +362,7 @@ test('mounted child publishes improved durable ready candidate and replays exact
       response: { offsets: Record<string, number> };
     };
     expect(stored).toMatchObject({
-      dtoVersion: 2,
+      dtoVersion: 3,
       publication: 'optimized',
       scope: { kind: 'connected-stage', workPackageId: 'a1' },
       response: { offsets: { 'a1-long\u0000a1-s': 96, 'a1-short\u0000a1-s': 48 } },
@@ -482,7 +496,6 @@ async function fractionalFixture(shortUnits: 8 | 9) {
   f.sqlite.run('DELETE FROM external_dependency');
   f.sqlite.run('DELETE FROM estimate');
   f.sqlite.run('DELETE FROM work_item');
-  f.sqlite.run('DELETE FROM step');
   f.sqlite.run('DELETE FROM work_package_rank');
   f.sqlite.run("UPDATE work_package SET schedule_engine='fast',optimization_enabled=0");
   f.sqlite.run(
@@ -494,6 +507,7 @@ async function fractionalFixture(shortUnits: 8 | 9) {
       [workPackage, rank],
     );
     if (workPackage === 'a3') {
+      bindBuildStep(f.sqlite, workPackage);
       f.sqlite.run('INSERT INTO service_team(id,name) VALUES(?,?)', [workPackage, workPackage]);
       f.sqlite.run(
         "INSERT INTO service_team_organization(resource_id,organization_id,name) VALUES(?,'org-a',?)",
@@ -504,11 +518,6 @@ async function fractionalFixture(shortUnits: 8 | 9) {
         [workPackage, workPackage],
       );
     }
-    f.sqlite.run('INSERT INTO step(id,work_package_id,name,position) VALUES(?,?,?,0)', [
-      workPackage + '-s',
-      workPackage,
-      'Build',
-    ]);
   }
   for (const [workPackage, suffix, position, days, priority] of [
     ['a2', 'anchor', 0, 0.1, 1],
@@ -587,10 +596,13 @@ async function fractionalQuestion(f: Awaited<ReturnType<typeof fixture>>, shortU
   if (built.kind !== 'request') throw Error('genuine fractional question is not a request');
   const request = built.request;
   expect(request.scope).toMatchObject({
-    workPackageId: stage.workPackageId,
+    projectId: stage.workPackageId,
     inputHash: prepared.questions.pri.inputHash,
     questionHash: prepared.questions.pri.questionHash,
-    workPackages: stage.workPackages,
+    projects: stage.workPackages.map(({ workPackageId, ...placement }) => ({
+      projectId: workPackageId,
+      ...placement,
+    })),
   });
   expect(request.scope.fixed.find(({ key }) => key === 'a3-long\u0000a3-s')?.start).toBe(
     shortUnits / 48,
@@ -745,7 +757,7 @@ for (const shortUnits of [8, 9] as const) {
             failureReason: 'invalid-output',
           }),
         });
-        notifications.push(...elsewhere(), ...elsewhere());
+        notifications.push(...elsewhere());
       }
       const sequences = new Map<string, number>();
       const events = notifications.map((event, index) => {
@@ -791,10 +803,10 @@ for (const shortUnits of [8, 9] as const) {
         event_log: encoded(events),
         event_sequencer: encoded([
           { subscription: 'work-package:a1', next_seq: 2 },
-          { subscription: 'work-package:a2', next_seq: 5 },
-          { subscription: 'work-package:a3', next_seq: 5 },
+          { subscription: 'work-package:a2', next_seq: 3 },
+          { subscription: 'work-package:a3', next_seq: 3 },
         ]),
-        sqlite_sequence: encoded([{ name: 'event_log', seq: 12 }]),
+        sqlite_sequence: encoded([{ name: 'event_log', seq: 8 }]),
       });
     } else {
       expect(
@@ -902,24 +914,28 @@ test('mounted outgoing terminal survives recompose and an authored successor edi
       evidence: { kind: 'contradictory-bounds', lower: 10, upper: 9 },
     });
   }
-  expect(
-    f.sqlite
-      .query('SELECT message FROM event_log ORDER BY id')
-      .all()
-      .map((row) => (JSON.parse((row as { message: string }).message) as { type: string }).type),
-  ).toEqual([
-    'elsewhere_changed',
-    'elsewhere_changed',
-    'schedule_optimization_boundary_infeasible',
-    'elsewhere_changed',
-    'elsewhere_changed',
-    'elsewhere_changed',
-    'elsewhere_changed',
-    'schedule_optimization_boundary_infeasible',
-    'elsewhere_changed',
-    'elsewhere_changed',
-    'elsewhere_changed',
-    'elsewhere_changed',
+  const notifications = f.sqlite
+    .query<{ message: string }, []>('SELECT message FROM event_log ORDER BY id')
+    .all()
+    .map(({ message }) => {
+      const event = JSON.parse(message) as {
+        type: string;
+        workPackageId: string;
+        causeWorkPackageId?: string;
+        objective?: string;
+      };
+      return [event.type, event.workPackageId, event.causeWorkPackageId ?? event.objective];
+    });
+  const neighbors = [
+    ['elsewhere_changed', 'a2', 'a1'],
+    ['elsewhere_changed', 'a3', 'a1'],
+  ];
+  expect(notifications).toEqual([
+    ...neighbors,
+    ['schedule_optimization_boundary_infeasible', 'a1', 'pri'],
+    ...neighbors,
+    ['schedule_optimization_boundary_infeasible', 'a1', 'time'],
+    ...neighbors,
   ]);
   const terminal = {
     optimization: {
@@ -1080,7 +1096,7 @@ test('mounted outgoing terminal survives recompose and an authored successor edi
       .all(q2.questions.pri.inputHash);
     expect(storedQ2).toHaveLength(2);
     for (const row of storedQ2)
-      expect(JSON.parse(row.result_json)).toMatchObject({ dtoVersion: 2, publication: 'baseline' });
+      expect(JSON.parse(row.result_json)).toMatchObject({ dtoVersion: 3, publication: 'baseline' });
     const fixedSuccessor = await restarted.tree(restarted.app, 'a3');
     expect(
       fixedSuccessor.slices.map(({ id, earliestStart, earliestFinish }) => [

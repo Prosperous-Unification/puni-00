@@ -1,3 +1,4 @@
+import { createProject } from '@wbs/contracts';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { BootedBrowserProcess } from '../testing/booted-browser-process';
@@ -62,19 +63,24 @@ async function workPackage(
   organizationId: string,
 ): Promise<string> {
   const response = await h.app.handle(
-    new Request('http://localhost/api/work-packages', {
-      method: 'POST',
+    new Request('http://localhost' + createProject.path, {
+      method: createProject.method,
       headers: {
         cookie: `__Host-wbs_access=${h.token(username)}; __Host-wbs_organization=${selections.get(username) ?? ''}`,
         'X-WBS-Expected-Organization': organizationId,
         origin: 'http://localhost',
         'content-type': 'application/json',
       },
-      body: JSON.stringify({ name }),
+      body: JSON.stringify({ name: name + ' project', workPackage: { name } }),
     }),
   );
-  if (response.status !== 200) throw new Error(`create refused: ${await response.text()}`);
-  return ((await response.json()) as { workPackage: { id: string } }).workPackage.id;
+  if (response.status !== 201) throw new Error(`create refused: ${await response.text()}`);
+  const birth = await createProject.responses[0].schema.validator['~standard'].validate(
+    await response.json(),
+  );
+  if (birth.issues !== undefined || birth.value.workPackage === undefined)
+    throw new Error('project birth omitted the selected gateway fixture package');
+  return birth.value.workPackage.id;
 }
 
 /** gw-01's call: its secret plus `username`'s access cookie and `organizationCookie`. */

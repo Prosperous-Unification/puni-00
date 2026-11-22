@@ -1,3 +1,4 @@
+import { createProject } from '@wbs/contracts';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { OrganizationHarness } from '../testing/organization-harness';
@@ -14,9 +15,17 @@ let aWorkPackage: string;
 let bWorkPackage: string;
 
 async function workPackage(username: string, name: string): Promise<string> {
-  const answer = await h.call(username, 'POST', '/api/work-packages', { name });
-  if (answer.status !== 200) throw new Error(`create refused: ${JSON.stringify(answer)}`);
-  return (answer.body as { workPackage: { id: string } }).workPackage.id;
+  const answer = await h.call(username, createProject.method, createProject.path, {
+    name: name + ' project',
+    workPackage: { name },
+  });
+  if (answer.status !== 201) throw new Error(`create refused: ${JSON.stringify(answer)}`);
+  const birth = await createProject.responses[0].schema.validator['~standard'].validate(
+    answer.body,
+  );
+  if (birth.issues !== undefined || birth.value.workPackage === undefined)
+    throw new Error('project birth omitted the gateway fixture package');
+  return birth.value.workPackage.id;
 }
 
 /** A gateway call: its secret plus the socket's forwarded cookie, as gw-01 sends them. */

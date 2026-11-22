@@ -1,5 +1,6 @@
 import { join } from 'node:path';
 
+import { readWorkPackage } from '@wbs/contracts';
 import { afterAll, beforeAll, describe, expect, it, setDefaultTimeout } from 'bun:test';
 
 import {
@@ -9,6 +10,7 @@ import {
   type ToolAnswer,
 } from './testing/mcp-agent-stack';
 import { OrganizationHarness } from './testing/organization-harness';
+import { createFixturePackage } from './testing/space-rollup';
 
 /**
  * A swarm end to end over be-01's production composition and real SQLite, through public
@@ -133,6 +135,16 @@ async function asAdmin(method: string, path: string, body?: unknown): Promise<Re
   });
   answered.push(reply);
   return reply;
+}
+
+async function createPlan(name: string) {
+  const id = await createFixturePackage(h, 'dany', name, asAdmin);
+  const read = await asAdmin('GET', `/api/work-packages/${id}`);
+  if (read.status !== 200) throw new Error('swarm work package read refused: ' + read.text);
+  const plan = await readWorkPackage.responses[0].schema.validator['~standard'].validate(read.body);
+  if (plan.issues !== undefined)
+    throw new Error('swarm work package reply malformed', { cause: plan.issues });
+  return plan.value;
 }
 
 /** One agent's tool call on its own MCP session. */
@@ -536,19 +548,16 @@ describe('a swarm of four agents on a capped organization, end to end', () => {
       }),
     );
     ids.resources = { ram: declared[0] ?? '', disk: declared[1] ?? '', slots: declared[2] ?? '' };
-    const workPackage = await asAdmin('POST', '/api/work-packages', { name: 'Swarm' });
-    expect(workPackage.status).toBe(200);
-    ids.workPackage = (workPackage.body as { workPackage: { id: string } }).workPackage.id;
-    const steps = (workPackage.body as { steps: { id: string; name: string }[] }).steps;
+    const swarm = await createPlan('Swarm');
+    ids.workPackage = swarm.workPackage.id;
     ids.steps = {
-      dev: steps.find((each) => each.name === 'Dev')?.id ?? '',
-      qa: steps.find((each) => each.name === 'QA')?.id ?? '',
+      dev: swarm.steps.find((step) => step.name === 'Dev')?.id ?? '',
+      qa: swarm.steps.find((step) => step.name === 'QA')?.id ?? '',
     };
     expect(Object.values(ids.steps).every((id) => id !== '')).toBe(true);
-    const ops = await asAdmin('POST', '/api/work-packages', { name: 'Ops' });
-    expect(ops.status).toBe(200);
-    ids.opsWorkPackage = (ops.body as { workPackage: { id: string } }).workPackage.id;
-    ids.opsStep = (ops.body as { steps: { id: string }[] }).steps[0]?.id ?? '';
+    const ops = await createPlan('Ops');
+    ids.opsWorkPackage = ops.workPackage.id;
+    ids.opsStep = ops.steps[0]?.id ?? '';
     expect(ids.opsStep).not.toBe('');
 
     // `organization-limits`: capacities within the per-resource cap of 64 are applied.

@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
@@ -8,6 +8,7 @@ import { createLogger } from '@wbs/observability';
 import { openSqliteSource } from '@wbs/store-sqlite';
 import * as stepCodes from '@wbs/store-sqlite/step-code-backfill';
 import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from '@wbs/store-sqlite/testing/dependency-capability';
+import { copyRecoveryPrefix } from '@wbs/store-sqlite/testing/recovery-state';
 import { afterEach, expect, spyOn, test } from 'bun:test';
 
 import { buildApp } from './app';
@@ -15,7 +16,6 @@ import { bootBe01 as bootBackend, type BootOptions, type RunningBe } from './boo
 import { OptimizationCoordinator } from './module/optimization/optimization.feature';
 import { openDatabase, refuseToWaitForWriteLock, SQLiteError } from './repository/db';
 import * as migrationModule from './repository/migrate';
-import { runMigrations } from './repository/migrate';
 import { UserRepository } from './repository/user';
 import * as dependencyRuntime from './runtime/dependency-capability';
 import { migrateOrganizationCatalogueFixture } from './testing/organization-catalogue-fixture';
@@ -65,6 +65,16 @@ function createOptions(): BootOptions {
     },
   };
 }
+function prepareCatalogue(path: string): void {
+  const directory = dirname(path);
+  // Register cleanup only after the actual catalogue owner returns; acquisition failure retains it.
+  // Proof: v252 omitted only deregistration; actual afterEach deleted the close-uncertain root/DB.
+  // Restoration retained both and the exact cause after native close returned then threw.
+  // This proves conservative namespace retention, not an actual leaked descriptor.
+  expect(directories.pop()).toBe(directory);
+  migrateOrganizationCatalogueFixture(path);
+  directories.push(directory);
+}
 function makeApp(composition: Parameters<typeof buildApp>[0]) {
   const app = buildApp(composition);
   app.stop = () => Promise.resolve(app);
@@ -72,7 +82,7 @@ function makeApp(composition: Parameters<typeof buildApp>[0]) {
 }
 test('boot audit excludes a second connection commit between marker and history reads', async () => {
   const configured = { ...createOptions(), organizationDnsResolvers: undefined };
-  runMigrations(configured.dbPath, folder);
+  prepareCatalogue(configured.dbPath);
   const writer = openSqliteSource({
     dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
     dbPath: configured.dbPath,
@@ -157,7 +167,7 @@ test('boot audit excludes a second connection commit between marker and history 
 
 test('holds listener, retention, claim sweep and proof workers until actual ledger inspection settles', async () => {
   const configured = createOptions();
-  runMigrations(configured.dbPath, folder);
+  prepareCatalogue(configured.dbPath);
   const entered = Promise.withResolvers<undefined>();
   const release = Promise.withResolvers<undefined>();
   let listeners = 0;
@@ -242,7 +252,7 @@ test('holds listener, retention, claim sweep and proof workers until actual ledg
 for (const fault of ['missing', 'corrupt'] as const) {
   test(`rejects ${fault} ledger before acquiring listener or retention and closes source`, async () => {
     const configured = createOptions();
-    runMigrations(configured.dbPath, folder);
+    prepareCatalogue(configured.dbPath);
     const sqlite = openDatabase(configured.dbPath);
     sqlite.run(
       fault === 'missing'
@@ -294,13 +304,18 @@ for (const fault of ['missing', 'corrupt'] as const) {
 }
 test('explicit pending migrations create the ledger before awaited inspection', async () => {
   const configured = createOptions();
+  // The empty predecessor profile lets ordinary startup create the real runtime ledger before SC14.
+  expect(existsSync(configured.dbPath)).toBe(false);
   let inspected = false;
   running = await bootBe01(
     {
       ...configured,
       organizationDnsResolvers: undefined,
       migrateOnStartup: true,
-      migrationsFolder: folder,
+      migrationsFolder: copyRecoveryPrefix(
+        dirname(configured.dbPath),
+        '20261115120000_add_step_migration_report',
+      ),
     },
     {
       openSource: (settings) => {
@@ -336,7 +351,7 @@ test('explicit pending migrations create the ledger before awaited inspection', 
 
 test('failure after acquiring our listener releases that socket and the source', async () => {
   const configured = { ...createOptions(), organizationDnsResolvers: undefined };
-  runMigrations(configured.dbPath, folder);
+  prepareCatalogue(configured.dbPath);
   let port: number | undefined;
   let closes = 0;
   await expectBootFailure(
@@ -379,14 +394,7 @@ async function expectBootFailure(booting: Promise<RunningBe>): Promise<void> {
 
 test('prepares schema and identity once with preflight and post-migration dependency admission before the coherent runtime ledger barrier', async () => {
   const configured = { ...createOptions(), organizationDnsResolvers: undefined };
-  const directory = dirname(configured.dbPath);
-  // Register cleanup only after the actual catalogue owner returns; acquisition failure retains it.
-  // Proof: v252 omitted only deregistration; actual afterEach deleted the close-uncertain root/DB.
-  // Restoration retained both and the exact cause after native close returned then threw.
-  // This proves conservative namespace retention, not an actual leaked descriptor.
-  expect(directories.pop()).toBe(directory);
-  migrateOrganizationCatalogueFixture(configured.dbPath);
-  directories.push(directory);
+  prepareCatalogue(configured.dbPath);
   const stages: string[] = [];
   let hasMigrated = false;
   const migrate = migrationModule.runMigrations;
