@@ -94,6 +94,9 @@
       ],
       "@wbs/contracts/mcp-internal-auth": ["./libs/wbs/domain/contracts/src/mcp-internal-auth.ts"],
       "@wbs/contracts": ["./libs/wbs/domain/contracts/src/index.ts"],
+      "@wbs/contracts/runtime-state-history": [
+        "./libs/wbs/domain/contracts/src/runtime-state-history.ts"
+      ],
       "@wbs/contracts/dependency-runtime": [
         "./libs/wbs/domain/contracts/src/dependency-runtime.ts"
       ],

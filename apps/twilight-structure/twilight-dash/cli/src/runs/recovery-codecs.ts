@@ -1,5 +1,5 @@
 import { parseOrThrow, type } from '@shared/validation';
-import { retainedRuntimeState } from '@wbs/contracts';
+import { retainedRuntimeState } from '@wbs/contracts/runtime-state-history';
 
 import {
   AttemptCodec,

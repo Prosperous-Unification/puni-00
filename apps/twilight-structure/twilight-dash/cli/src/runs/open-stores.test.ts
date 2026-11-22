@@ -462,6 +462,8 @@ test('portable ports and core records exclude adapter dependencies structurally'
     ],
     'recovery-codecs.ts': [
       '@shared/validation',
+      // Proof: importing the contracts barrel in recovery-codecs.ts fails this structural check.
+      '@wbs/contracts/runtime-state-history',
       './execution-codecs',
       './recovery-records',
       './runtime-codecs',

@@ -499,12 +499,15 @@ test('[TEST-AXES-051] working index replacement cannot repair missing committed 
     `# Working replacement\n\n<!-- module-index ${JSON.stringify(metadata)} -->\n\n- [Outer](apps/alpha/README.md)\n`,
   );
   git(setup.root, ['add', 'README.md']);
-  expect(
-    checkIndexes(
-      setup.root,
-      readCandidate(setup.root, { kind: 'working', base: setup.revision }),
-    ).indexes.some(({ moduleId }) => moduleId === 'module.root'),
-  ).toBe(true);
+  const working = await invokeCli(['check-indexes', 'working', setup.root, setup.revision], {
+    GIT_CONFIG_GLOBAL: '/dev/null',
+    GIT_CONFIG_SYSTEM: '/dev/null',
+  });
+  expect(working.exitCode, working.stderr).toBe(0);
+  const checked = JSON.parse(working.stdout) as ReturnType<typeof checkIndexes>;
+  expect(checked.indexes.find(({ moduleId }) => moduleId === 'module.root')?.members).toContain(
+    setup.caseFile,
+  );
   const call = await inspect(setup);
   expect(call.exitCode).not.toBe(0);
   expect(call.stderr).toContain('test source has no unique validated index owner');

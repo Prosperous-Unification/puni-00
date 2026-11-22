@@ -38,9 +38,10 @@ it('owns observational status output without creating native lock or queue state
 });
 it('reports owned admission before native payload stderr and preserves its status', () => {
   const f = createFixture();
+  // Exact native bytes keep this ordering/status oracle independent of Bun console colors.
   writeFileSync(
     f.payload,
-    "console.log('payload-out');console.error('payload-err');process.exitCode=37;",
+    "import { writeSync } from 'node:fs';writeSync(1,'payload-out\\n');writeSync(2,'payload-err\\n');process.exitCode=37;",
   );
   const child = Bun.spawnSync(
     [
