@@ -2444,3 +2444,17 @@ Nx typecheck passed.
   under its existing 60-second deadline. Each case now removes its own
   temporary producer roots after completion. The previous hosted suite
   passed the named tests and timed out during its shared cleanup hook.
+
+### Dependency boot, organization import and status migration
+
+- The focused native-loopback backend Nx run passed all 42 dependency
+  boot cases and 218 assertions. It uses the genuine historical migration
+  list and checks unattended refusal at the private catalogue migration
+  before recovering through the actual atomic owner and serving HTTP 200.
+- The mounted organization import and export owner passed all 39 cases
+  with 158 assertions. It checks current project permissions and version
+  15 export of imported historical facts. The retired null-code input is
+  injected after actual authorized SQLite capture, and still proves both
+  the mounted legacy refusal and unreadable-fact precedence.
+- The focused uncached SQLite Nx target passed all four work-item status
+  migration cases at the original historical schema and predecessor.

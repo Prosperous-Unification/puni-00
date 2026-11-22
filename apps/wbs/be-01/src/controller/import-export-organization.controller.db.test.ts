@@ -1,3 +1,4 @@
+import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
 import { planDocumentFixture } from '@wbs/core/testing/plan-document-fixture';
 import { StepParallelRepository } from '@wbs/store-sqlite/step-parallel';
 import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-activation';
@@ -19,8 +20,8 @@ let h: OrganizationHarness;
 beforeEach(async () => {
   h = OrganizationHarness.openComposed();
   for (const username of ['ada', 'grace', 'vic', 'nell']) await h.register(username);
-  h.organization('org-a');
-  h.organization('org-b');
+  seedOrganization('a', 'ada');
+  seedOrganization('b', 'grace');
   h.member('org-a', 'ada', 'member', ['org-admin']);
   h.member('org-a', 'vic', 'viewer', ['project-viewer']);
   h.member('org-b', 'grace', 'member', ['org-admin']);
@@ -44,21 +45,49 @@ function entry(root: string, side: string, id: string, org: 'a' | 'b', name: str
   ]);
 }
 
+function seedOrganization(org: 'a' | 'b', username: string) {
+  const organizationId = 'org-' + org;
+  const projectId = 'import-parent-' + org;
+  h.organization(organizationId);
+  h.sqlite.run(
+    'INSERT INTO project(id,organization_id,name,created_at,created_by) VALUES(?,?,?,1,?)',
+    [projectId, organizationId, projectId, h.userId(username)],
+  );
+  for (const step of planDocumentFixture().steps) {
+    if (step.code === null) throw new Error('catalogue fixture requires a step code');
+    const id = organizationId + '-' + step.code;
+    h.sqlite.run(
+      "INSERT INTO step_definition(id,organization_id,code,name,estimate_unit,default_allowance_bps,position,defined_at_scope_kind,defined_at_scope_id,origin) VALUES(?,?,?,?,?,?,?,'project',?,'authored')",
+      [
+        id,
+        organizationId,
+        step.code,
+        step.name.trim(),
+        step.estimateUnit,
+        step.allowancePercent * 100,
+        step.position,
+        projectId,
+      ],
+    );
+    h.sqlite.run(
+      "INSERT INTO step_binding(id,organization_id,scope_kind,scope_id,step_id,position,origin) VALUES(?,?,'project',?,?,?,'authored')",
+      [id + '-binding', organizationId, projectId, id, step.position],
+    );
+  }
+}
+
+function importDocument(username: string, document: unknown) {
+  return h.call(username, 'POST', '/api/work-packages/import', {
+    projectId: 'import-parent-a',
+    document,
+  });
+}
+
 async function create(username: string, name: string): Promise<string> {
-  const answer = await h.call(username, 'POST', '/api/work-packages', { name });
+  const projectId = username === 'grace' ? 'import-parent-b' : 'import-parent-a';
+  const answer = await h.call(username, 'POST', '/api/work-packages', { projectId, name });
   if (answer.status !== 200) throw new Error(`create refused: ${JSON.stringify(answer)}`);
   const workPackageId = (answer.body as { workPackage: { id: string } }).workPackage.id;
-  if (
-    h.sqlite.query<{ state: string }, []>('SELECT state FROM organization_activation').get()
-      ?.state === 'activated'
-  )
-    h.grant(
-      username === 'grace' ? 'org-b' : 'org-a',
-      username,
-      'package-manager',
-      'work_package',
-      workPackageId,
-    );
   return workPackageId;
 }
 
@@ -201,7 +230,7 @@ for (const seeded of [false, true]) {
       },
     ];
     const before = sqliteState();
-    const answer = await h.call('ada', 'POST', '/api/work-packages/import', document);
+    const answer = await importDocument('ada', document);
     expect(answer).toMatchObject(
       seeded
         ? {
@@ -243,7 +272,7 @@ for (const version of [1, 2, 3] as const) {
       },
     ];
     const before = sqliteState();
-    const answer = await h.call('ada', 'POST', '/api/work-packages/import', document);
+    const answer = await importDocument('ada', document);
     expect(answer).toMatchObject({
       status: 400,
       body: { error: 'invalid_typed_dependency', path: 'typedDependencies[0]' },
@@ -298,12 +327,7 @@ describe('the import', () => {
     }
     entry('tag', 'tag_organization', 'tg-a', 'a', 'Release');
     const before = await h.call('grace', 'GET', '/api/tags');
-    const imported = await h.call(
-      'ada',
-      'POST',
-      '/api/work-packages/import',
-      planDocumentFixture(),
-    );
+    const imported = await importDocument('ada', planDocumentFixture());
     expect(imported.status).toBe(201);
     const { workPackageId, created } = imported.body as {
       workPackageId: string;
@@ -349,7 +373,7 @@ describe('the import', () => {
     const answers = [];
     for (const slug of ['shared', 'shared', 'free']) {
       const document = planDocumentFixture();
-      const imported = await h.call('ada', 'POST', '/api/work-packages/import', {
+      const imported = await importDocument('ada', {
         ...document,
         settings: { ...document.settings, solutionRef: { slug, url: `https://x.example/${slug}` } },
       });
@@ -370,7 +394,7 @@ describe('the import', () => {
       { slug: 'empty', url: '' },
     ]) {
       const document = planDocumentFixture();
-      const refused = await h.call('ada', 'POST', '/api/work-packages/import', {
+      const refused = await importDocument('ada', {
         ...document,
         settings: { ...document.settings, solutionRef },
       });
@@ -382,9 +406,7 @@ describe('the import', () => {
   it("tells only the organization's work packages that its directory changed", async () => {
     const mine = await create('ada', 'A plan');
     const theirs = await create('grace', 'B plan');
-    expect(
-      (await h.call('ada', 'POST', '/api/work-packages/import', planDocumentFixture())).status,
-    ).toBe(201);
+    expect((await importDocument('ada', planDocumentFixture())).status).toBe(201);
     const told = h.sqlite
       .query<{ subscription: string }, []>(
         "SELECT subscription FROM event_log WHERE message LIKE '%directory_changed%'",
@@ -431,12 +453,7 @@ describe('the import', () => {
 
       prefix = '0';
       nextId = 0;
-      const imported = await h.call(
-        'ada',
-        'POST',
-        '/api/work-packages/import',
-        sharedAnaDocument('Earlier A'),
-      );
+      const imported = await importDocument('ada', sharedAnaDocument('Earlier A'));
       expect(imported.status).toBe(201);
       const earlier = (imported.body as { workPackageId: string }).workPackageId;
       expect(earlier < lower).toBe(true);
@@ -495,12 +512,7 @@ describe('the import', () => {
       );
       h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
       Date.now = () => Date.UTC(2026, 9, 6);
-      const imported = await h.call(
-        'ada',
-        'POST',
-        '/api/work-packages/import',
-        sharedAnaDocument('Tail A'),
-      );
+      const imported = await importDocument('ada', sharedAnaDocument('Tail A'));
       expect(imported.status).toBe(201);
       const tail = (imported.body as { workPackageId: string }).workPackageId;
       const order = await h.call('ada', 'GET', '/api/organization/work-package-rank');
@@ -544,12 +556,7 @@ describe('the import', () => {
       h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
       prefix = '0';
       nextId = 0;
-      const imported = await h.call(
-        'ada',
-        'POST',
-        '/api/work-packages/import',
-        sharedAnaDocument('Earlier A'),
-      );
+      const imported = await importDocument('ada', sharedAnaDocument('Earlier A'));
       expect(imported.status).toBe(201);
       const earlier = (imported.body as { workPackageId: string }).workPackageId;
       const rows = h.sqlite
@@ -583,7 +590,7 @@ describe('the import', () => {
       return Promise.resolve(Response.json({ delivered_to_sockets: 0 }));
     });
     await h.register('ada');
-    h.organization('org-a');
+    seedOrganization('a', 'ada');
     h.member('org-a', 'ada', 'member', ['org-admin']);
     h.bind('ada', 'org-a');
     h.activate();
@@ -607,12 +614,7 @@ describe('the import', () => {
       const before = sqliteState();
       prefix = '0';
       nextId = 0;
-      const refused = await h.call(
-        'ada',
-        'POST',
-        '/api/work-packages/import',
-        sharedAnaDocument('Earlier A'),
-      );
+      const refused = await importDocument('ada', sharedAnaDocument('Earlier A'));
       expect(refused.status).toBe(500);
       expect(sqliteState()).toEqual(before);
       expect(pushes).toBe(0);
@@ -641,17 +643,14 @@ describe('the import', () => {
       },
     );
     await h.register('ada');
-    h.organization('org-a');
+    seedOrganization('a', 'ada');
     h.member('org-a', 'ada', 'member', ['org-admin']);
     h.bind('ada', 'org-a');
     h.activate();
     h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
     const before = sqliteState();
     failCapture = true;
-    expect(
-      (await h.call('ada', 'POST', '/api/work-packages/import', sharedAnaDocument('Unwritten')))
-        .status,
-    ).toBe(500);
+    expect((await importDocument('ada', sharedAnaDocument('Unwritten'))).status).toBe(500);
     expect(sqliteState()).toEqual(before);
     expect(pushes).toBe(0);
   });
@@ -676,15 +675,13 @@ describe('the import', () => {
       },
     );
     await h.register('ada');
-    h.organization('org-a');
+    seedOrganization('a', 'ada');
     h.member('org-a', 'ada', 'member', ['org-admin']);
     h.bind('ada', 'org-a');
     h.activate();
     h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
     const before = sqliteState();
-    expect(
-      (await h.call('ada', 'POST', '/api/work-packages/import', planDocumentFixture())).status,
-    ).toBe(500);
+    expect((await importDocument('ada', planDocumentFixture())).status).toBe(500);
     expect(captures).toBe(2);
     expect(sqliteState()).toEqual(before);
     expect(pushes).toBe(0);
@@ -709,14 +706,14 @@ describe('the import', () => {
       },
     );
     await h.register('ada');
-    h.organization('org-a');
+    seedOrganization('a', 'ada');
     h.member('org-a', 'ada', 'member', ['org-admin']);
     h.bind('ada', 'org-a');
     h.activate();
     h.sqlite.run(`CREATE TRIGGER lose_import_tag AFTER INSERT ON work_item
       BEGIN DELETE FROM tag; END`);
     const before = sqliteState();
-    const refused = await h.call('ada', 'POST', '/api/work-packages/import', planDocumentFixture());
+    const refused = await importDocument('ada', planDocumentFixture());
     expect(refused.status).toBe(409);
     expect(refused.body).toEqual({
       error: 'source_refused',
@@ -748,7 +745,7 @@ describe('the import', () => {
       },
     );
     await h.register('ada');
-    h.organization('org-a');
+    seedOrganization('a', 'ada');
     h.member('org-a', 'ada', 'member', ['org-admin']);
     h.bind('ada', 'org-a');
     h.activate();
@@ -756,12 +753,7 @@ describe('the import', () => {
     const higher = await seedAssignedWorkPackage('Higher B', 'higher-row');
     h.sqlite.run('UPDATE work_package SET created_at = 1 WHERE id = ?', [higher]);
     h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
-    const imported = await h.call(
-      'ada',
-      'POST',
-      '/api/work-packages/import',
-      sharedAnaDocument('Tail A'),
-    );
+    const imported = await importDocument('ada', sharedAnaDocument('Tail A'));
     expect(imported.status).toBe(201);
     const tail = (imported.body as { workPackageId: string }).workPackageId;
     expect(h.sqlite.query('SELECT id FROM work_package WHERE id = ?').all(tail)).toHaveLength(1);
@@ -804,7 +796,7 @@ describe('the import', () => {
       },
     );
     await h.register('ada');
-    h.organization('org-a');
+    seedOrganization('a', 'ada');
     h.member('org-a', 'ada', 'member', ['org-admin']);
     h.bind('ada', 'org-a');
     h.activate();
@@ -815,7 +807,7 @@ describe('the import', () => {
     let imported;
     try {
       imported = await Promise.race([
-        h.call('ada', 'POST', '/api/work-packages/import', planDocumentFixture()),
+        importDocument('ada', planDocumentFixture()),
         overdue.promise,
       ]);
     } finally {
@@ -829,12 +821,7 @@ describe('the import', () => {
   it('keeps an unused-person import silent in the durable fan-out log', async () => {
     await create('ada', 'Existing without Ana');
     h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
-    const imported = await h.call(
-      'ada',
-      'POST',
-      '/api/work-packages/import',
-      sharedAnaDocument('Unconnected'),
-    );
+    const imported = await importDocument('ada', sharedAnaDocument('Unconnected'));
     expect(imported.status).toBe(201);
     const events = h.sqlite
       .query<{ message: string }, []>('SELECT message FROM event_log')
@@ -865,7 +852,7 @@ describe('the import', () => {
         },
       );
       await h.register('ada');
-      h.organization('org-a');
+      seedOrganization('a', 'ada');
       h.member('org-a', 'ada', 'member', ['org-admin']);
       h.bind('ada', 'org-a');
       h.activate();
@@ -875,7 +862,7 @@ describe('the import', () => {
         enteredTurn.resolve(undefined);
       });
       await enteredTurn.promise;
-      const pending = h.call('ada', 'POST', '/api/work-packages/import', planDocumentFixture());
+      const pending = importDocument('ada', planDocumentFixture());
       await enteredImport.promise;
       if (refusal === 'removed')
         h.sqlite.run(
@@ -911,7 +898,7 @@ describe('the import', () => {
               body:
                 refusal === 'removed'
                   ? { error: 'not_a_member' }
-                  : { error: 'forbidden', permission: 'organization.create_project' },
+                  : { error: 'forbidden', permission: 'project.manage_packages' },
             },
       );
       expect(captures).toBe(0);
@@ -920,12 +907,10 @@ describe('the import', () => {
     });
 
   it("refuses a viewer's import", async () => {
-    expect(await h.call('vic', 'POST', '/api/work-packages/import', planDocumentFixture())).toEqual(
-      {
-        status: 403,
-        body: { error: 'forbidden', permission: 'organization.create_project' },
-      },
-    );
+    expect(await importDocument('vic', planDocumentFixture())).toEqual({
+      status: 403,
+      body: { error: 'forbidden', permission: 'project.manage_packages' },
+    });
     expect(
       (await h.call('ada', 'GET', '/api/work-packages')).body as {
         workPackages: unknown[];
@@ -938,19 +923,15 @@ describe('the import', () => {
   });
 
   it('refuses an unbound session and a removed member before any import', async () => {
-    expect(
-      await h.call('nell', 'POST', '/api/work-packages/import', planDocumentFixture()),
-    ).toEqual({
+    expect(await importDocument('nell', planDocumentFixture())).toEqual({
       status: 403,
       body: { error: 'no_active_organization' },
     });
     h.sqlite.run('DELETE FROM organization_membership WHERE user_id = ?', [h.userId('ada')]);
-    expect(await h.call('ada', 'POST', '/api/work-packages/import', planDocumentFixture())).toEqual(
-      {
-        status: 403,
-        body: { error: 'not_a_member' },
-      },
-    );
+    expect(await importDocument('ada', planDocumentFixture())).toEqual({
+      status: 403,
+      body: { error: 'not_a_member' },
+    });
   });
 });
 
@@ -1006,18 +987,20 @@ it('round-trips minute units through the composed import/export and refuses malf
           : { optimistic: 21_474_836_161, realistic: 21_474_836_161, pessimistic: 21_474_836_161 },
       );
     const before = h.sqlite.query('SELECT * FROM work_package').all();
-    const refused = await h.call('ada', 'POST', '/api/work-packages/import', damaged);
+    const refused = await importDocument('ada', damaged);
     expect(refused.status).toBe(400);
     expect(refused.body).toMatchObject({ error: 'invalid_body' });
     expect(h.sqlite.query('SELECT * FROM work_package').all()).toEqual(before);
   }
-  const imported = await h.call('ada', 'POST', '/api/work-packages/import', document);
+  const imported = await importDocument('ada', document);
   if (imported.status !== 201)
     throw new Error(`minute import refused: ${JSON.stringify(imported.body)}`);
   expect(imported.status).toBe(201);
   const { workPackageId } = imported.body as { workPackageId: string };
   expect(
-    h.sqlite.query('SELECT estimate_unit FROM step WHERE work_package_id = ?').all(workPackageId),
+    h.sqlite
+      .query('SELECT estimate_unit FROM work_package_step WHERE work_package_id = ?')
+      .all(workPackageId),
   ).toEqual([{ estimate_unit: 'minutes' }, { estimate_unit: 'minutes' }]);
   const exported = await h.call(
     'ada',
@@ -1026,7 +1009,7 @@ it('round-trips minute units through the composed import/export and refuses malf
   );
   expect(exported.status).toBe(200);
   expect(exported.body).toMatchObject({
-    document: { version: 13 },
+    document: { version: 15 },
     steps: [{ estimateUnit: 'minutes' }, { estimateUnit: 'minutes' }],
   });
   const stepId = await firstStep('ada', workPackageId);
@@ -1048,12 +1031,12 @@ describe('v9 direct blockage transfer', () => {
     document.workItems.forEach((row) => Reflect.deleteProperty(row, 'attempts'));
     document.stepBlockages = [{ workItemId: 'row-1', stepId: 'step-1', blockedAt: -17 }];
     const before = sqliteState();
-    const refused = await h.call('ada', 'POST', '/api/work-packages/import', document);
+    const refused = await importDocument('ada', document);
     expect(refused.status).toBe(409);
     expect(refused.body).toEqual({ error: 'step_blockage_inactive' });
     expect(sqliteState()).toEqual(before);
     document.stepBlockages = [];
-    const imported = await h.call('ada', 'POST', '/api/work-packages/import', document);
+    const imported = await importDocument('ada', document);
     expect(imported.status).toBe(201);
     const workPackageId = (imported.body as { workPackageId: string }).workPackageId;
     const exported = await h.call(
@@ -1071,7 +1054,7 @@ describe('v9 direct blockage transfer', () => {
     document.document.version = 9;
     document.workItems.forEach((row) => Reflect.deleteProperty(row, 'attempts'));
     document.stepBlockages = [{ workItemId: 'row-1', stepId: 'step-1', blockedAt: -17 }];
-    const imported = await h.call('ada', 'POST', '/api/work-packages/import', document);
+    const imported = await importDocument('ada', document);
     expect(imported.status).toBe(201);
     const workPackageId = (imported.body as { workPackageId: string }).workPackageId;
     const exported = await h.call(
@@ -1086,7 +1069,7 @@ describe('v9 direct blockage transfer', () => {
       workItems: { id: string; name: string; blockages?: unknown; blockageCauses?: unknown }[];
       steps: { id: string; name: string }[];
     };
-    expect(body.document.version).toBe(13);
+    expect(body.document.version).toBe(15);
     const owner = body.workItems.find(({ name }) => name === 'Ship');
     const step = body.steps.find(({ name }) => name === 'Build');
     if (owner === undefined || step === undefined)
@@ -1115,7 +1098,7 @@ describe('v9 direct blockage transfer', () => {
       WHEN (SELECT COUNT(*) FROM step_blockage) > 0
       BEGIN SELECT RAISE(ABORT, 'second blockage insert'); END`);
     const before = sqliteState();
-    const refused = await h.call('ada', 'POST', '/api/work-packages/import', document);
+    const refused = await importDocument('ada', document);
     expect(refused.status).toBe(500);
     expect(sqliteState()).toEqual(before);
   });
@@ -1130,7 +1113,7 @@ describe('v9 direct blockage transfer', () => {
       document.workItems.forEach((row) => Reflect.deleteProperty(row, 'attempts'));
       document.stepBlockages = [{ workItemId: owner, stepId: step, blockedAt: 1 }];
       const before = sqliteState();
-      const refused = await h.call('ada', 'POST', '/api/work-packages/import', document);
+      const refused = await importDocument('ada', document);
       expect(refused.status).toBe(400);
       expect(refused.body).toEqual({ error: 'invalid_body', path, detail: null });
       expect(sqliteState()).toEqual(before);
@@ -1230,28 +1213,52 @@ it('v9 sparse export retains uncoded refusal for valid shared evidence', async (
     owner.id,
     stepId,
   ]);
-  h.sqlite.run('UPDATE step SET code = NULL WHERE id = ?', [stepId]);
-  const answer = await h.call(
-    'ada',
-    'GET',
-    `/api/work-packages/${workPackageId}/export?format=json`,
-  );
-  expect(answer).toMatchObject({
-    status: 409,
-    body: {
-      error: 'uncoded_steps',
-      steps: [{ id: stepId, name: 'Dev' }],
-      command: 'bun run src/backfill-step-codes-cli.ts',
+  // Current catalogue definitions require a code. Supply the legacy nullable step
+  // at the export boundary after the real authorized SQLite capture completes.
+  // eslint-disable-next-line @typescript-eslint/unbound-method -- the spy forwards its actual receiver with apply.
+  const capture = WorkItemService.prototype.exportWithin;
+  const legacy = spyOn(WorkItemService.prototype, 'exportWithin').mockImplementation(
+    async function (this: WorkItemService, ...args) {
+      const captured = await capture.apply(this, args);
+      if (captured.kind !== 'shared') return captured;
+      return {
+        ...captured,
+        tree: {
+          ...captured.tree,
+          steps: captured.tree.steps.map((step) =>
+            step.id === stepId ? { ...step, code: null } : step,
+          ),
+        },
+      };
     },
-  });
-  const unreadable = spyOn(StepParallelRepository.prototype, 'listByWorkPackage').mockRejectedValue(
-    new Error('unreadable sparse evidence'),
   );
   try {
-    expect(
-      (await h.call('ada', 'GET', `/api/work-packages/${workPackageId}/export?format=json`)).status,
-    ).toBe(500);
+    const answer = await h.call(
+      'ada',
+      'GET',
+      `/api/work-packages/${workPackageId}/export?format=json`,
+    );
+    expect(answer).toMatchObject({
+      status: 409,
+      body: {
+        error: 'uncoded_steps',
+        steps: [{ id: stepId, name: 'Build' }],
+        command: 'bun run src/backfill-step-codes-cli.ts',
+      },
+    });
+    const unreadable = spyOn(
+      StepParallelRepository.prototype,
+      'listByWorkPackage',
+    ).mockRejectedValue(new Error('unreadable sparse evidence'));
+    try {
+      expect(
+        (await h.call('ada', 'GET', `/api/work-packages/${workPackageId}/export?format=json`))
+          .status,
+      ).toBe(500);
+    } finally {
+      unreadable.mockRestore();
+    }
   } finally {
-    unreadable.mockRestore();
+    legacy.mockRestore();
   }
 });

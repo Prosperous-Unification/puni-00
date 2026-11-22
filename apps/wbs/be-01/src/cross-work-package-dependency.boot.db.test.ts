@@ -9,7 +9,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
 import { createLogger } from '@wbs/observability';
 import { inspectDependencyBootstrap, openSqliteSource } from '@wbs/store-sqlite';
@@ -18,6 +18,8 @@ import { HISTORICAL_DEPENDENCY_MIGRATION } from '@wbs/store-sqlite/dependency-bo
 import { OPEN } from '@wbs/store-sqlite/gate';
 import { readMigrationFolders } from '@wbs/store-sqlite/migrate-down';
 import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-activation';
+import { seedPackageParent } from '@wbs/store-sqlite/testing/legacy-package-parent';
+import { copyRecoveryPrefix } from '@wbs/store-sqlite/testing/recovery-state';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 import { afterEach, expect, it } from 'bun:test';
 
@@ -26,6 +28,7 @@ import { bootBe01 as bootBackend, type BootOptions, type RunningBe } from './boo
 import { openDatabase } from './repository/db';
 import { runMigrations } from './repository/migrate';
 import { startDomainProofWorker } from './runtime/domain-proof-worker';
+import { migrateOrganizationCatalogueFixture } from './testing/organization-catalogue-fixture';
 import { TEST_ORGANIZATION_DEFAULT_LIMITS } from './testing/organization-limits-fixture';
 
 /** Binds this fixture's owned loopback socket while preserving in-process listener injection. */
@@ -42,6 +45,7 @@ const bootBe01: typeof bootBackend = (options, dependencies) => {
 };
 
 const FOLDER = new URL('../drizzle', import.meta.url).pathname;
+const LAST_ORDINARY_PREDECESSOR = '20261115120000_add_step_migration_report';
 const directories: string[] = [];
 let running: RunningBe | undefined;
 afterEach(async () => {
@@ -54,7 +58,7 @@ function database(migrate = true): string {
   const directory = mkdtempSync(join(tmpdir(), 'wbs-dependency-boot-'));
   directories.push(directory);
   const path = join(directory, 'plan.db');
-  if (migrate) runMigrations(path, FOLDER);
+  if (migrate) migrateOrganizationCatalogueFixture(path);
   return path;
 }
 function options(dbPath: string): BootOptions {
@@ -108,11 +112,11 @@ async function refuse(
   path: string,
   migrateOnStartup = false,
   migrationsFolder = FOLDER,
-): Promise<void> {
+): Promise<string[]> {
   const before = snapshot(path);
   const starts: string[] = [];
   let closes = 0;
-  let failed = false;
+  const causes: string[] = [];
   try {
     running = await bootBe01(
       { ...options(path), migrateOnStartup, migrationsFolder },
@@ -149,8 +153,12 @@ async function refuse(
         },
       },
     );
-  } catch {
-    failed = true;
+  } catch (failure) {
+    let cause: unknown = failure;
+    while (cause instanceof Error) {
+      causes.push(cause.message);
+      cause = cause.cause;
+    }
   }
   if (running !== undefined) {
     if (running.services.retention.isRunning()) starts.push('retention');
@@ -160,8 +168,9 @@ async function refuse(
   }
   expect(snapshot(path)).toBe(before);
   expect(starts).toEqual([]);
-  expect(failed).toBe(true);
+  expect(causes.length).toBeGreaterThan(0);
   expect(closes).toBe(1);
+  return causes;
 }
 function refuseIncapable(path: string, migrate = false, migrationsFolder = FOLDER) {
   const before = snapshot(path);
@@ -209,8 +218,23 @@ for (const fault of [
     }
     await refuse(path);
   });
-it('admits dormant authority and serves health after dev migrations', async () => {
+it('admits dormant authority and serves health after ordinary pre-catalogue dev migrations', async () => {
   const path = database(false);
+  running = await bootBe01({
+    ...options(path),
+    organizationDomainProofScheduling: 'disabled',
+    migrateOnStartup: true,
+    migrationsFolder: copyRecoveryPrefix(dirname(path), LAST_ORDINARY_PREDECESSOR),
+  });
+  expect((await fetch(`http://127.0.0.1:${String(running.port)}/health`)).status).toBe(200);
+});
+
+it('refuses a fresh unattended catalogue cutover and boots after its explicit apply', async () => {
+  const path = database(false);
+  expect(await refuse(path, true, FOLDER)).toContain(
+    'step catalogue migration requires the explicit atomic apply owner',
+  );
+  migrateOrganizationCatalogueFixture(path);
   running = await bootBe01({
     ...options(path),
     organizationDomainProofScheduling: 'disabled',
@@ -229,9 +253,10 @@ it('refuses disabled authority retaining an external relationship before service
       "INSERT INTO users(id,username,password_hash,created_at) VALUES ('u','owner','x',1)",
     );
     connection.db.run("INSERT INTO organization(id,name,created_at) VALUES ('org','Org',1)");
+    seedPackageParent(path, 'org', 'parent');
     for (const id of ['a', 'b']) {
       connection.db.run(
-        `INSERT INTO work_package(id,name,owner_id,created_at) VALUES ('${id}','${id}','u',1)`,
+        `INSERT INTO work_package(id,project_id,name,created_by,created_at) VALUES ('${id}','parent','${id}','u',1)`,
       );
       connection.db.run(
         `INSERT INTO work_package_organization(resource_id,organization_id) VALUES ('${id}','org')`,
@@ -312,10 +337,10 @@ it('closes storage when the authority read becomes unreadable before any service
   expect(snapshot(path)).toBe(before);
 });
 
-function migrations(statement: string): string {
+function migrations(statement: string, source = FOLDER): string {
   const directory = mkdtempSync(join(tmpdir(), 'wbs-dependency-migrations-'));
   directories.push(directory);
-  cpSync(FOLDER, directory, { recursive: true });
+  cpSync(source, directory, { recursive: true });
   const pending = join(directory, '20261023000000_boot_admission_probe');
   mkdirSync(pending);
   writeFileSync(join(pending, 'migration.sql'), statement);
@@ -329,7 +354,7 @@ it('refuses enabled empty authority before a pending migration changes schema or
 for (const fault of [
   'DROP TABLE cross_work_package_dependency_activation_receipt',
   'DELETE FROM cross_work_package_dependency_activation',
-  "DELETE FROM __drizzle_migrations WHERE name='20261022212000_add_cross_work_package_dependency_activation'; DROP TABLE cross_work_package_dependency_activation_receipt; DROP TABLE cross_work_package_dependency_activation",
+  "DELETE FROM __drizzle_migrations WHERE name='20261022212000_add_cross_project_dependency_activation'; DROP TABLE cross_work_package_dependency_activation_receipt; DROP TABLE cross_work_package_dependency_activation",
 ])
   it(`refuses damaged authority before pending migration: ${fault}`, async () => {
     const path = database();
@@ -432,7 +457,7 @@ function historicalDatabase(): string {
   const historical = mkdtempSync(join(tmpdir(), 'wbs-dependency-history-'));
   directories.push(historical);
   for (const name of readdirSync(FOLDER).filter(
-    (name) => name < '20261022212000_add_cross_work_package_dependency_activation',
+    (name) => name < '20261022212000_add_cross_project_dependency_activation',
   ))
     cpSync(join(FOLDER, name), join(historical, name), { recursive: true });
   runMigrations(path, historical);
@@ -444,7 +469,7 @@ it('admits a certified pre-authority historical schema and ledger', async () => 
     ...options(path),
     organizationDomainProofScheduling: 'disabled',
     migrateOnStartup: true,
-    migrationsFolder: FOLDER,
+    migrationsFolder: copyRecoveryPrefix(dirname(path), LAST_ORDINARY_PREDECESSOR),
   });
   expect((await fetch(`http://127.0.0.1:${String(running.port)}/health`)).status).toBe(200);
 });
@@ -452,7 +477,7 @@ for (const fault of [
   "UPDATE __drizzle_migrations SET hash='altered' WHERE name='20261022211000_add_external_dependencies'",
   'DROP INDEX actual_by_step',
   'DROP TABLE __drizzle_migrations',
-  "DELETE FROM __drizzle_migrations WHERE name='20261022210000_add_work_package_abbreviations'",
+  "DELETE FROM __drizzle_migrations WHERE name='20261022210000_add_project_abbreviations'",
 ])
   it(`refuses uncertified historical storage before pending migration: ${fault}`, async () => {
     const path = historicalDatabase();
@@ -462,7 +487,14 @@ for (const fault of [
     } finally {
       sqlite.close();
     }
-    await refuse(path, true, migrations('CREATE TABLE startup_probe (id INTEGER);'));
+    await refuse(
+      path,
+      true,
+      migrations(
+        'CREATE TABLE startup_probe (id INTEGER);',
+        copyRecoveryPrefix(dirname(path), LAST_ORDINARY_PREDECESSOR),
+      ),
+    );
   });
 it('refuses an unrecorded partial schema rather than treating it as fresh', async () => {
   const path = database(false);
@@ -472,13 +504,20 @@ it('refuses an unrecorded partial schema rather than treating it as fresh', asyn
   } finally {
     sqlite.close();
   }
-  await refuse(path, true, migrations('CREATE TABLE startup_probe (id INTEGER);'));
+  await refuse(
+    path,
+    true,
+    migrations(
+      'CREATE TABLE startup_probe (id INTEGER);',
+      copyRecoveryPrefix(dirname(path), LAST_ORDINARY_PREDECESSOR),
+    ),
+  );
 });
 
 const DELAYED_DEPENDENCY_MIGRATIONS = [
-  '20261022210000_add_work_package_abbreviations',
+  '20261022210000_add_project_abbreviations',
   '20261022211000_add_external_dependencies',
-  '20261022212000_add_cross_work_package_dependency_activation',
+  '20261022212000_add_cross_project_dependency_activation',
   '20261022213000_add_optimization_boundary_certificates',
 ];
 
@@ -496,10 +535,15 @@ function readMigrationIdentities(folder: string): { name: string; hash: string }
 
 /** Last migration of main acfdc02c; later folders are forward migrations main never applied. */
 const MAIN_LEDGER_END = '20261101120000_add_host_job_projection';
-/** Live forward migrations after main, so later additions need no edit to these expectations. */
+/** Ordinary forward history stops at the last predecessor of the explicit catalogue apply owner. */
 const FORWARD_MIGRATIONS = readMigrationFolders(FOLDER)
   .map(({ name }) => name)
-  .filter((name) => !DELAYED_DEPENDENCY_MIGRATIONS.includes(name) && name > MAIN_LEDGER_END);
+  .filter(
+    (name) =>
+      !DELAYED_DEPENDENCY_MIGRATIONS.includes(name) &&
+      name > MAIN_LEDGER_END &&
+      name <= LAST_ORDINARY_PREDECESSOR,
+  );
 
 /** Replays the exact 103 migration.sql blobs from main acfdc02c, without Git at test runtime. */
 function currentMainDatabase(usesHistoricalDependency = false): string {
@@ -531,7 +575,7 @@ function currentMainDatabase(usesHistoricalDependency = false): string {
 }
 
 for (const usesHistoricalDependency of [false, true])
-  it(`boots the exact current-main store and applies the four delayed dependency migrations and every pending forward migration (historical dependency=${String(usesHistoricalDependency)})`, async () => {
+  it(`boots the exact current-main store and applies the four delayed dependency migrations and every ordinary pre-catalogue forward migration (historical dependency=${String(usesHistoricalDependency)})`, async () => {
     const path = currentMainDatabase(usesHistoricalDependency);
     const sqlite = openDatabase(path);
     const before = sqlite
@@ -540,14 +584,23 @@ for (const usesHistoricalDependency of [false, true])
       )
       .all();
     const dependencySchema = sqlite
-      .query("SELECT sql FROM sqlite_master WHERE type='table' AND name='dependency'")
+      .query<{ sql: string }, []>(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='dependency'",
+      )
       .get();
+    if (dependencySchema === null) throw new Error('historical dependency table is absent');
+    const renamedSchema = dependencySchema.sql
+      .replaceAll('`project_id`', '"work_package_id"')
+      .replaceAll('`project`', '"work_package"');
     try {
       sqlite.run(
         "INSERT INTO users(id,username,password_hash,created_at) VALUES ('main-user','main-owner','x',1)",
       );
       sqlite.run(
-        "INSERT INTO work_package(id,name,owner_id,created_at) VALUES ('main-work-package','Main work_package','main-user',1)",
+        "INSERT INTO organization(id,name,legacy,created_at) VALUES ('legacy-org','Legacy',1,1)",
+      );
+      sqlite.run(
+        "INSERT INTO project(id,name,owner_id,created_at) VALUES ('main-work-package','Main work package','main-user',1)",
       );
     } finally {
       sqlite.close();
@@ -556,7 +609,7 @@ for (const usesHistoricalDependency of [false, true])
       ...options(path),
       organizationDomainProofScheduling: 'disabled',
       migrateOnStartup: true,
-      migrationsFolder: FOLDER,
+      migrationsFolder: copyRecoveryPrefix(dirname(path), LAST_ORDINARY_PREDECESSOR),
     });
     expect((await fetch(`http://127.0.0.1:${String(running.port)}/health`)).status).toBe(200);
     const migrated = openDatabase(path);
@@ -573,7 +626,7 @@ for (const usesHistoricalDependency of [false, true])
         migrated
           .query("SELECT sql FROM sqlite_master WHERE type='table' AND name='dependency'")
           .get(),
-      ).toEqual(dependencySchema);
+      ).toEqual({ sql: renamedSchema });
       expect(
         after.filter(
           ({ name }) =>
@@ -589,8 +642,10 @@ for (const usesHistoricalDependency of [false, true])
           .map(({ name, hash }) => ({ name, hash })),
       );
       expect(
-        migrated.query("SELECT name,owner_id FROM work_package WHERE id='main-work-package'").get(),
-      ).toEqual({ name: 'Main work package', owner_id: 'main-user' });
+        migrated
+          .query("SELECT name,created_by FROM work_package WHERE id='main-work-package'")
+          .get(),
+      ).toEqual({ name: 'Main work package', created_by: 'main-user' });
       expect(
         migrated.query('SELECT state FROM cross_work_package_dependency_activation').all(),
       ).toEqual([{ state: 'DISABLED' }]);
@@ -619,7 +674,7 @@ for (const fault of [
     } finally {
       sqlite.close();
     }
-    await refuse(path, true);
+    await refuse(path, true, copyRecoveryPrefix(dirname(path), LAST_ORDINARY_PREDECESSOR));
   }, 30_000);
 
 for (const name of DELAYED_DEPENDENCY_MIGRATIONS)
@@ -635,12 +690,15 @@ for (const name of DELAYED_DEPENDENCY_MIGRATIONS)
     } finally {
       sqlite.close();
     }
-    await refuse(path, true);
+    await refuse(path, true, copyRecoveryPrefix(dirname(path), LAST_ORDINARY_PREDECESSOR));
   }, 30_000);
 
 it('refuses matching altered disk and ledger identities outside the pinned main profile', async () => {
   const path = currentMainDatabase();
-  const staged = migrations('CREATE TABLE startup_probe (id INTEGER);');
+  const staged = migrations(
+    'CREATE TABLE startup_probe (id INTEGER);',
+    copyRecoveryPrefix(dirname(path), LAST_ORDINARY_PREDECESSOR),
+  );
   rmSync(join(staged, '20261023000000_boot_admission_probe'), { recursive: true });
   const name = '20261101120000_add_host_job_projection';
   const sql = await Bun.file(join(staged, name, 'migration.sql')).text();
@@ -671,7 +729,7 @@ for (const usesHistoricalDependency of [false, true])
     } finally {
       sqlite.close();
     }
-    await refuse(path, true);
+    await refuse(path, true, copyRecoveryPrefix(dirname(path), LAST_ORDINARY_PREDECESSOR));
   }, 30_000);
 
 it('refuses historical dependency identity paired with the canonical cascading schema', async () => {
@@ -684,22 +742,28 @@ it('refuses historical dependency identity paired with the canonical cascading s
   } finally {
     sqlite.close();
   }
-  await refuse(path, true);
+  await refuse(path, true, copyRecoveryPrefix(dirname(path), LAST_ORDINARY_PREDECESSOR));
 }, 30_000);
 
 it('refuses an unknown pending migration on the known main profile', async () => {
   // The probe 20261023000000 sorts inside the main ledger range, so it is out of order.
-  await refuse(currentMainDatabase(), true, migrations('CREATE TABLE startup_probe (id INTEGER);'));
+  const path = currentMainDatabase();
+  await refuse(
+    path,
+    true,
+    migrations(
+      'CREATE TABLE startup_probe (id INTEGER);',
+      copyRecoveryPrefix(dirname(path), LAST_ORDINARY_PREDECESSOR),
+    ),
+  );
 }, 30_000);
 
 /** Sorts after every real forward migration on disk; the test asserts that. */
 const TRAILING_MIGRATION = '20261231000000_probe_forward';
 
-/** Copies the live folder plus one pending forward migration named after every main entry. */
-function stageTrailingMigration(): string {
-  const directory = mkdtempSync(join(tmpdir(), 'wbs-dependency-trailing-'));
-  directories.push(directory);
-  cpSync(FOLDER, directory, { recursive: true });
+/** Stages the ordinary pre-catalogue history and a later probe to exercise the bootstrap certificate’s ledger-end bound. */
+function stageTrailingMigration(path: string): string {
+  const directory = copyRecoveryPrefix(dirname(path), LAST_ORDINARY_PREDECESSOR);
   const trailing = join(directory, TRAILING_MIGRATION);
   mkdirSync(trailing);
   writeFileSync(join(trailing, 'migration.sql'), 'CREATE TABLE probe_forward(id INTEGER);');
@@ -711,7 +775,7 @@ function stageTrailingMigration(): string {
 // "uncertified dependency authority migration set" (0 pass/1 fail); restored it passed (2026-11-08).
 it('boots the exact current-main store with a trailing pending forward migration', async () => {
   const path = currentMainDatabase();
-  const staged = stageTrailingMigration();
+  const staged = stageTrailingMigration(path);
   const sqlite = openDatabase(path);
   let before: { name: string; hash: string }[];
   try {
