@@ -1,43 +1,5 @@
 ## MODIFIED Requirements
 
-### Requirement: An assumed duration is not an estimate
-
-The system SHALL NOT write an estimate for a slice it has assumed a duration
-for. Everything that reports whether work has been estimated SHALL continue to
-report that it has not: the days column, the roll-up, the readiness badge and
-its walk to the next gap, the export, the filter's estimated-steps facet, and
-the anchor-slice reach's choice of first **estimated** slice.
-
-An unestimated slice's bar SHALL continue to be painted as a guess — its dotted
-outline and its translucent fill unchanged — and SHALL say so in words: its
-on-bar label SHALL open with the row's number, as every bar label does, and
-the phrase SHALL yield to the number as a name does on an estimated bar:
-`<number> · no estimate` (the phrase cropped by the box) where the number and
-the crop mark fit, the number alone where only it fits, and nothing where the
-number does not fit whole. It SHALL NOT lead with `?`, and SHALL write the
-number at most once.
-
-#### Scenario: an unestimated item still reports no estimate
-
-- **GIVEN** a work item with no estimates, scheduled after this change
-- **THEN** its days column SHALL be blank
-- **AND** it SHALL be counted as an estimate gap
-- **AND** the export SHALL report it as unestimated
-
-#### Scenario: the anchor reach still means first _estimated_
-
-- **GIVEN** a project on the `anchor-slice` reach, and a predecessor whose first
-  step is unestimated and whose second step is estimated
-- **WHEN** the plan is scheduled
-- **THEN** the successor SHALL wait for the **second** step's finish
-- **AND** it SHALL NOT wait for the first step's assumed finish
-
-#### Scenario: the bar still says it is a guess
-
-- **GIVEN** an unestimated slice with detail shown
-- **WHEN** its bar is drawn
-- **THEN** it SHALL carry the assumed marking it carried before this change
-
 ### Requirement: Leaves draw bars for the work somebody costed, and the rest is behind the switch
 
 A leaf's row SHALL hold one bar per slice, in step order, whatever
@@ -114,6 +76,17 @@ No two on-bar labels SHALL overlap. Where bars share a row in lanes, a lane
 SHALL carry no label of its own: the lane stack writes one label across the
 whole band, and an estimated bar that runs past the stack's placeholders
 writes its own words past them (`ui-review-gantt-directory`).
+
+An unestimated slice's individually drawn bar SHALL keep its dotted outline and translucent
+fill. Outside a lane stack its on-bar label SHALL open with the row's number and write the
+number at most once. It SHALL show `<number> · no estimate` with the phrase cropped by its box
+where the number and crop mark fit, the whole number alone when only it fits, and no label
+when the whole number cannot fit. It SHALL NOT lead with `?`. In a lane stack the single
+stack label, width fallback, estimated-bar spill and exported SVG SHALL follow “A lane stack
+writes one label.” A done leaf SHALL keep its single opaque done bar in place of all its
+slices, with no `data-assumed`, under “A done work item draws one done bar over its fact
+span.” An explicitly estimated zero-day slice drawn separately on a non-done leaf SHALL
+remain an estimated tick.
 
 Every on-bar label SHALL clear 4.5:1 WCAG contrast against the bar it sits on,
 measured from the computed label colour and the bar's computed fill composited

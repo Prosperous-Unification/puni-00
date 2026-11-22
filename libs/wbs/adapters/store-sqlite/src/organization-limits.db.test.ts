@@ -217,11 +217,75 @@ describe('usage', () => {
     // A foreign project stating A's resource is not A's statement (L16).
     state('pb', 'ram', 100);
     expect(readCapacityUsage(open(), 'org-a')).toEqual([
-      { resourceId: 'disk', name: 'disk local', unitLabel: 'GB', units: 0 },
-      { resourceId: 'ram', name: 'ram local', unitLabel: 'GB', units: 48 },
+      {
+        resourceId: 'disk',
+        name: 'disk local',
+        unitLabel: 'GB',
+        units: 0,
+        countedFrom: 'projects',
+      },
+      { resourceId: 'ram', name: 'ram local', unitLabel: 'GB', units: 48, countedFrom: 'projects' },
     ]);
     expect(readCapacityUsage(open(), 'org-b')).toEqual([
-      { resourceId: 'b-ram', name: 'b-ram local', unitLabel: 'GB', units: 64 },
+      {
+        resourceId: 'b-ram',
+        name: 'b-ram local',
+        unitLabel: 'GB',
+        units: 64,
+        countedFrom: 'projects',
+      },
+    ]);
+  });
+
+  it('uses the directory value for shared, zero and directory-only usage', () => {
+    for (const resourceId of ['both', 'dir-only', 'zero', 'none', 'project-only'])
+      resourceIn('org-a', resourceId, 'GB');
+    resourceIn('org-b', 'foreign-dir', 'GB');
+    state('pa1', 'both', 32);
+    state('pa2', 'both', 32);
+    state('pa2', 'zero', 16);
+    state('pa1', 'project-only', 4);
+    state('pb', 'project-only', 100);
+    for (const [id, units] of [
+      ['both', 16],
+      ['dir-only', 32],
+      ['zero', 0],
+      ['foreign-dir', 64],
+    ] as const)
+      sqlite.run('INSERT INTO resource_directory_capacity (resource_id, units) VALUES (?, ?)', [
+        id,
+        units,
+      ]);
+
+    expect(readCapacityUsage(open(), 'org-a')).toEqual([
+      {
+        resourceId: 'both',
+        name: 'both local',
+        unitLabel: 'GB',
+        units: 16,
+        countedFrom: 'directory',
+      },
+      {
+        resourceId: 'dir-only',
+        name: 'dir-only local',
+        unitLabel: 'GB',
+        units: 32,
+        countedFrom: 'directory',
+      },
+      {
+        resourceId: 'project-only',
+        name: 'project-only local',
+        unitLabel: 'GB',
+        units: 4,
+        countedFrom: 'projects',
+      },
+      {
+        resourceId: 'zero',
+        name: 'zero local',
+        unitLabel: 'GB',
+        units: 0,
+        countedFrom: 'directory',
+      },
     ]);
   });
 

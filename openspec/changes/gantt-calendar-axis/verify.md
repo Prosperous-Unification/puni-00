@@ -147,3 +147,110 @@ depends on that accident.
 - The three pre-existing browser failures listed above were confirmed pre-existing and otherwise
   left alone.
 - Nothing was pushed, merged, or deployed.
+
+## Historical leaf-bar overlay
+
+The Calendar copy of “Leaves draw bars for the work somebody costed, and the rest is behind the switch” was
+last present in blob `f0b5cc8aae12bdc684e3c3bb5b60c4f72f55333a` at local commit
+`a5b6d37335fb22770c049293228f85a7878c5f19`. The retained block below is historical.
+The August visibility behavior was superseded by the September Detail decision
+in [d3f830cf530597b910aad77e8b8e37b58acd8b3a](https://github.com/Prosperous-Unification/puni-00/commit/d3f830cf530597b910aad77e8b8e37b58acd8b3a)
+and [the October reconciliation](https://github.com/Prosperous-Unification/puni-00/commit/68d9a7b90).
+The Gantt Legibility change keeps the six visibility scenarios. The dated
+clause and two dated scenarios now belong to “The calendar day is the SVG
+unit.” The existing data-attribute case keeps its geometry and records the
+assumed bar in both Detail states. The historical block preserves the earlier
+outcomes and the dated clause's original placement. This correction adds no
+browser evidence. The open review in task 7.3 remains open.
+
+```text
+### Requirement: Leaves draw bars for the work somebody costed, and the rest is behind the switch
+
+A leaf's row SHALL hold one bar per **estimated** slice, in role order, whatever
+the switch says. A bar on the critical path SHALL be tinted so, and a bar off it
+SHALL not.
+
+With the switch off, a parent's row SHALL draw no mark of its own — no bar, no
+bracket, no tick, and no hover surface — and a slice nobody has estimated SHALL
+draw no mark of its own: no bar, no tick, no on-bar label and no hover surface.
+A leaf with some roles estimated draws those roles' bars alone; a leaf with none
+draws an empty track.
+
+With the switch on, a parent's row SHALL draw the translucent ghost of a bar
+across its projection, or a tick where that projection has no days; and an
+unestimated slice SHALL draw a bar two workdays wide,
+translucent and dashed, carrying the `?` that says its width is nobody's
+estimate, findable as `data-assumed`.
+
+In **both** states the row SHALL stay on the chart at its own index and the row
+height every other row has, so the chart's row `N` stands beside the plan's row
+`N`, and the label rail SHALL go on naming it. The engine's numbers, the date
+columns, the axis and the canvas SHALL be identical in the two states — the
+switch decides what is painted and nothing about where anything is.
+
+A not-before caret SHALL be drawn only on a row that draws at least one mark of
+its own: with the switch off, only where a costed bar stands; with it on, on
+every row holding a start date, because every such row now draws something for
+the caret to stand over.
+
+#### Scenario: a two-role leaf
+
+- **WHEN** a leaf holds Dev 0→3 and QA 3→5, both estimated
+- **THEN** its row holds two bars, Dev's before QA's, at those coordinates,
+  whichever way the switch is set
+
+#### Scenario: a leaf half estimated, at rest and asked for
+
+- **WHEN** a leaf holds an estimated Dev slice and an unestimated QA slice
+- **THEN** its row holds the Dev bar alone and no mark carries `data-assumed`;
+  and once the switch is pressed the QA slice's assumed bar is drawn beside it,
+  carrying `data-assumed`, with the Dev bar unmoved
+
+#### Scenario: a parent over staggered children
+
+- **WHEN** a parent's children run 0→3 and 2→6
+- **THEN** the parent's row holds no `data-gantt-bracket` mark, its children's
+  bars are drawn where they were, and every row keeps its index; and once the
+  switch is pressed the bracket is drawn across the projection, with every row
+  still at its own index
+
+#### Scenario: a parent whose projection has no days
+
+- **WHEN** every child of a parent is unestimated
+- **THEN** the parent's row holds no mark at all, and the rows below it are not
+  shifted; and once the switch is pressed the row holds the zero-span tick
+
+#### Scenario: a start date held on a row that draws nothing
+
+- **WHEN** a parent and an unestimated leaf each carry a start-no-earlier-than
+  date, beside a leaf that carries one and draws a bar
+- **THEN** only the drawn leaf's row holds a not-before caret, and both empty
+  rows stay on the chart at their own index; and once the switch is pressed all
+  three rows hold a caret
+
+#### Scenario: the critical path is visible
+
+- **WHEN** one leaf has float 0 and another float 2
+- **THEN** the first row's bar carries the critical tint and the second's does
+  not
+
+When a project start date is set, every estimated bar and Detail mark SHALL use
+the same calendar scale and SHALL retain its workday `data-start` and
+`data-finish` values. Detail changes which marks are painted, not the calendar
+positions or the scheduling facts beneath them.
+
+#### Scenario: an unestimated slice
+
+- **WHEN** a leaf's slice is unestimated and the engine placed it at workday 3
+  with a duration of 0 on a dated plan
+- **THEN** it has no drawn bar while Detail is off; after Detail is pressed,
+  its assumed bar starts at the corresponding calendar day, spans two workdays,
+  carries `data-assumed` and a `?`, and retains the engine's workday facts
+
+#### Scenario: the horizon holds the assumed span
+
+- **WHEN** the last thing on a dated chart is an unestimated slice at workday 3
+- **THEN** the calendar horizon reaches the assumed span even while Detail is
+  off, and pressing Detail draws the bar inside the unchanged canvas
+
+```

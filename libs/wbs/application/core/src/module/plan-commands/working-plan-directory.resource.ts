@@ -114,6 +114,8 @@ export function createWorkingPlanDirectory(
     removeMeasure: afterWrite((...parameters) => source().removeMeasure(...parameters), never),
     assignmentsInProject: (projectId) => source().assignmentsInProject(projectId),
     namesOf: (catalog, ids) => source().namesOf(catalog, ids),
+    personNamesInOrganization: (organizationId, ids) =>
+      source().personNamesInOrganization(organizationId, ids),
     assignmentsFor: (workItemId) => source().assignmentsFor(workItemId),
     assignmentsOf: (workItemIds) => source().assignmentsOf(workItemIds),
     assign: async (...parameters) => {

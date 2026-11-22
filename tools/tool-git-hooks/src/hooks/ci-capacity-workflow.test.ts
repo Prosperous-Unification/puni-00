@@ -40,7 +40,9 @@ function step(owner: Job, name: string): Step {
 
 // Proof: the unchanged floating runner failed this parsed-workflow consumer with
 // expected ubuntu-24.04 / received ubuntu-latest (0 passed / 1 failed, 2026-10-31).
-test('all Python consumers use a hosted distribution available for the pinned runtime', () => {
+// Proof: restoring the Fleet runner, restoring its Python pin, and widening both
+// selectors to tool-devsync each failed this test against production CI YAML.
+test('Python jobs pin the Fleet and standard hosted runtime tuples', () => {
   const consumers = [
     'gate_workspace',
     'gate_backend',
@@ -58,13 +60,21 @@ test('all Python consumers use a hosted distribution available for the pinned ru
   expect(actual.sort()).toEqual([...consumers].sort());
   for (const name of consumers) {
     const runtime = job(name);
-    expect(runtime['runs-on']).toBe('ubuntu-24.04');
+    expect(runtime['runs-on'], name).toBe(
+      name === 'gate_heavy'
+        ? "${{ matrix.project == 'tool-fleet' && 'ubuntu-26.04' || 'ubuntu-24.04' }}"
+        : 'ubuntu-24.04',
+    );
     const setups = runtime.steps?.filter((entry) =>
       entry.uses?.startsWith('actions/setup-python@'),
     );
     expect(setups).toHaveLength(1);
     expect(setups?.[0]?.uses).toBe('actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065');
-    expect(setups?.[0]?.with?.['python-version']).toBe('3.14.4');
+    expect(setups?.[0]?.with?.['python-version'], name).toBe(
+      name === 'gate_heavy'
+        ? "${{ matrix.project == 'tool-fleet' && '3.14.10' || '3.14.4' }}"
+        : '3.14.4',
+    );
   }
 });
 
@@ -155,7 +165,16 @@ test('every runtime keeps exact checkout and native provisioning before Nx', () 
   expect(prefix).toHaveLength(7);
   for (const name of names) {
     const runtime = job(name);
-    expect(runtime.steps?.slice(0, 7)).toEqual(prefix);
+    // The tuple assertion above checks the heavy Python version directly.
+    const provisioning = runtime.steps
+      ?.slice(0, 7)
+      .map((entry) =>
+        name === 'gate_heavy' && entry.uses?.startsWith('actions/setup-python@')
+          ? { ...entry, with: { ...entry.with, 'python-version': '3.14.4' } }
+          : entry,
+      );
+    // Proof: changing the heavy cache path to requirements.in failed this comparison.
+    expect(provisioning).toEqual(prefix);
     expect(runtime.steps?.[0]?.with?.['fetch-depth']).toBe(0);
     const provision = step(runtime, 'Provision bubblewrap for native runtime tests');
     expect(provision.run).toContain(

@@ -1,4 +1,4 @@
-import { cpSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { scratchSync } from '@tools/test-scratch';
@@ -624,4 +624,390 @@ test('remote aggregate refuses failed, cancelled, skipped, missing or unknown wh
   ).toBe(0);
   expect(reduceGate({ ...green, remote: 'skip', remoteResult: 'skipped' })).not.toBe(0);
   expect(reduceGate({ ...green, remote: 'skip', remoteModelResult: 'skipped' })).not.toBe(0);
+});
+
+interface RequeueStep {
+  name?: string;
+  if?: string;
+  uses?: string;
+  with?: Record<string, string | number>;
+  env?: Record<string, string>;
+  run?: string;
+}
+
+interface RequeueJob {
+  name?: string;
+  if?: string;
+  needs?: string | string[];
+  permissions?: Record<string, string>;
+  'continue-on-error'?: boolean;
+  'timeout-minutes'?: number;
+  steps?: RequeueStep[];
+}
+
+interface RequeueWorkflow {
+  on?: Record<string, unknown>;
+  permissions?: Record<string, string>;
+  jobs?: Record<string, RequeueJob>;
+}
+
+const parseRequeueWorkflow = (name: string): RequeueWorkflow =>
+  Bun.YAML.parse(readFileSync(join(workflowPath, '..', name), 'utf8')) as RequeueWorkflow;
+
+const requeueJob = (workflow: RequeueWorkflow, id: string): RequeueJob => {
+  const job = workflow.jobs?.[id];
+  if (job === undefined) throw new Error(`no job ${id}`);
+  return job;
+};
+
+const onlyRun = (job: RequeueJob): string => {
+  const run = job.steps?.[0]?.run;
+  if (job.steps?.length !== 1 || run === undefined) throw new Error('expected one run step');
+  return run;
+};
+
+interface RequeueExecution {
+  status: number;
+  stdout: string;
+  stderr: string;
+  calls: string[];
+  /** The `gh` calls and `sleep` calls in the order they ran, as `gh <argv>` and `sleep <argv>`. */
+  trace: string[];
+}
+
+/**
+ * Runs a requeue script with a fake `gh` that appends each argv line to a ledger, answers an
+ * artifacts query with GH_MARKERS, a run query with the next line of GH_STATES (the last line
+ * repeats; a `FAIL` line fails as a transient API error does), and a fake `sleep` that records
+ * its argument in the trace and returns at once.
+ */
+const headSha = '3fb17e0af1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6';
+
+const runRequeue = (
+  run: string,
+  env: Record<string, string>,
+  gh: { markers?: string; states?: string[] } = {},
+): RequeueExecution => {
+  const root = scratchSync('ci-requeue-');
+  const bin = join(root, 'bin');
+  mkdirSync(bin);
+  const ledger = join(root, 'gh-calls');
+  const tracePath = join(root, 'trace');
+  const states = join(root, 'states');
+  writeFileSync(ledger, '');
+  writeFileSync(tracePath, '');
+  writeFileSync(
+    states,
+    (gh.states ?? [`completed 2 failure ${headSha}`]).map((line) => `${line}\n`).join(''),
+  );
+  writeFileSync(
+    join(bin, 'gh'),
+    `#!/bin/bash
+printf '%s\\n' "$*" >> "$GH_LEDGER"
+printf 'gh %s\\n' "$*" >> "$GH_TRACE"
+case "$1 $2" in
+  'api '*'/artifacts?name='*) printf '%s\\n' "$GH_MARKERS" ;;
+  'api '*)
+    n="$(grep -c '^api repos/[^ ]*/actions/runs/[0-9]* --jq' "$GH_LEDGER")"
+    line="$(awk -v n="$n" '{ last = $0 } NR == n { print; found = 1; exit } END { if (!found) print last }' "$GH_STATES")"
+    if [ "$line" = FAIL ]; then printf 'gh: Server Error (HTTP 502)\n' >&2; exit 1; fi
+    printf '%s\n' "$line" ;;
+esac
+`,
+    { mode: 0o755 },
+  );
+  writeFileSync(join(bin, 'sleep'), '#!/bin/bash\nprintf \'sleep %s\\n\' "$*" >> "$GH_TRACE"\n', {
+    mode: 0o755,
+  });
+  const invocation = Bun.spawnSync(['bash', '-c', run], {
+    env: {
+      PATH: `${bin}:${process.env['PATH'] ?? ''}`,
+      GH_LEDGER: ledger,
+      GH_TRACE: tracePath,
+      GH_STATES: states,
+      GH_MARKERS: gh.markers ?? '1',
+      GH_TOKEN: 'token',
+      REPOSITORY: 'owner/repo',
+      RUN_ID: '44917747487',
+      RUN_ATTEMPT: '2',
+      HEAD_SHA: headSha,
+      REQUEUE_DELAY_SECONDS: '600',
+      ...env,
+    },
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
+  const calls = readFileSync(ledger, 'utf8').split('\n').filter(Boolean);
+  const trace = readFileSync(tracePath, 'utf8').split('\n').filter(Boolean);
+  rmSync(root, { recursive: true, force: true });
+  return {
+    status: invocation.exitCode,
+    stdout: invocation.stdout.toString(),
+    stderr: invocation.stderr.toString(),
+    calls,
+    trace,
+  };
+};
+
+const markerQuery =
+  'api repos/owner/repo/actions/runs/44917747487/artifacts?name=aws-refused-heavy-tool-fleet-attempt-2 --jq .total_count';
+
+// A-CI-LEAF-AWS-1 (R5-32): a refused tool-fleet attempt is requeued up to attempt 6
+// (A-CI-LEAF-AWS-3), 10 minutes after the run completes, only when this
+// attempt's marker artifact exists, and `gate` still fails the refused attempt.
+describe('requeue tool-fleet leaf', () => {
+  const ci = parseRequeueWorkflow('ci.yml');
+  const requeue = parseRequeueWorkflow('ci-requeue.yml');
+
+  // Proof (2026-11-22): dropping `&& github.run_attempt < 4`, adding `actions: write` to gate_heavy
+  // or adding the requeue job to gate's needs each failed this test, and so did dropping `gate`
+  // from the requeue job's needs. A-CI-LEAF-AWS-3: the bound put back to `< 4` failed it too.
+  test('runs after a failed heavy leaf below attempt 6 with the only actions: write in ci.yml', () => {
+    const job = requeueJob(ci, 'requeue_tool_fleet_leaf');
+    expect(job.name).toBe('requeue tool-fleet leaf');
+    // It fires after `gate`, at the end of the run, so the waiter's wait is short.
+    expect(job.needs).toEqual(['gate_heavy', 'gate']);
+    expect(job.if).toBe(
+      "${{ always() && needs.gate_heavy.result == 'failure' && github.run_attempt < 6 }}",
+    );
+    expect(job.permissions).toEqual({ actions: 'write', contents: 'read' });
+    expect(job['continue-on-error']).toBe(true);
+    expect(ci.permissions).toEqual({ contents: 'read' });
+    const writers = Object.entries(ci.jobs ?? {})
+      .filter(([, owner]) => owner.permissions?.['actions'] !== undefined)
+      .map(([id]) => id);
+    expect(writers).toEqual(['requeue_tool_fleet_leaf']);
+    // The refused attempt stays a failure: `gate` does not wait on or read the requeue.
+    const gateNeeds = requeueJob(ci, 'gate').needs;
+    expect(gateNeeds).toContain('gate_heavy');
+    expect(gateNeeds).not.toContain('requeue_tool_fleet_leaf');
+  });
+
+  // Proof (2026-11-22): dropping `always() &&` from the upload condition failed this test.
+  test('the heavy leaf uploads the attempt-named marker even though the step failed', () => {
+    const upload = requeueJob(ci, 'gate_heavy').steps?.find(
+      ({ name }) => name === 'Upload AWS refusal marker',
+    );
+    expect(upload?.if).toBe("${{ always() && steps.nx_gate.outputs.aws_refused == 'true' }}");
+    expect(upload?.uses).toStartWith('actions/upload-artifact@');
+    expect(upload?.with?.['name']).toBe(
+      'aws-refused-heavy-tool-fleet-attempt-${{ github.run_attempt }}',
+    );
+    expect(upload?.with?.['path']).toBe('aws-refused.txt');
+    expect(upload?.with?.['if-no-files-found']).toBe('error');
+  });
+
+  // Proof (2026-11-22): making the zero-marker branch unreachable dispatched an ordinary failure,
+  // and disabling the fork guard queried and dispatched from a fork; dropping the head_sha input
+  // from the dispatch failed it too.
+  test('dispatches ci-requeue only when this attempt was refused, and never for a fork', () => {
+    const run = onlyRun(requeueJob(ci, 'requeue_tool_fleet_leaf'));
+    const dispatch = `workflow run ci-requeue.yml --repo owner/repo -f run_id=44917747487 -f attempt=2 -f head_sha=${headSha}`;
+    const base = { EVENT_NAME: 'push', HEAD_REPOSITORY: '' };
+
+    const refused = runRequeue(run, base);
+    expect(refused.status, refused.stderr).toBe(0);
+    expect(refused.calls).toEqual([markerQuery, dispatch]);
+    expect(refused.stdout).toContain('A-CI-LEAF-AWS-1: requeue of attempt 2 dispatched');
+
+    const samePr = runRequeue(run, {
+      ...base,
+      EVENT_NAME: 'pull_request',
+      HEAD_REPOSITORY: 'owner/repo',
+    });
+    expect(samePr.calls).toEqual([markerQuery, dispatch]);
+
+    const ordinary = runRequeue(run, base, { markers: '0' });
+    expect(ordinary.status, ordinary.stderr).toBe(0);
+    expect(ordinary.calls).toEqual([markerQuery]);
+    expect(ordinary.stdout).toContain('is not an AWS refusal, no requeue');
+
+    const fork = runRequeue(run, {
+      ...base,
+      EVENT_NAME: 'pull_request',
+      HEAD_REPOSITORY: 'fork/repo',
+    });
+    expect(fork.status, fork.stderr).toBe(0);
+    expect(fork.calls).toEqual([]);
+    expect(fork.stdout).toContain('fork pull request from fork/repo');
+
+    for (const markers of ['2', '', 'null']) {
+      const unexpected = runRequeue(run, base, { markers });
+      expect(unexpected.status, markers).toBe(1);
+      expect(unexpected.calls, markers).toEqual([markerQuery]);
+    }
+  });
+
+  // Proof (2026-11-22): widening the attempt bound to 0-9, admitting any run id or head sha, or
+  // skipping the marker check, the completion wait, the moved-attempt check or the poll bound, or
+  // dropping `--failed` each failed this test. After the #982 review: dropping the conclusion
+  // check reran a cancelled run, dropping the head check reran another head, dropping the polled
+  // attempt's [1-4] check read a garbled attempt as moved, exiting on the first failed poll, never
+  // resetting the failure count, or a 45-poll bound each failed it too.
+  test('ci-requeue waits for the refused attempt to complete, then reruns only a failed one', () => {
+    expect(Object.keys(requeue.on ?? {})).toEqual(['workflow_dispatch']);
+    expect(requeue.permissions).toEqual({ contents: 'read' });
+    const job = requeueJob(requeue, 'requeue');
+    expect(job.permissions).toEqual({ actions: 'write', contents: 'read' });
+    const run = onlyRun(job);
+    const status =
+      'api repos/owner/repo/actions/runs/44917747487 --jq "\\(.status) \\(.run_attempt) \\(.conclusion) \\(.head_sha)"';
+    const rerun = 'run rerun 44917747487 --repo owner/repo --failed';
+    const running = `in_progress 2 null ${headSha}`;
+    const failed = `completed 2 failure ${headSha}`;
+
+    const requeued = runRequeue(run, {}, { states: [running, running, failed] });
+    expect(requeued.status, requeued.stderr).toBe(0);
+    expect(requeued.calls).toEqual([markerQuery, status, status, status, status, rerun]);
+    expect(requeued.stdout).toContain('A-CI-LEAF-AWS-1: requeued attempt 3 after an AWS refusal');
+
+    // The last refused attempt in the bound is 5; its rerun is attempt 6.
+    const last = runRequeue(
+      run,
+      { RUN_ATTEMPT: '5' },
+      { states: [`completed 5 failure ${headSha}`] },
+    );
+    expect(last.status, last.stderr).toBe(0);
+    expect(last.calls).toEqual([
+      markerQuery.replace('attempt-2', 'attempt-5'),
+      status,
+      status,
+      rerun,
+    ]);
+    expect(last.stdout).toContain('A-CI-LEAF-AWS-1: requeued attempt 6 after an AWS refusal');
+    // A polled attempt 6 is well formed: the run has moved, so nothing is rerun.
+    const sixth = runRequeue(run, { RUN_ATTEMPT: '5' }, { states: [`queued 6 null ${headSha}`] });
+    expect(sixth.status, sixth.stderr).toBe(0);
+    expect(sixth.calls).toHaveLength(2);
+    expect(sixth.stdout).toContain('is already on attempt 6; no requeue');
+
+    // Up to three consecutive failed or malformed polls are tolerated.
+    const transient = runRequeue(
+      run,
+      {},
+      { states: ['FAIL', '', `completed x failure ${headSha}`, failed] },
+    );
+    expect(transient.status, transient.stderr).toBe(0);
+    expect(transient.calls).toEqual([markerQuery, status, status, status, status, status, rerun]);
+    // The count is of consecutive failures: a good poll resets it.
+    const intermittent = runRequeue(
+      run,
+      {},
+      { states: ['FAIL', 'FAIL', 'FAIL', running, 'FAIL', failed] },
+    );
+    expect(intermittent.status, intermittent.stderr).toBe(0);
+    expect(intermittent.calls.at(-1)).toBe(rerun);
+    const broken = runRequeue(run, {}, { states: ['FAIL', 'FAIL', '', 'completed 5 failure sha'] });
+    expect(broken.status).toBe(1);
+    expect(broken.calls).toEqual([markerQuery, status, status, status, status]);
+
+    // A cancelled (superseded) or passing run, a moved attempt or another head is left alone.
+    for (const [label, state] of [
+      ['cancelled', `completed 2 cancelled ${headSha}`],
+      ['success', `completed 2 success ${headSha}`],
+      ['moved', `queued 3 null ${headSha}`],
+      ['another head', `completed 2 failure ${'a'.repeat(40)}`],
+    ] as const) {
+      const left = runRequeue(run, {}, { states: [state] });
+      expect(left.status, `${label}: ${left.stderr}`).toBe(0);
+      expect(left.calls, label).toEqual([markerQuery, status]);
+      expect(left.stdout, label).toContain('no requeue');
+    }
+
+    const stuck = runRequeue(run, {}, { states: [running] });
+    expect(stuck.status).toBe(1);
+    expect(stuck.calls).toHaveLength(151);
+    expect(stuck.calls).not.toContain(rerun);
+
+    const unrefused = runRequeue(run, {}, { markers: '0' });
+    expect(unrefused.status).toBe(1);
+    expect(unrefused.calls).toEqual([markerQuery]);
+
+    for (const [name, value] of [
+      ['RUN_ATTEMPT', '6'],
+      ['RUN_ATTEMPT', '0'],
+      ['RUN_ATTEMPT', ''],
+      ['RUN_ATTEMPT', '2 3'],
+      ['RUN_ID', ''],
+      ['RUN_ID', '12/../1'],
+      ['RUN_ID', '0123'],
+      ['HEAD_SHA', ''],
+      ['HEAD_SHA', 'main'],
+      ['HEAD_SHA', headSha.toUpperCase()],
+      ['REQUEUE_DELAY_SECONDS', ''],
+      ['REQUEUE_DELAY_SECONDS', 'ten'],
+      ['REQUEUE_DELAY_SECONDS', '-1'],
+    ] as const) {
+      const refused = runRequeue(run, { [name]: value });
+      expect(refused.status, `${name}=${value}`).toBe(1);
+      expect(refused.calls, `${name}=${value}`).toEqual([]);
+    }
+  });
+
+  const delayJob = requeueJob(requeue, 'requeue');
+  const delayRun = onlyRun(delayJob);
+  const runQuery =
+    'api repos/owner/repo/actions/runs/44917747487 --jq "\\(.status) \\(.run_attempt) \\(.conclusion) \\(.head_sha)"';
+  const rerunCall = 'run rerun 44917747487 --repo owner/repo --failed';
+  const failedAttempt = `completed 2 failure ${headSha}`;
+
+  // Proof (2026-11-22, A-CI-LEAF-AWS-3): replacing the delay's `sleep` with `:` failed this
+  // test's order check, and the next test's traces, which name the delay, failed too.
+  test('ci-requeue waits 10 minutes after the run completes and before the rerun', () => {
+    expect(delayJob.steps?.[0]?.env?.['REQUEUE_DELAY_SECONDS']).toBe('600');
+    // 150 polls of a minute, the delay, and room for the re-read and the rerun.
+    expect(delayJob['timeout-minutes']).toBe(175);
+    const running = `in_progress 2 null ${headSha}`;
+
+    const requeued = runRequeue(delayRun, {}, { states: [running, failedAttempt] });
+    expect(requeued.status, requeued.stderr).toBe(0);
+    expect(requeued.trace).toEqual([
+      `gh ${markerQuery}`,
+      `gh ${runQuery}`,
+      'sleep 60',
+      `gh ${runQuery}`,
+      'sleep 600',
+      `gh ${runQuery}`,
+      `gh ${rerunCall}`,
+    ]);
+    expect(requeued.stdout).toContain(
+      'A-CI-LEAF-AWS-1: waiting 600 s before the rerun so the next draw is less correlated with this host pool',
+    );
+  });
+
+  // Proof (2026-11-22, A-CI-LEAF-AWS-3): replacing the read after the delay and its checks with
+  // `if false` reran the cancelled attempt, failing this test at its `cancelled` case. Putting the
+  // bound back to [1-3], the polled attempt back to [1-4] or dropping the delay's validation each
+  // failed the waiter test above.
+  test('ci-requeue reads the run again after the delay; a cancellation or new attempt stops it', () => {
+    // A cancellation, a new attempt or another head seen after the delay stops the requeue.
+    for (const [label, state, line] of [
+      ['cancelled', `completed 2 cancelled ${headSha}`, 'is completed cancelled after the delay'],
+      ['rerun by hand', `in_progress 3 null ${headSha}`, 'is already on attempt 3'],
+      ['another head', `completed 2 failure ${'b'.repeat(40)}`, `records head ${'b'.repeat(40)}`],
+    ] as const) {
+      const left = runRequeue(delayRun, {}, { states: [failedAttempt, state] });
+      expect(left.status, `${label}: ${left.stderr}`).toBe(0);
+      expect(left.trace, label).toEqual([
+        `gh ${markerQuery}`,
+        `gh ${runQuery}`,
+        'sleep 600',
+        `gh ${runQuery}`,
+      ]);
+      expect(left.stdout, label).toContain(line);
+      expect(left.stdout, label).toContain('no requeue');
+    }
+
+    // The read after the delay tolerates three failed polls, like the wait before it.
+    const transient = runRequeue(
+      delayRun,
+      {},
+      { states: [failedAttempt, 'FAIL', 'FAIL', failedAttempt] },
+    );
+    expect(transient.status, transient.stderr).toBe(0);
+    expect(transient.trace.at(-1)).toBe(`gh ${rerunCall}`);
+    const broken = runRequeue(delayRun, {}, { states: [failedAttempt, 'FAIL'] });
+    expect(broken.status).toBe(1);
+    expect(broken.calls).not.toContain(rerunCall);
+  });
 });

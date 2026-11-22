@@ -28,8 +28,15 @@ const STAMP = { at: 1, by: F };
  * no scoped runner batch (`refuseOutsideScope`); the routes are proven over
  * SQLite in directory-capacity.controller.db.test.ts.
  */
-async function seeded() {
-  const fixture = openMemorySourceFixture();
+async function seeded(withLimits = true) {
+  const defaults = {
+    maxAgentPersons: 50,
+    maxConcurrentClaims: 200,
+    maxCapacityUnitsPerResource: 64,
+  };
+  const fixture = openMemorySourceFixture(
+    withLimits ? { organizationDefaultLimits: defaults } : {},
+  );
   const { source } = fixture;
   const broadcast = recordingBroadcaster();
   const options = {
@@ -93,6 +100,25 @@ describe('setDirectoryCapacity on the memory twin', () => {
         { resourceId: RAM, units: 16 },
       ]);
       expect(await state(RAM, null)).toEqual({ ok: true, value: null });
+      expect(await source.stores.directory.directoryCapacitiesOf([RAM])).toEqual([]);
+    } finally {
+      await source.close();
+    }
+  });
+
+  it('rejects an owned directory write when its staged gauge is missing', async () => {
+    const { source, state } = await seeded(false);
+    try {
+      const failure = await state(RAM, 16).then(
+        () => {
+          throw new Error('expected the write with no gauge to reject');
+        },
+        (cause: unknown) => {
+          if (!(cause instanceof Error)) throw cause;
+          return cause;
+        },
+      );
+      expect(failure.message).toContain('admitted without organization limits');
       expect(await source.stores.directory.directoryCapacitiesOf([RAM])).toEqual([]);
     } finally {
       await source.close();

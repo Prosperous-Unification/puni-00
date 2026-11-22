@@ -98,6 +98,8 @@ function runnerWith(hold: Hold) {
         return reading;
       },
       readConcurrentClaimCap: (organizationId) => gauge.readConcurrentClaimCap(organizationId),
+      readDirectoryCapacityLimit: (organizationId, resourceId) =>
+        gauge.readDirectoryCapacityLimit(organizationId, resourceId),
       readCapacityCap: (organizationId, resourceId, exceptProjectId) =>
         gauge.readCapacityCap(organizationId, resourceId, exceptProjectId),
     };

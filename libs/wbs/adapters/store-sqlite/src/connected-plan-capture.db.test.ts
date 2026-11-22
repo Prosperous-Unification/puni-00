@@ -11,11 +11,14 @@ import { ChainSnapshotRepository, createChainSnapshotStore } from './chain-snaps
 import { captureConnectedPlanIn } from './connected-plan-capture';
 import { drizzleReadTransaction, openConnection, openDatabase, openReadOnlyConnection } from './db';
 import { DependencyRepository } from './dependency';
+import { DirectoryRepository } from './directory';
 import { MeasureEstimateRepository } from './measure-estimate';
 import { allocateGeneration } from './optimization-generation';
+import { PriorityBandRepository } from './priority-band';
 import { ProjectRepository } from './project';
 import { ProjectRankRepository } from './project-rank';
 import { createReadSnapshotLifetime } from './read-snapshot-lifetime';
+import { ResourceCapacityRepository } from './resource';
 import { readConnectedPlanInputIn } from './saved-plan-capture';
 import { scheduleInputHash } from './schedule-input-hash';
 import { optimizedScheduleCache } from './schema';
@@ -234,22 +237,48 @@ test('connected isolated cache publication stays invisible through sequential se
   ]);
 });
 
+function seedDirectoryCapacity(): void {
+  write("INSERT INTO resource (id,name,kind,unit_label) VALUES ('ram','RAM','divisible','GB')");
+  write(
+    "INSERT INTO resource_organization (resource_id,organization_id,name) VALUES ('ram','org-a','RAM')",
+  );
+  write(
+    "INSERT INTO project_resource_capacity (project_id,resource_id,units) VALUES ('a2','ram',32)",
+  );
+  write("INSERT INTO resource_directory_capacity (resource_id,units) VALUES ('ram',24)");
+}
+
 test('borrowed capture sees staged writes and preserves owner transaction', async () => {
+  seedDirectoryCapacity();
   const connection = openConnection(path);
   const transaction = drizzleReadTransaction(connection.db);
   transaction.begin();
   try {
     connection.db.run(sql`UPDATE project SET name = 'staged' WHERE id = 'a2'`);
+    connection.db.run(
+      sql`UPDATE resource_directory_capacity SET units = 16 WHERE resource_id = 'ram'`,
+    );
     const captured = await captureConnectedPlanIn(
       connection.db,
       { kind: 'scoped', scope: { organizationId: 'org-a' } },
       'a1',
       createReadSnapshotLifetime(),
     );
-    expect(captured.projects.find(({ projectId }) => projectId === 'a2')?.reads.project.name).toBe(
-      'staged',
-    );
+    const reads = captured.projects.find(({ projectId }) => projectId === 'a2')?.reads;
+    if (reads === undefined) throw new Error('Borrowed member capture is absent');
+    expect(reads.project.name).toBe('staged');
+    expect(reads.resourceCapacities).toEqual([{ resourceId: 'ram', units: 32 }]);
+    expect(reads.directoryCapacities).toEqual([{ resourceId: 'ram', units: 16 }]);
+    expect(scheduleInputOfCaptured(reads).resourceCapacities).toEqual(new Map([['ram', 16]]));
     transaction.rollback();
+    const current = await readConnectedPlanInputIn(
+      connection.db,
+      'a2',
+      { kind: 'scoped', scope: { organizationId: 'org-a' } },
+      createReadSnapshotLifetime(),
+    );
+    expect(current?.directoryCapacities).toEqual([{ resourceId: 'ram', units: 24 }]);
+    expect(reads.directoryCapacities).toEqual([{ resourceId: 'ram', units: 16 }]);
     expect(
       connection.db.get<{ name: string }>(sql`SELECT name FROM project WHERE id = 'a2'`),
     ).toEqual({
@@ -565,6 +594,46 @@ test.each(['definitions', 'estimates', 'budgets'] as const)(
     } finally {
       interrupted.mockRestore();
       following.mockRestore();
+      connection.close();
+    }
+  },
+);
+
+test.each(['before', 'after'] as const)(
+  'borrowed directory query stops when its lifetime expires %s dispatch',
+  async (expiry) => {
+    seedDirectoryCapacity();
+    const connection = openConnection(path);
+    const lifetime = createReadSnapshotLifetime();
+    const directory = spyOn(DirectoryRepository.prototype, 'directoryCapacitiesOf');
+    const priority = spyOn(PriorityBandRepository.prototype, 'listFor');
+    const projectCapacity = spyOn(ResourceCapacityRepository.prototype, 'listFor');
+    if (expiry === 'before')
+      projectCapacity.mockImplementation(() => {
+        lifetime.expire();
+        return Promise.resolve([{ resourceId: 'ram', units: 32 }]);
+      });
+    else
+      directory.mockImplementation(() => {
+        lifetime.expire();
+        return Promise.resolve([{ resourceId: 'ram', units: 16 }]);
+      });
+    try {
+      const failure = await failureOf(
+        readConnectedPlanInputIn(
+          connection.db,
+          'a2',
+          { kind: 'scoped', scope: { organizationId: 'org-a' } },
+          lifetime,
+        ),
+      );
+      expect(failure.message).toContain('closed');
+      expect(directory).toHaveBeenCalledTimes(expiry === 'before' ? 0 : 1);
+      expect(priority).not.toHaveBeenCalled();
+    } finally {
+      projectCapacity.mockRestore();
+      priority.mockRestore();
+      directory.mockRestore();
       connection.close();
     }
   },

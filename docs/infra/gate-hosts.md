@@ -4,7 +4,7 @@ A gate host runs `bin/h2puni-gate.sh <sha>` exactly as h2puni does, under its ow
 lock, so gates on different hosts run in parallel. h2puni is the original gate host. h4claw is the
 second, configured by `infra/ansible/playbooks/gate-host.yml` (WBS 070.05) and live since
 2026-10-21: the apply converged twice and a full gate exited 0 there, recorded in
-[the gate-host-role verification](../../openspec/changes/gate-host-role/verify.md). Both hosts are
+[the gate-host-role verification](../../openspec/changes/archive/2026-11-21-gate-host-role/verify.md). Both hosts are
 enrolled in their Dash host pools in observe mode (h4claw since 2026-11-08, h2puni since
 2026-11-17), so gate on either as `puni1` from `~/puni-00-gate-launcher`
 ([Launch a gate on h4claw](#launch-a-gate-on-h4claw)). The figure of
@@ -545,7 +545,10 @@ docker run --rm --label puni.host-service=goaccess-reports --memory 512m --cpus 
 
 The run record then keeps it as verdict `host-service`, and `ops job audit` lists it beside the
 run with its declared bounds. A label without both `--memory` and `--cpus` still leaves the
-run incomplete, and a container that also carries `puni.job` is judged as that job's. Two
+run incomplete, and a container that also carries `puni.job` is judged as that job's. A
+host-service container removed before Dash read its bounds, such as a one-second `--rm`
+snapshot, is attributed from its create and die events when it lived within one sampling
+interval (A-ATTR-ENDED-1, task 6.28). Its memory and CPU over that interval are then unknown. Two
 scripts need it today: h2puni's hourly `~/monitoring/bin/goaccess-reports.sh` (cron at :07,
 `allinurl/goaccess`) and h4claw's daily `puni-registry-backup.timer`, whose
 `/root/.puni/registry/backup-registry.ts` runs `keinos/sqlite3` snapshots (h2puni has a

@@ -439,6 +439,8 @@ describe('resource fit in the startable read', () => {
         capacity: 8,
         occupied: 4,
         free: 4,
+        occupancyScope: 'project',
+        directory: null,
       },
     ]);
     expect(work.occupancyScope).toBe('project');

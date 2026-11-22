@@ -205,12 +205,14 @@ export type Refusal =
         asked: number;
         free: number;
         holders: NamedOccupancyHolder[];
+        hiddenHolders?: { readonly units: number };
         /** Every short resource in resource-id order; the fields above repeat the first. */
         resources: {
           resourceId: string;
           asked: number;
           free: number;
           holders: NamedOccupancyHolder[];
+          hiddenHolders?: { readonly units: number };
         }[];
       };
     }

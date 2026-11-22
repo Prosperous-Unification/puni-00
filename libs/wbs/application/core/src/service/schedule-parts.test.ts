@@ -140,6 +140,7 @@ describe('shared live and captured preparation', () => {
           capture.capacity,
           capture.demands,
           capture.resourceCapacities,
+          capture.directoryCapacities,
         );
         expect(canonicalScheduleInput(direct.input)).toBe(canonicalScheduleInput(live));
         expect(direct.rule).toEqual({ method, rounding, pertWeights: project.pertWeights });

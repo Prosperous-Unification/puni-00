@@ -1,5 +1,9 @@
 import type { CapReading, OrganizationLimitGauge } from '@wbs/core';
-import { isOrganizationLimit, type OrganizationLimitValues } from '@wbs/domain';
+import {
+  type DirectoryCapacityLimit,
+  isOrganizationLimit,
+  type OrganizationLimitValues,
+} from '@wbs/domain';
 
 import type { MemoryClaimTable } from './claim-fixture';
 import type { MemoryDirectoryTables } from './directory-fixture';
@@ -8,16 +12,18 @@ import type { MemoryWorkItemTables } from './memory-work-item-fixture';
 /**
  * `organization_limits` and `project_organization` as far as the limits gauge
  * reads them: each organization's own caps, and which organization owns each
- * project. No memory port writes either; the source fixture's setters do, as
- * the operator CLI and the organization side tables do on SQLite.
+ * project. The source fixture states caps. Project ownership is the project
+ * table's map, written by scoped creation or explicitly seeded by a fixture.
  */
 export interface MemoryOrganizationLimitTables {
   readonly caps: Map<string, OrganizationLimitValues>;
   readonly projectOrganization: Map<string, string>;
 }
 
-export function memoryOrganizationLimitTables(): MemoryOrganizationLimitTables {
-  return { caps: new Map(), projectOrganization: new Map() };
+export function memoryOrganizationLimitTables(
+  projectOrganization: Map<string, string>,
+): MemoryOrganizationLimitTables {
+  return { caps: new Map(), projectOrganization };
 }
 
 /** @throws when any of `limits` is outside the bounds an organization may hold. */
@@ -64,6 +70,29 @@ export function inMemoryOrganizationLimitGauge(
 ): OrganizationLimitGauge {
   const fallback = checkedOrganizationLimits(defaults, 'the deployment default');
   const capsOf = (organizationId: string) => reads.limits.caps.get(organizationId) ?? fallback;
+  const ownsResource = (organizationId: string, resourceId: string) =>
+    reads.directory.organizationOf.get(resourceId) === organizationId;
+  const directoryUnits = (organizationId: string, resourceId: string) =>
+    ownsResource(organizationId, resourceId)
+      ? (reads.directory.resources.directoryCapacities.get(resourceId) ?? null)
+      : null;
+  const sumProjectUnits = (
+    organizationId: string,
+    resourceId: string,
+    exceptProjectId?: string,
+  ) => {
+    if (!ownsResource(organizationId, resourceId)) return 0;
+    let units = 0;
+    for (const stated of reads.directory.resources.capacities.values())
+      if (
+        stated.resourceId === resourceId &&
+        stated.projectId !== exceptProjectId &&
+        // Proof: removing project ownership from the raw read gave 64 instead of 48 in Memory certification.
+        reads.limits.projectOrganization.get(stated.projectId) === organizationId
+      )
+        units += stated.units;
+    return units;
+  };
   return {
     readAgentPersonCap(organizationId): Promise<CapReading> {
       let current = 0;
@@ -91,18 +120,19 @@ export function inMemoryOrganizationLimitGauge(
       });
     },
     readCapacityCap(organizationId, resourceId, exceptProjectId): Promise<CapReading> {
-      let current = 0;
-      if (reads.directory.organizationOf.get(resourceId) === organizationId)
-        for (const stated of reads.directory.resources.capacities.values())
-          if (
-            stated.resourceId === resourceId &&
-            stated.projectId !== exceptProjectId &&
-            reads.limits.projectOrganization.get(stated.projectId) === organizationId
-          )
-            current += stated.units;
       return Promise.resolve({
         cap: capsOf(organizationId).maxCapacityUnitsPerResource,
-        current,
+        current:
+          directoryUnits(organizationId, resourceId) === null
+            ? sumProjectUnits(organizationId, resourceId, exceptProjectId)
+            : 0,
+      });
+    },
+    readDirectoryCapacityLimit(organizationId, resourceId): Promise<DirectoryCapacityLimit> {
+      return Promise.resolve({
+        cap: capsOf(organizationId).maxCapacityUnitsPerResource,
+        before: directoryUnits(organizationId, resourceId),
+        projectUnits: sumProjectUnits(organizationId, resourceId),
       });
     },
   };

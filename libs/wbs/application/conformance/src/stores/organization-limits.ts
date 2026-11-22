@@ -51,6 +51,12 @@ export const LIMITS_FIXTURE = {
     { id: 'limits-ram', name: 'limits-ram', organizationId: A },
     { id: 'limits-stage', name: 'limits-stage', organizationId: A },
     { id: 'limits-b-ram', name: 'limits-b-ram', organizationId: B },
+    { id: 'limits-shared', name: 'limits-shared', organizationId: A },
+    { id: 'limits-zero', name: 'limits-zero', organizationId: A },
+  ],
+  directoryCapacities: [
+    { resourceId: 'limits-shared', units: 16 },
+    { resourceId: 'limits-zero', units: 0 },
   ],
   capacities: [
     { projectId: projectA, resourceId: 'limits-ram', units: 48 },
@@ -58,6 +64,9 @@ export const LIMITS_FIXTURE = {
     { projectId: projectA, resourceId: 'limits-b-ram', units: 5 },
     { projectId: projectB, resourceId: 'limits-ram', units: 16 },
     { projectId: projectB, resourceId: 'limits-b-ram', units: 7 },
+    { projectId: projectA, resourceId: 'limits-shared', units: 48 },
+    { projectId: projectB, resourceId: 'limits-shared', units: 16 },
+    { projectId: projectA, resourceId: 'limits-zero', units: 32 },
   ],
   claims: [
     heldBy('limits-claim-1', aOne, aDev, 'limits-a-agent-1', 'r1', ownerA),
@@ -103,6 +112,14 @@ export async function seedOrganizationLimits(
     );
     if (!added.ok) throw new Error(`the limits resource ${id} was refused`);
     side.ownResource(id, organizationId);
+  }
+  for (const { resourceId, units } of LIMITS_FIXTURE.directoryCapacities) {
+    const written = await stores.directory.setDirectoryCapacity(resourceId, units, {
+      stamp,
+      actor: ownerA,
+      auditId: resourceId + '-capacity',
+    });
+    if (!written.ok) throw new Error(`the limits directory capacity ${resourceId} was refused`);
   }
   for (const { projectId, resourceId, units } of LIMITS_FIXTURE.capacities) {
     const stated = await stores.resourceCapacity.set(projectId, resourceId, units, stamp);
@@ -199,6 +216,42 @@ export function organizationLimitRegistrations(
         expect(await port.readCapacityCap(B, 'limits-ram', 'project-none')).toEqual({
           cap: defaults.maxCapacityUnitsPerResource,
           current: 0,
+        });
+        expect(await port.readCapacityCap(A, 'limits-shared', 'project-none')).toEqual({
+          cap: 64,
+          current: 0,
+        });
+        expect(await port.readCapacityCap(A, 'limits-zero', 'project-none')).toEqual({
+          cap: 64,
+          current: 0,
+        });
+      },
+    ),
+    storeCase(
+      'organizationLimits',
+      'organizationLimits.readDirectoryCapacityLimit:owned-raw-statements',
+      open,
+      async ({ port }) => {
+        if (port === undefined) throw new Error('declared organization limits are absent');
+        expect(await port.readDirectoryCapacityLimit(A, 'limits-shared')).toEqual({
+          cap: 64,
+          before: 16,
+          projectUnits: 48,
+        });
+        expect(await port.readDirectoryCapacityLimit(A, 'limits-zero')).toEqual({
+          cap: 64,
+          before: 0,
+          projectUnits: 32,
+        });
+        expect(await port.readDirectoryCapacityLimit(A, 'limits-ram')).toEqual({
+          cap: 64,
+          before: null,
+          projectUnits: 48,
+        });
+        expect(await port.readDirectoryCapacityLimit(B, 'limits-shared')).toEqual({
+          cap: defaults.maxCapacityUnitsPerResource,
+          before: null,
+          projectUnits: 0,
         });
       },
     ),

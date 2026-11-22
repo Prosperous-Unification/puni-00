@@ -356,6 +356,10 @@
           "value": ".mjs"
         },
         {
+          "kind": "path",
+          "value": "apps/wbs/fe-01/tools/owner-lint-plan.d.mts"
+        },
+        {
           "kind": "suffix",
           "value": ".py"
         },

@@ -87,3 +87,160 @@ opens nothing.
 
 `bunx vitest run hint.test.tsx plan-cells.test.tsx plan-cards.test.tsx`: 278 passed. fe-01 lint
 and typecheck green; `bunx nx format:check --all` exit 0.
+
+## Historical ownership reconciliation
+
+Attempts now owns the server's fact fill and clear, including the four mixed-status
+and undo scenarios carried from this file. Its dated fixture binds UTC and no attempts.
+The unqualified earlier UTC body below remains historical. A qualifying attempt or
+the project's local day supplies a missing day under the later reviewed Attempts rule.
+The Status prompt owns both actual confirmed days and the distinct follow-up patches
+for changed stored days. The earlier one-field wording remains historical below.
+[Status fact history](https://github.com/Prosperous-Unification/puni-00/commit/4aad8e994)
+and [Attempts fact history](https://github.com/Prosperous-Unification/puni-00/commit/a6e11687a)
+attribute those changes. This supplement supplies no runtime evidence.
+
+### Retired Status fact-fill overlay
+
+Source at local parent `7f8a426a2823f81b01e8fe1307d4b092941e8920`,
+`openspec/changes/status-at-a-glance/specs/wbs-domain/spec.md`, blob
+`4edaca2c263af1fedae3b70625c295869aeeacd6`.
+
+```text
+### Requirement: Marking done fills an empty fact end with the day of the act
+
+Marking a work item `done` SHALL fill the fact end of every work item the act writes — the
+leaves and, for a parent, the parent itself — whose `factEnd` is `null` with `on`; `on`
+absent, be-01 SHALL take the calendar day of the act's own write stamp in UTC. A stored fact
+end SHALL NOT be overwritten by the fill. fe-01 SHALL always send `on` as the day the
+completion prompt confirmed. Setting `unknown` SHALL set `factEnd` and `factStart` to `null` on every work
+item in scope — the leaves and, for a parent, the parent itself — whose status read `done`
+before the act (`status-from-the-menu` widened this from the fact end alone), and SHALL leave
+the facts of every other row untouched. The fill and the clear SHALL
+be part of the same journal entry as the statements, so one undo takes them away together.
+
+#### Scenario: a typed fact end survives the mark
+
+- **GIVEN** a leaf whose fact end reads `2026-09-10`
+- **WHEN** it is marked `done` with `on: '2026-09-12'`
+- **THEN** its fact end still reads `2026-09-10`
+
+#### Scenario: be-01 supplies the day when the client does not
+
+- **GIVEN** a clock whose act stamps `2026-09-12T23:30:00Z`
+- **WHEN** a leaf with no fact end is marked `done` with no `on`
+- **THEN** its fact end reads `2026-09-12`
+
+#### Scenario: leaving done takes the fact end away, and undo puts it back
+
+- **GIVEN** a done leaf whose fact end reads `2026-09-12` and whose fact start reads
+  `2026-09-08`
+- **WHEN** `setStatus` sets it `unknown`, then the actor undoes once
+- **THEN** after the act its `progress` is empty and both facts are `null`; after the undo every
+  statement and both days are back, from one journal entry
+
+#### Scenario: a parent's unknown clears only what read done
+
+- **GIVEN** an in-progress parent with a typed fact end `2026-09-12` over two leaves, one done
+  with fact end `2026-09-11`, one in progress whose fact end was typed as `2026-09-09`
+- **WHEN** `setStatus` sets the parent `unknown`
+- **THEN** the done leaf's fact end is `null`, and the parent's `2026-09-12` and the other
+  leaf's `2026-09-09` stand
+
+#### Scenario: a done parent's unknown clears the parent and every leaf, and one undo restores them
+
+- **GIVEN** a parent marked `done` on `2026-09-12`, so it and both leaves hold that fact end
+- **WHEN** `setStatus` sets the parent `unknown`, then the actor undoes once
+- **THEN** all three fact ends are `null` after the act and `2026-09-12` again after the undo,
+  and the act added one journal entry
+
+#### Scenario: unknown on a row that was not done leaves the facts
+
+- **GIVEN** an in-progress leaf with a typed fact end
+- **WHEN** `setStatus` sets it `unknown`
+- **THEN** its `progress` is empty and its fact end is what it was
+
+#### Scenario: the reader's day wins over the server's
+
+- **GIVEN** a browser whose local day is `2026-09-13` while UTC is still `2026-09-12`, and a
+  leaf with no fact end whose forecast ends on or after `2026-09-13`
+- **WHEN** the Status cell marks it done and the completion prompt is confirmed as offered
+- **THEN** the command carries `on: '2026-09-13'` and the fact end reads `2026-09-13`
+
+#### Scenario: the start is filled where empty and kept where typed
+
+- **GIVEN** two leaves, one with no fact start and one with `2026-09-02`
+- **WHEN** each is marked `done` with `on: '2026-09-12', factStart: '2026-09-08'`
+- **THEN** the first's fact start reads `2026-09-08` and the second's still `2026-09-02`
+
+#### Scenario: a non-date start is refused
+
+- **GIVEN** a `setStatus` with `factStart: 'last week'`
+- **WHEN** it reaches the commands route
+- **THEN** it is refused `400 factStart_must_be_a_date` and no row is written
+
+#### Scenario: unknown takes both days, and one undo brings both back
+
+- **GIVEN** a parent marked `done` on `2026-09-12` from `2026-09-08`
+- **WHEN** `setStatus` sets it `unknown`, then the actor undoes once
+- **THEN** every fact start and fact end in scope is `null` after the act and back after the
+  undo, from one journal entry
+
+```
+
+### Earlier Status prompt wording
+
+Source at local parent `7f8a426a2823f81b01e8fe1307d4b092941e8920`,
+`openspec/changes/status-at-a-glance/specs/wbs-domain/spec.md`, blob
+`4edaca2c263af1fedae3b70625c295869aeeacd6`.
+
+```text
+### Requirement: Choosing Done opens the completion prompt before anything is written
+
+Choosing `Done` in the Status cell of a row whose status is not `done` SHALL open the
+completion prompt and SHALL send nothing until it is confirmed. The prompt SHALL name the
+row, SHALL hold one date field prefilled with the row's fact end when it holds one and with
+the reader's local calendar day otherwise, SHALL offer `Cancel` and `Mark done`, and SHALL
+put focus in the date field; on close, confirmed or dismissed, focus SHALL return to the
+Status cell that asked. Confirming SHALL send `setStatus` with the field's day as `on`;
+when the row already held a fact end and the field's day differs, a `patch` of `factEnd` to
+the field's day SHALL follow. Cancel, Escape and a click outside SHALL close the prompt with
+nothing sent and the status unchanged. A field holding no day or a day that is not an
+`IsoDate` SHALL disable `Mark done`. Choosing `Unknown` SHALL open no prompt.
+
+#### Scenario: today is offered and sent
+
+- **GIVEN** a leaf reading `Unknown` with no fact end, on a browser whose local day is
+  `2026-09-13`
+- **WHEN** `Done` is chosen and the prompt confirmed unchanged
+- **THEN** exactly one command was sent, `setStatus` with `on: '2026-09-13'`, and the row reads
+  `Done`
+
+#### Scenario: another day is typed
+
+- **GIVEN** the same leaf
+- **WHEN** `Done` is chosen, the field changed to `2026-09-10`, and the prompt confirmed
+- **THEN** `setStatus` carries `on: '2026-09-10'` and the Fact end cell reads that day
+
+#### Scenario: a held fact end is offered, and a change to it follows as a patch
+
+- **GIVEN** a leaf reading `In progress` whose fact end is `2026-09-10`
+- **WHEN** `Done` is chosen, the field changed to `2026-09-11`, and the prompt confirmed
+- **THEN** `setStatus` with `on: '2026-09-11'` is sent, then `patchWorkItem` with `factEnd:
+'2026-09-11'`, in that order
+
+#### Scenario: cancelling writes nothing
+
+- **GIVEN** a leaf reading `Unknown`
+- **WHEN** `Done` is chosen and the prompt dismissed by Cancel, by Escape, or by a click outside
+- **THEN** no command is sent, the row still reads `Unknown`, and focus is back in the Status
+  cell
+
+#### Scenario: a parent's prompt speaks for its leaves
+
+- **GIVEN** a parent reading `In progress`
+- **WHEN** `Done` is chosen and the prompt confirmed with `2026-09-12`
+- **THEN** one `setStatus` for the parent carries `on: '2026-09-12'`, and every leaf beneath
+  it with no fact end reads that day
+
+```

@@ -175,7 +175,7 @@ export function consentCredentialName(client: string, credentialId: string): str
 export function mcpDelegationAuthority(deps: {
   readonly authenticate: Authenticate;
   readonly choices: OrganizationChoices;
-  readonly organizations: OrganizationAccess;
+  readonly organizations: Pick<OrganizationAccess, 'resolve'>;
   readonly credentialFactsOf: CredentialFactsOf;
   readonly mappedUserOf: MappedUserOf;
   readonly isMember: (userId: string, organizationId: string) => Promise<boolean>;

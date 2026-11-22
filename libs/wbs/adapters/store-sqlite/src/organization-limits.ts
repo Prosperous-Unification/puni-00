@@ -9,6 +9,7 @@ import type {
   OrganizationLimitsChanged,
 } from '@wbs/core';
 import {
+  type DirectoryCapacityLimit,
   isOrganizationLimit,
   type OrganizationLimitsReading,
   type OrganizationLimitsSource,
@@ -16,7 +17,18 @@ import {
   type OrganizationLimitValues,
   type ResourceCapacityUsage,
 } from '@wbs/domain';
-import { and, asc, count, eq, ne, sql, sum, TransactionRollbackError } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  count,
+  eq,
+  isNotNull,
+  ne,
+  or,
+  sql,
+  sum,
+  TransactionRollbackError,
+} from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { auditOnOperatorCreate, auditOnUpdate } from './audit';
@@ -32,6 +44,7 @@ import {
   projectOrganization,
   projectResourceCapacity,
   resource,
+  resourceDirectoryCapacity,
   resourceOrganization,
   workItem,
 } from './schema';
@@ -135,53 +148,81 @@ export function countBoundClaims(db: Reader, organizationId: string): number {
 }
 
 /**
- * Per resource of the organization with at least one stated capacity, its
- * stated units summed over the organization's projects, in resource-id order
- * (L5, L8). Only the organization's own projects and resources are read (L16).
- *
- * Proof, watched 2026-10-22 in `organization-limits.db.test.ts`: dropping the
- * project's organization predicate failed `sums stated capacity per resource
- * over A’s projects only…`, B's statement of A's resource counted (11 pass, 1 fail).
+ * Per owned resource with a statement, the directory units or the sum of
+ * owned project units (S10). Project rows are grouped before the directory join.
  */
 export function readCapacityUsage(
   db: Reader,
   organizationId: string,
 ): readonly ResourceCapacityUsage[] {
-  return db
+  const stated = db
     .select({
-      resourceId: resourceOrganization.resourceId,
-      name: resourceOrganization.name,
-      unitLabel: resource.unitLabel,
-      units: sql<number>`${sum(projectResourceCapacity.units)}`.mapWith(Number),
+      resourceId: projectResourceCapacity.resourceId,
+      units: sum(projectResourceCapacity.units).as('project_units'),
     })
     .from(projectResourceCapacity)
     .innerJoin(
       projectOrganization,
       eq(projectOrganization.resourceId, projectResourceCapacity.projectId),
     )
-    .innerJoin(
-      resourceOrganization,
-      eq(resourceOrganization.resourceId, projectResourceCapacity.resourceId),
-    )
-    .innerJoin(resource, eq(resource.id, projectResourceCapacity.resourceId))
+    .where(eq(projectOrganization.organizationId, organizationId))
+    .groupBy(projectResourceCapacity.resourceId)
+    .as('stated');
+  return db
+    .select({
+      resourceId: resourceOrganization.resourceId,
+      name: resourceOrganization.name,
+      unitLabel: resource.unitLabel,
+      // Proof: discarding a directory zero answered the project's 32 in the mounted limits read.
+      units: sql<number>`coalesce(${resourceDirectoryCapacity.units}, ${stated.units})`.mapWith(
+        Number,
+      ),
+      countedFrom: sql<ResourceCapacityUsage['countedFrom']>`case
+        when ${resourceDirectoryCapacity.units} is not null then 'directory' else 'projects' end`,
+    })
+    .from(resourceOrganization)
+    .innerJoin(resource, eq(resource.id, resourceOrganization.resourceId))
+    .leftJoin(resourceDirectoryCapacity, eq(resourceDirectoryCapacity.resourceId, resource.id))
+    .leftJoin(stated, eq(stated.resourceId, resource.id))
     .where(
       and(
-        eq(projectOrganization.organizationId, organizationId),
         eq(resourceOrganization.organizationId, organizationId),
+        // Proof: requiring a project aggregate omitted the directory-only resource from the mounted limits read.
+        or(isNotNull(resourceDirectoryCapacity.units), isNotNull(stated.units)),
       ),
     )
-    .groupBy(resourceOrganization.resourceId, resourceOrganization.name, resource.unitLabel)
     .orderBy(asc(resourceOrganization.resourceId))
     .all();
 }
 
+/** The stated directory units of an owned resource, including a stated 0. */
+function readDirectoryCapacity(
+  db: Reader,
+  organizationId: string,
+  resourceId: string,
+): number | null {
+  return (
+    db
+      .select({ units: resourceDirectoryCapacity.units })
+      .from(resourceDirectoryCapacity)
+      .innerJoin(
+        resourceOrganization,
+        eq(resourceOrganization.resourceId, resourceDirectoryCapacity.resourceId),
+      )
+      .where(
+        and(
+          eq(resourceOrganization.organizationId, organizationId),
+          eq(resourceDirectoryCapacity.resourceId, resourceId),
+        ),
+      )
+      .get()?.units ?? null
+  );
+}
+
 /**
- * The units of `resourceId` the organization's projects other than
- * `exceptProjectId` state, summed; 0 when none does, and 0 for a resource the
- * organization does not own. What a capacity write to `exceptProjectId` adds
- * its own units to (L9), read by {@link OrganizationLimitGaugeRepository.readCapacityCap}. Reads exactly the rows
- * {@link readCapacityUsage} sums, less the excluded project's: both require the
- * project and the resource to be the organization's (L16).
+ * The raw sum of stated units for this resource, excluding the caller's project
+ * when requested. Both the project and resource must be owned by the organization.
+ * The sum is 0 when there are no matching statements.
  *
  * Proof, watched 2026-10-22 in `organization-limits.db.test.ts`: dropping the
  * resource's organization predicate failed `never sums a resource the
@@ -199,7 +240,7 @@ export function sumStatedCapacity(
   db: Reader,
   organizationId: string,
   resourceId: string,
-  exceptProjectId: string,
+  exceptProjectId?: string,
 ): number {
   const row = db
     .select({ units: sum(projectResourceCapacity.units).mapWith(Number) })
@@ -214,10 +255,13 @@ export function sumStatedCapacity(
     )
     .where(
       and(
+        // Proof: omitting project ownership from the raw read gave 64 instead of 48 in SQLite certification.
         eq(projectOrganization.organizationId, organizationId),
         eq(resourceOrganization.organizationId, organizationId),
         eq(projectResourceCapacity.resourceId, resourceId),
-        ne(projectResourceCapacity.projectId, exceptProjectId),
+        exceptProjectId === undefined
+          ? undefined
+          : ne(projectResourceCapacity.projectId, exceptProjectId),
       ),
     )
     .get();
@@ -543,7 +587,25 @@ export class OrganizationLimitGaugeRepository implements OrganizationLimitGauge 
     return {
       cap: readEffectiveLimits(this.db, organizationId, this.defaults).limits
         .maxCapacityUnitsPerResource,
-      current: sumStatedCapacity(this.db, organizationId, resourceId, exceptProjectId),
+      // Proof: summing despite a statement refused the import. Treating zero as absent refused
+      // an overlapping 32-unit project write on the mounted route.
+      current:
+        readDirectoryCapacity(this.db, organizationId, resourceId) === null
+          ? sumStatedCapacity(this.db, organizationId, resourceId, exceptProjectId)
+          : 0,
     };
+  }
+
+  async readDirectoryCapacityLimit(
+    organizationId: string,
+    resourceId: string,
+  ): Promise<DirectoryCapacityLimit> {
+    return await Promise.resolve({
+      cap: readEffectiveLimits(this.db, organizationId, this.defaults).limits
+        .maxCapacityUnitsPerResource,
+      before: readDirectoryCapacity(this.db, organizationId, resourceId),
+      // Proof: substituting the effective directory 16 hid the mounted preview's 96-unit clear refusal.
+      projectUnits: sumStatedCapacity(this.db, organizationId, resourceId),
+    });
   }
 }

@@ -2,7 +2,20 @@
 
 ### Requirement: Solver edges represent the expanded authored graph
 
-The scheduler input hash SHALL distinguish typed endpoint/type relationships from legacy `depReach` links. Shared expansion SHALL emit every selected leaf pair and internal step-order edge; Fast and CP-SAT SHALL enforce all resolved edges, including edges entering later successor steps. Zero-duration unknown slices SHALL remain precedence nodes without resource demand. A contract-version bump SHALL retire stale optimized rows. The versioned solver wire SHALL carry relationship type and derived FF start weight for every expanded edge. For real durations, FS SHALL require `S_b >= S_a + d_a`, SS `S_b >= S_a`, and FF `S_b >= S_a + d_a − d_b`; negative FF weights SHALL remain valid. With Q=48 and integer durations `D_i=ceil(Q×d_i)` for positive slices or zero for unknown/zero slices, CP-SAT SHALL enforce FS finish→start, SS start→start, and FF finish→finish plus `S_b >= S_a + W_FF`, where `W_FF=max(D_a−D_b, ceil(Q×(d_a−d_b)))`. The independent validator SHALL recompute W_FF from canonical real durations, reject a mismatched wire value and recheck all relationship boundaries on materialized real offsets before publication. The quantized baseline SHALL satisfy the same active constraints and deadlines before it bounds an objective.
+The scheduler input hash SHALL distinguish typed endpoint/type relationships from legacy `depReach` links. Shared expansion SHALL emit the constraint for every resolved typed step-node pair across all selected leaf pairs, with authored relationship provenance, alongside every internal workflow step-order edge and the legacy reach edges; Fast and CP-SAT SHALL enforce all resolved edges, including edges entering later successor steps. A later-step edge SHALL permit an earlier successor slice to run earlier when its other active constraints and applicable boundaries permit it. Zero-duration unknown slices SHALL remain precedence nodes without resource demand. A contract-version bump SHALL retire stale optimized rows. The versioned solver wire SHALL carry relationship type and derived FF start weight for every expanded edge. For real durations, FS SHALL require `S_b >= S_a + d_a`, SS `S_b >= S_a`, and FF `S_b >= S_a + d_a − d_b`; negative FF weights SHALL remain valid. With Q=48 and integer durations `D_i=ceil(Q×d_i)` for positive slices or zero for unknown/zero slices, CP-SAT SHALL enforce FS finish→start, SS start→start, and FF finish→finish plus `S_b >= S_a + W_FF`, where `W_FF=max(D_a−D_b, ceil(Q×(d_a−d_b)))`. The independent validator SHALL recompute W_FF from canonical real durations, reject a mismatched wire value and recheck all relationship boundaries on materialized real offsets before publication. The quantized baseline SHALL satisfy the same active constraints and deadlines before it bounds an objective.
+
+#### Scenario: External FS targets the second step
+
+- **GIVEN** a typed dependency targeting node `B.qa` rather than `B.dev`
+- **WHEN** Fast and CP-SAT schedule the plan
+- **THEN** B.QA waits for the selected predecessor finish
+- **AND** B.Dev may run earlier subject to its other constraints
+
+#### Scenario: Solver omits one expanded pair
+
+- **GIVEN** a parent relationship expands into several FS slice edges
+- **WHEN** a solver response violates one pair despite satisfying the others
+- **THEN** independent validation rejects it as invalid output
 
 #### Scenario: Rounded FF would violate real finish order
 
@@ -22,19 +35,6 @@ The scheduler input hash SHALL distinguish typed endpoint/type relationships fro
 - **GIVEN** an FF dependency into an unestimated slice
 - **WHEN** either scheduler checks the edge
 - **THEN** the successor's real start and finish are equal and no visual placeholder time enters the constraint
-
-#### Scenario: External FS targets the second step
-
-- **GIVEN** a typed dependency targeting node `B.qa` rather than `B.dev`
-- **WHEN** Fast and CP-SAT schedule the plan
-- **THEN** B.QA waits for the selected predecessor finish
-- **AND** B.Dev may run earlier subject to its other constraints
-
-#### Scenario: Solver omits one expanded pair
-
-- **GIVEN** a parent relationship expands into several FS slice edges
-- **WHEN** a solver response violates one pair despite satisfying the others
-- **THEN** independent validation rejects it as invalid output
 
 ## ADDED Requirements
 

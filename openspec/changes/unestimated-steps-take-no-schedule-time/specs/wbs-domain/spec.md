@@ -10,7 +10,14 @@
 
 ### Requirement: An assumed duration is not an estimate
 
-The assumed span SHALL describe only how an unknown slice is drawn. A slice whose days are null SHALL remain unestimated in the days column, roll-up, readiness badge and next-gap walk, export, estimated-steps filter, and anchor-slice reach. Its bar SHALL retain its dotted outline, translucent fill and question mark. An explicitly estimated zero-day slice SHALL remain estimated and SHALL not gain an assumed placeholder.
+The system SHALL NOT write an estimate for a slice for which it assumes a drawn span. A
+slice whose days are null SHALL remain unestimated in the days column, roll-up, readiness
+badge and next-gap walk, export, estimated-steps filter, and the anchor-slice reach's choice of
+first **estimated** slice. The assumed span describes drawing only and SHALL consume zero
+scheduling time. An explicitly estimated zero-day slice SHALL remain estimated and SHALL NOT
+gain an assumed placeholder. An individually drawn unestimated bar follows the assumed-bar
+styling and label contract in “The Gantt chart stays legible at every rung and in both themes.”
+A done leaf keeps its canonical replacement bar.
 
 #### Scenario: An unknown step remains a gap
 
@@ -75,7 +82,15 @@ Fast and optimized schedules SHALL give a slice with days null zero scheduling d
 
 ### Requirement: Unknown steps retain an independent Gantt placeholder
 
-The Gantt SHALL draw each unknown slice from its scheduled start across ASSUMED_SLICE_WORKDAYS workdays, currently two, as a distinct dotted or translucent placeholder with a question mark. Its tooltip SHALL say the step is unestimated, identify the displayed N-workday span, and state that it is excluded from the schedule. The chart viewport MAY extend to contain the drawing, but schedule finish, parent bounds, dates and dependency endpoints SHALL use the zero-time position. Multiple unknown slices at one instant SHALL remain individually identifiable without inventing sequential schedule dates.
+When an unknown slice is drawn individually on a non-done leaf, the Gantt SHALL draw it from
+its scheduled start across ASSUMED_SLICE_WORKDAYS workdays, currently two. The placeholder
+SHALL follow the styling and label contract in “The Gantt chart stays legible at every rung
+and in both themes.” Its tooltip SHALL say the step is unestimated, identify the displayed
+N-workday span, and state that it is excluded from the schedule. The chart viewport MAY extend
+to contain the drawing, but schedule finish, parent bounds, dates and dependency endpoints
+SHALL use the zero-time position. Multiple unknown slices at one instant SHALL remain
+individually identifiable without inventing sequential schedule dates. A done leaf keeps
+one done bar in place of its slices under its canonical requirement.
 
 #### Scenario: A two-day drawing has a zero-time schedule
 

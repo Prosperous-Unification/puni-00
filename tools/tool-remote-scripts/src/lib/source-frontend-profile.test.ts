@@ -146,23 +146,53 @@ function canonical(candidate: SourceStartupManifest): SourceStartupManifest {
   });
 }
 
+const PROJECT_PATH = 'apps/wbs/fe-01/project.json';
+const HISTORICAL_PROJECT = {
+  bytes: 8117,
+  sha256: '9b28a0981a67d3d8397d60bf0eacfea15ce0d5043dceba8097e63f3cff74cc7e',
+};
+
+test('current captured project and package/lock inputs select the unchanged wire profile', () => {
+  const input = current.entries.find(
+    (entry) => entry.root === 'source' && entry.path === PROJECT_PATH,
+  );
+  expect(input).toMatchObject({
+    kind: 'file',
+    size: 8218,
+    sha256: '5caf0f4894d2c16e8adb287e7fadb4adc6098d315d2abea5135a626baba8f11c',
+  });
+  expect(selectSourceFrontendProfile(canonical(current))).toBe('wbs-source-frontend-wire-v1');
+});
+
+for (const pair of PAIRS.slice(0, -1))
+  test(`current project refuses the complete older ${pair.epoch} package/lock pair`, () => {
+    const entries = current.entries.map((entry) => {
+      if (entry.root !== 'source' || entry.kind !== 'file') return entry;
+      if (entry.path !== 'package.json' && entry.path !== 'bun.lock') return entry;
+      const expected = pair[entry.path];
+      return { ...entry, size: expected.bytes, sha256: expected.sha256 };
+    });
+    expect(() => selectSourceFrontendProfile(canonical({ ...current, entries }))).toThrow(
+      'source frontend input profile unsupported',
+    );
+  });
+
 for (const pair of PAIRS)
   describe(pair.epoch, () => {
     let manifest: SourceStartupManifest;
     beforeAll(() => {
-      // Historical pair is modeled canonical selection metadata, not freshly produced Vite output.
-      manifest =
-        pair.epoch === 'registry-s3-20261108'
-          ? current
-          : canonical({
-              ...current,
-              entries: current.entries.map((entry) => {
-                if (entry.root !== 'source' || entry.kind !== 'file') return entry;
-                if (entry.path !== 'package.json' && entry.path !== 'bun.lock') return entry;
-                const expected = pair[entry.path];
-                return { ...entry, size: expected.bytes, sha256: expected.sha256 };
-              }),
-            });
+      // Historical triples are canonical selection metadata. The current producer is tested separately.
+      manifest = canonical({
+        ...current,
+        entries: current.entries.map((entry) => {
+          if (entry.root !== 'source' || entry.kind !== 'file') return entry;
+          if (entry.path === PROJECT_PATH)
+            return { ...entry, size: HISTORICAL_PROJECT.bytes, sha256: HISTORICAL_PROJECT.sha256 };
+          if (entry.path !== 'package.json' && entry.path !== 'bun.lock') return entry;
+          const expected = pair[entry.path];
+          return { ...entry, size: expected.bytes, sha256: expected.sha256 };
+        }),
+      });
     });
     function withViteTarget(target: string, additions: SourceEntry[] = []): SourceStartupManifest {
       return {
@@ -411,18 +441,33 @@ test.each([
   ['before-ctt', 'bun.lock'],
   ['fourth', 'package.json'],
   ['fourth', 'bun.lock'],
+  ['before-ctt', 'both'],
+  ['fourth', 'both'],
+  ['current', 'project'],
 ] as const)(
   'materializer fixed-root boundary refuses mixed %s %s before copying',
-  async (epoch, path) => {
+  async (epoch, fault) => {
     const root = await mkdtemp(join(tmpdir(), 'frontend-materializer-boundary-'));
     roots.push(root);
     await prepareSourceFrontendProfile(root);
-    const bytes = await readFile(join(root, path));
-    const historical =
-      epoch === 'fourth'
-        ? reconstructFourthInput(path, bytes)
-        : reconstructHistoricalInput(path, bytes);
-    await writeFile(join(root, path), historical);
+    if (fault === 'project') {
+      const path = join(root, 'apps/wbs/fe-01/project.json');
+      const original = await readFile(path, 'utf8');
+      const changed = original.replace('"name": "wbs-fe-01"', '"name": "wbs-fe-02"');
+      expect(changed).not.toBe(original);
+      expect(Buffer.byteLength(changed)).toBe(Buffer.byteLength(original));
+      await writeFile(path, changed);
+    } else {
+      const paths = fault === 'both' ? (['package.json', 'bun.lock'] as const) : [fault];
+      for (const path of paths) {
+        const bytes = await readFile(join(root, path));
+        const historical =
+          epoch === 'fourth'
+            ? reconstructFourthInput(path, bytes)
+            : reconstructHistoricalInput(path, bytes);
+        await writeFile(join(root, path), historical);
+      }
+    }
     const source = await readFile(
       resolve(import.meta.dir, '../fixtures/source-frontend-profile.ts'),
     );
@@ -439,7 +484,7 @@ test.each([
         destination,
         copied,
         sha256: createHash('sha256').update(source).digest('hex'),
-        fault: path,
+        fault,
       }),
     );
     // The owned module bytes equal the known materializer above; only its fixed ROOT differs.

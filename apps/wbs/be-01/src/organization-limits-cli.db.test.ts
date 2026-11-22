@@ -142,6 +142,34 @@ describe('organization-limits-cli show', () => {
     expect(shown.stderr).toBe('');
   });
 
+  it('prints directory-only capacity usage and its source', () => {
+    sqlite([
+      "INSERT INTO resource (id, name, kind, unit_label) VALUES ('dir', 'Directory RAM', 'divisible', 'GB')",
+      "INSERT INTO resource_organization (resource_id, organization_id, name) VALUES ('dir', 'org-a', 'Directory RAM')",
+      "INSERT INTO resource_directory_capacity (resource_id, units) VALUES ('dir', 0)",
+    ]);
+    const shown = run(['show', '--organization', 'org-a']);
+    expect(shown.exitCode).toBe(0);
+    expect(JSON.parse(shown.stdout)).toMatchObject({
+      caps: [
+        { name: 'maxAgentPersons' },
+        { name: 'maxConcurrentClaims' },
+        {
+          name: 'maxCapacityUnitsPerResource',
+          usage: [
+            {
+              resourceId: 'dir',
+              name: 'Directory RAM',
+              unitLabel: 'GB',
+              units: 0,
+              countedFrom: 'directory',
+            },
+          ],
+        },
+      ],
+    });
+  });
+
   it("prints the organization's own row once one exists", () => {
     sqlite([
       "INSERT INTO organization_limits (organization_id, max_agent_persons, max_concurrent_claims, max_capacity_units_per_resource, created_at) VALUES ('org-a', 20, 40, 64, 1)",

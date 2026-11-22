@@ -117,7 +117,11 @@ test.each(['isolated', 'shared'] as const)(
               history,
               testProjectService(source.stores.projects),
               recordingBroadcaster(),
-              { resolve: () => Promise.resolve({ ok: true, access }) },
+              {
+                resolve: () => Promise.resolve({ ok: true, access }),
+                mayReadProjectWithin: (...args) =>
+                  source.stores.projects.mayReadProjectWithin(...args),
+              },
             ),
             {
               appOrigin: 'http://localhost',

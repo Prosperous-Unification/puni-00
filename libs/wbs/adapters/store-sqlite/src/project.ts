@@ -4,13 +4,16 @@ import type {
   ProjectCreationRefusal,
   ProjectCrossReference,
   ProjectPatch,
+  ProjectReadOrigin,
   ProjectStore,
   ProjectWithAccess,
   RecoveryAuditDetail,
+  ResourceAccess,
   Step,
   StepAllowanceWritten,
   WriteStamp,
 } from '@wbs/core';
+import { projectVisibleWithin } from '@wbs/core';
 import {
   type AllowancePercent,
   classifyProjectEdit,
@@ -388,6 +391,15 @@ function withOwnerName<T extends { name: string; ownerName: string | null }>(
  * two concurrent additions both win.
  */
 export class ProjectRepository implements ProjectStore {
+  /** Uses the same access decision on this exact project's connection. */
+  mayReadProjectWithin(
+    project: ProjectReadOrigin,
+    actorId: string,
+    access: ResourceAccess,
+  ): Promise<boolean> {
+    return projectVisibleWithin(this, project, actorId, access);
+  }
+
   constructor(
     private readonly db: SQLiteBunDatabase,
     private readonly gate: Gate,
@@ -524,16 +536,17 @@ export class ProjectRepository implements ProjectStore {
   }
 
   async findById(id: string): Promise<Project | null> {
-    const rows = await this.db
+    // Proof: awaiting the lazy origin query issued its SELECT after the borrowed rollback.
+    const found = this.db
       .select(WITH_SOLUTION)
       .from(project)
       .leftJoin(projectAbbreviation, eq(projectAbbreviation.projectId, project.id))
       .leftJoin(projectOrganization, eq(projectOrganization.resourceId, project.id))
       .leftJoin(projectSolution, eq(projectSolution.projectId, project.id))
       .where(eq(project.id, id))
-      .limit(1);
-    const found = rows.at(0);
-    return found === undefined ? null : fromJoined(found);
+      .limit(1)
+      .get();
+    return await Promise.resolve(found === undefined ? null : fromJoined(found));
   }
 
   /**
@@ -547,7 +560,7 @@ export class ProjectRepository implements ProjectStore {
    */
   // Proof: removing the organization predicate made mounted `foreign organization cannot edit code` receive 403 instead of 404 (2026-10-22).
   async findInOrganization(id: string, organizationId: string): Promise<Project | null> {
-    const rows = await this.db
+    const found = this.db
       .select(WITH_SOLUTION)
       .from(project)
       .leftJoin(projectAbbreviation, eq(projectAbbreviation.projectId, project.id))
@@ -560,9 +573,9 @@ export class ProjectRepository implements ProjectStore {
       )
       .leftJoin(projectSolution, eq(projectSolution.projectId, project.id))
       .where(eq(project.id, id))
-      .limit(1);
-    const found = rows.at(0);
-    return found === undefined ? null : fromJoined(found);
+      .limit(1)
+      .get();
+    return await Promise.resolve(found === undefined ? null : fromJoined(found));
   }
 
   /**

@@ -1203,3 +1203,27 @@ The system SHALL provide `inspect-browser-t2 <repository> <full-committed-sha> <
 
 - **WHEN** registration or a target is missing, a target is unknown, selection omits a Unit file or admits another level, report identity differs, or selection is empty or fails
 - **THEN** production verification or execution refuses with a named diagnostic, empty or failed selection leaves no stale report and preserved legacy commands gain no report credit
+
+### Requirement: Smoke and Runtime Portable expose complete independent Unit reports
+
+Both projects SHALL expose additive whole-root Unit targets with separate JUnit reports and a ten-second limit. Their selected canonical paths SHALL equal the owning project census. Existing runner commands and outputs SHALL be preserved.
+
+#### Scenario: [TEST-AXES-197] Smoke registers its complete Unit suite
+
+- **WHEN** the Smoke Unit target runs
+- **THEN** its complete project selection writes the Smoke JUnit and preserves the original command
+
+#### Scenario: [TEST-AXES-198] Smoke refuses a foreign Unit report or narrowed collection
+
+- **WHEN** a Smoke Unit selector omits a project test or admits a file outside the project census, or the report names another owner
+- **THEN** the verifier refuses the mismatch
+
+#### Scenario: [TEST-AXES-199] Runtime Portable registers its complete Unit suite
+
+- **WHEN** Runtime Portable's Unit target runs
+- **THEN** its complete project selection writes its JUnit and preserves both original LCOV aliases
+
+#### Scenario: [TEST-AXES-200] Runtime Portable refuses a foreign Unit report or narrowed collection
+
+- **WHEN** a Runtime Portable Unit selector omits a project test or admits a file outside the project census, or the report names another owner
+- **THEN** the verifier refuses the mismatch

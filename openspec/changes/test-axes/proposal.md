@@ -172,3 +172,7 @@ Problem: shared-test-levels has only unreported legacy Unit runners, so its exec
 ## 2.1n intent
 
 Problem: shared-test-evidence has only unreported legacy Unit runners, so its execution cannot supply isolated Unit/JUnit observations. Outcome: add `shared-test-evidence:test:unit:level` with complete source collection and a fresh report of its twelve cases, audited through the existing production verifier. Constraints: preserve the parser, existing test cases, legacy commands, literal operands, timeout, report clearing and empty/failed-selector refusal; allocate scenario identities and prove each safety boundary independently. Non-goals: new classification rules, target-name migration, trusted execution receipts, scenario citation credit, coverage, admission, certification and completing parent WBS080.39.
+
+## Smoke and Runtime Portable Unit intent
+
+Add dedicated full-project Unit reports for Smoke and Runtime Portable. Replace the src-only census for whole-root declarations with exact comparison to the public project census. Preserve the existing src, frontend, aggregate and Bun command behavior. Keep all owner tests, budgets and legacy routes. Qualify the independent targets through the public verifier and fixtures. Full owner execution and report observations require a subsequent run.

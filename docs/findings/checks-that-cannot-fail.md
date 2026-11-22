@@ -113,6 +113,7 @@ incidents; those IDs deliberately share one preserved payload anchor.
 | R5-30    | none — see [Checks kept without a reachable negative](#checks-kept-without-a-reachable-negative) |
 | R5-31    | none — see [R5-31](#an-applied-role-can-report-success-over-a-lock-out)                          |
 | R5-32    | none — see [R5-32](#a-lost-hosted-runner-leaves-no-step-conclusion-and-no-log)                   |
+| R5-33    | none — see [R5-33](#a-race-measured-in-one-shape-can-lose-in-another)                            |
 
 ## Bun forced recursive removal can leave its root
 
@@ -549,6 +550,671 @@ gate-hosts note on A-NODE-HEAP-1 names the three tests and the fix
 
 The proof is one green hosted run. The three lints must pass, and the start record must show an
 inside-scope `heapSizeLimit` of at least 4294967296.
+
+### Amendment, 2026-11-21: lost inside the cap, so tasks and CPU are capped too
+
+Main `b7ad74ab4` (run 44917747487, push) was the first full-mode run with #964's cap and heap pin.
+`gate workspace` passed in 20m41s and the leaves `wbs-core`, `wbs-store-sqlite` and `tool-devsync`
+passed inside their 12G scopes. `gate workspace-heavy (tool-fleet)` (job 136887016810) was lost
+again. The job started at 15:10:50Z and its heavy-leaf step at 15:11:55Z, and GitHub failed it at
+16:17:53Z, 66 minutes into the step and 67 minutes into the job. The uncapped loss (03:05:42 to
+04:12:45Z) took as long. The annotation is the same, the step is still `in_progress` with no
+conclusion, and no artifact was uploaded. This is the sixteenth identified loss.
+
+**The loss timings are regular to the second.** From the Actions API, both tool-fleet losses
+lasted exactly 67m03s, job start to failure: 136708786587 uncapped and 136887016810 under the memory
+cap. The lost `gate workspace` jobs end where a normal workspace run ends. Five of them lasted
+77m01s, 73m01s, 77m01s, 77m05s and 76m54s (136177983041, 136115143031, 135532626496, 136408071558
+and 136456452906). The other eight lasted 72m04s to 79m04s, and the passing workspace jobs in this
+catalogue took 72m37s (135466352451), 74m26s (131260787719) and 77m23s (136144316155). Exhaustion
+driven by load (memory, tasks or CPU) would not repeat to the second across an uncapped and a capped
+run. The trigger is more likely deterministic: a fixed point in the suite, followed by GitHub's
+fixed grace period before it declares the runner lost. The caps below are still worth having,
+because each one removes a class and leaves a log, but the timing is the stronger lead.
+
+**Memory is ruled out.** The leaf ran under `MemoryMax=12G MemorySwapMax=0 OOMPolicy=continue`.
+A tree that outgrew the cap would have been OOM-killed inside the scope, with `exit=1`, a log and
+the kernel's OOM lines. The earlier amendment's rollback criterion applies: lost with the cap in
+place means the cause is not memory.
+
+Three classes remain:
+
+- **Process or thread exhaustion** in a fork storm.
+- **CPU starvation of the runner agent.** The runner has 4 vCPUs, and nothing kept one free.
+- **Network breakage, or a signal to a process group the test does not own.**
+
+Reading the suite narrows none of them to a test:
+
+- The native registry tests compile one 44-line pthread fixture with a single
+  `cc -Wall -Wextra -Werror -pthread` run, with no `make -j`.
+- They run their sandboxes in `bwrap` with `--unshare-net` and `--unshare-pid`. The in-namespace
+  Docker proof sets `bridge: none` and `iptables: false`.
+- Every `os.killpg` site in `lab-guest-*.py` and the registry installers signals a group it
+  created with `start_new_session=True`.
+- `tool-fleet:test` is one `bun test` process at Nx `--parallel=1`.
+
+**The lever (A-CI-LEAF-MEMORYMAX-2).** Both capped steps add three things to the scope:
+
+- **`-p TasksMax=4096`.** A fork or thread storm now fails inside the scope with `EAGAIN`, so the
+  runner's own process table is not exhausted. The pids controller counts threads. The first
+  hosted scope (#967's workspace run 44925912318) peaked at 90 tasks, so 4096 leaves more than an
+  order of magnitude of room and still catches a storm.
+- **`-p AllowedCPUs=0-2`.** The scope is pinned to three of the four vCPUs, so CPU 3 always stays
+  free for the runner agent, the sampler and the OS. Inside the scope `nproc` reports 3.
+- **`--slice=system.slice`.** This makes the scope's cgroup path a contract the sampler can read.
+
+`AllowedCPUs` was chosen over the alternatives:
+
+- **`CPUQuota=300%`** bounds only the average over each 100 ms period. A saturating suite can
+  still occupy all four cores until it is throttled, and the agent then waits behind it on every
+  core.
+- **`CPUWeight`** acts only under contention between sibling cgroups, and guarantees no core.
+
+Pinning trades a quarter of the scope's compute for a guaranteed core. The arithmetic for the
+phase budgets: a fully CPU-bound phase runs at most 4/3 slower. The `tool-fleet` estimate of 42.9
+minutes then becomes 57.2, inside its 75-minute phase. The workspace's 20m41s becomes 27.6,
+inside 105. `tool-fleet:test` at parallelism one mostly runs one process, so its real cost should
+be lower. The first hosted scope's CPU deltas stayed between 31.9 and 80.2 million µs per
+30-second sample, below the 90 million of three busy CPUs.
+
+The probe now also reads the scope's `pids.max` and `cpuset.cpus.effective`. The step refuses
+unless the probe reports `pidsMax=4096 cpus=0-2` along with the memory figures and the heap limit.
+An absent `cpuset.cpus.effective` means the cpuset controller is not enabled for the scope, and it
+is refused like a wrong value.
+
+The evidence trail grows in two places:
+
+- **Each sample.** Every `runtime headroom sample` line ends with
+  `scopePids=… scopeMemKiB=… scopePeakKiB=… scopeCpuUsec=…`. The values are read from outside the
+  scope, from `/sys/fs/cgroup/system.slice/ci-gate-PARTITION-PID.scope/`: `pids.current`,
+  `memory.current`, `memory.peak` and `cpu.stat`'s `usage_usec`. All four read `unavailable`
+  before the scope starts, after it ends, or when a file is missing, unreadable or not a count.
+  A CPU-bound series rises by about 90000000 µs between 30-second samples.
+- **The end record.** systemd removes the scope's cgroup when its last process exits. A bash
+  wrapper inside the scope therefore runs the gate command, copies `pids.events` `max`,
+  `memory.events` `oom_kill` and `pids.peak` to a file, and exits with the gate's status. The end
+  record prints `runtime headroom scope events pidsEventsMax=N memoryEventsOomKill=N pidsPeak=N`.
+  A kernel without `pids.peak` gives `pidsPeak=unavailable`. An empty copy prints `absent` (the
+  wrapper never wrote, for example because it was killed), and a malformed one `unavailable`.
+
+**Proof plan.** The next full-mode main run should end in one of these ways:
+
+- **The `tool-fleet` leaf passes.** One of the new caps held.
+- **It fails with a log.** The end record shows `pidsEventsMax` above zero (a fork storm, refused
+  by TasksMax), or the samples show a CPU-bound `scopeCpuUsec` series before the failure.
+- **It is lost again, at about 67m03s.** Neither memory, tasks nor the agent's core explains the
+  loss. First find what tool-fleet does at that offset: a surviving run's sample timestamps, or
+  per-test timings, name the task running then. The remaining candidates are network breakage, a
+  signal to a foreign group, or a fixed deadline inside that task. The fallback lever is to run
+  tool-fleet's native tests only on the gate hosts, as tool-remote-scripts runs under
+  A-GATE-REMOTE-1, or to give them their own leaf.
+
+`pr-merge-base.test.ts` covers the change, and each of these faults failed a test:
+
+- Dropping `-p TasksMax`, `-p AllowedCPUs`, `--slice=system.slice` or the events wrapper failed
+  the scope ledger.
+- With `pids.max` and `cpuset.cpus.effective` removed from the probe and its report check,
+  `pids.max=max`, an absent `pids.max`, `cpus=0-3` and an absent cpuset file all reached the
+  runtime.
+- Deleting the scope fields from the sample, their count check or the `system.slice` path failed
+  the sampler test. That test runs the production functions against a scratch cgroup.
+- Accepting any events copy, reading `pids.peak` without checking that it exists, or dropping the
+  empty-copy `absent` branch failed the telemetry test. Dropping `pidsPeak` from the copy failed
+  the ledger.
+
+#967's own run 44925912318 proved the scope on a hosted runner (image `20261116.376.1`). The
+workspace start record read `memoryMax=12G tasksMax=4096 allowedCpus=0-2
+scope=ci-gate-workspace-2799.scope`, the probe refused nothing, and the phase ended
+`elapsedSeconds=1284 exit=0` with `pidsEventsMax=0 memoryEventsOomKill=0`. That run predates the
+`pidsPeak` field. It selected no tool-fleet leaf, so the lever itself waits for main.
+
+### Amendment, 2026-11-21: a black-box recorder that lives off the runner
+
+Both `gate workspace-heavy (tool-fleet)` losses lasted exactly 67m03s from job start: job
+136708786587 ran uncapped and job 136887016810 ran inside `MemoryMax=12G` with no swap. Each
+carries the annotation "The hosted runner lost communication with the server", and neither has a
+step conclusion, a log or an artifact. The job's log blob returns 404, so GitHub keeps nothing.
+
+The suite itself is modest. A laptop probe ran `bunx nx run tool-fleet:test` inside a user scope
+capped at 12G and 4096 tasks:
+
+- 9368 tests across 319 files passed in 1873 s, and the process tree peaked at 5.9 GiB.
+- The scope recorded no OOM kill and no `pids.max` event, and the run exited 0.
+- In CI the same suite took 2027 s (33.8 minutes) in the surviving workspace shard of run 44797660117.
+
+So the leaf is lost about 20 minutes after its suite should have ended. Something hangs at or
+after the end, and the runner then dies at a fixed offset.
+
+**On-runner evidence cannot survive this.** The sampler, the end record, #967's scope telemetry
+and the `nx-gate.log` artifact are all written on the runner. They reach GitHub only through
+steps that run after the phase, and a lost runner never runs them. Whatever names the hanging test
+has to leave the runner while the phase is still running.
+
+**The recorder (A-CI-LEAF-RECORDER-1).** The heavy-leaf step starts a background loop for the
+`tool-fleet` leaf only. It runs outside the scope, next to the sampler. The partition gate is a
+shell test on `partition`, so the workspace and heavy-leaf step texts stay byte-equal. Every
+120 s the loop builds a short report:
+
+- **Header.** Run id, job, attempt and head SHA, then the UTC time and the phase's elapsed time.
+- **Samples.** The last three `runtime headroom sample` lines.
+- **Log tail.** The last 15 other `nx-gate.log` lines, with ANSI escapes stripped. Bun prints a
+  `✓` or `✗` line as each test ends, under the line naming its file. The last `✓` is the last
+  completed test, so the hanging test is the next one in the file named above it.
+- **Processes.** `ps -eo pid,ppid,etimes,rss,comm --sort=-rss`, the first 12 lines, and the
+  `pgrep -c .` task count.
+- **Kernel.** The last five lines of `journalctl -k --since -3min`.
+
+The first tick creates one comment on issue #963 with `gh api`. The loop stores its id, and every
+later tick PATCHes that same comment, so each run attempt keeps one living comment. After the
+phase the step stops the loop with kill and wait, then PATCHes a final report. That report adds
+the phase end line and the scope events line. If the runner dies, the last PATCH stays on the
+issue, and that is the point.
+
+**Safety of the report.** The log carries no secret. As a cheap guard, any line with a secret's
+shape is replaced with a redaction marker before posting: a GitHub token
+(`gh[pousr]_` followed by 20 or more characters, or `github_pat_`), a `Bearer` value of 20 or more
+characters, or a `wbs_mk_` key. Words are not redacted. 83 of 10858 real tool-fleet lines contain
+`token` or `secret` (for example "…custody before readonly server effects: token"), and they
+cluster, so redacting words could blank the whole 15-line window. A zero-width space after each
+`@` keeps the comment from mentioning anyone. The body is capped at 61440 bytes, under GitHub's
+65536-character comment limit.
+
+**Permissions.** The `gate_heavy` job alone now has `issues: write` alongside `contents: read`,
+and its step gets `GH_TOKEN` from `github.token`. The widening is limited in three ways:
+
+- The token can write issues only on push, merge_group, dispatch and same-repository PRs.
+- On a fork PR GitHub issues a read-only token, so the first create fails. The recorder then
+  writes `runtime recorder unavailable: HTTP 403` once and stops.
+- The step reads the token into a shell variable and unsets `GH_TOKEN` before it captures the
+  exported environment for the scope. The token therefore never reaches the scope's argv, sudo's
+  journal line or the tests.
+
+The recorder is optional telemetry and never changes the gate status. A failed create stops it
+after one `unavailable` line, and a failed PATCH writes `runtime recorder patch failed: …` and the
+loop carries on. Each `gh` call is bounded by a 30-second `timeout`.
+
+`pr-merge-base.test.ts` runs the production step with a fake `gh` that records each call's argv,
+body and token, and with the tick rewritten to one second. It asserts the header, the sections,
+one create followed by PATCHes of comment 4242, the cap, the redaction, the final report, and that
+the runtime saw no token. Another test asserts that a 403 or a failed PATCH leaves the status
+unchanged, and that the workspace step and the `tool-devsync` and `wbs-core` leaves make no `gh`
+call. Each of these faults failed a test:
+
+- Gating on any partition made the workspace step call `gh`.
+- Dropping the stored comment id created a comment on every tick.
+- Dropping the cap posted a 92254-byte body. Dropping the shape guard posted a bearer value, and
+  matching the word `token` again redacted a line that should stay.
+- Dropping the escape filter posted ESC bytes, and dropping the `@` filter posted a mention.
+- Without the final publish's fallback, a 403 failed the step with exit 1. Without the
+  `unavailable` marker, the final report retried the create.
+- Leaving `GH_TOKEN` exported put the token in the runtime's environment.
+
+No hosted run has exercised the recorder yet. The fake `gh` proves the call pattern, but not
+GitHub's acceptance of the PATCH or its rate limits.
+
+**Proof plan.** On the next full-mode main run, one of two things happens:
+
+- **The leaf is lost again.** The issue #963 comment for that run names the test that was running
+  at the hang, with the processes and kernel lines from the last tick before the loss.
+- **The leaf passes.** The final report shows the phase end, and the comment holds the full
+  trail.
+
+The recorder is removed once #963's cause is fixed.
+
+### Amendment, 2026-11-22: disk ruled out, and the losses follow the hosting cloud
+
+Main `5f52c9eb2` (run 44967184073, push) lost `gate workspace-heavy (tool-fleet)` again: job
+137038867722 ran from 00:33:47Z to 01:40:47Z, 67m00s. The step had `MemoryMax=12G`,
+`TasksMax=4096` and `AllowedCPUs=0-2`, which keeps CPU 3 free for the runner agent. The annotation
+is the same, with no step conclusion, no log and no artifact. This is the seventeenth loss and the
+fifth on main for this leaf, and all five lasted from 67m00s to 67m03s, job start to failure:
+
+| Job          | Commit      | Run         | Scope                                  | Duration |
+| ------------ | ----------- | ----------- | -------------------------------------- | -------- |
+| 136708786587 | `e8e568784` | 44859286080 | none                                   | 67m03s   |
+| 136887016810 | `b7ad74ab4` | 44917747487 | `MemoryMax=12G`                        | 67m03s   |
+| 136901170790 | `b17861f83` | 44922395238 | `MemoryMax`, `TasksMax`, `AllowedCPUs` | 67m01s   |
+| 137001840799 | `01f001a9c` | 44955226448 | `MemoryMax`, `TasksMax`, `AllowedCPUs` | 67m03s   |
+| 137038867722 | `5f52c9eb2` | 44967184073 | `MemoryMax`, `TasksMax`, `AllowedCPUs` | 67m00s   |
+
+Counted by attempt, main has lost 16 jobs since 2026-11-18: 10 `gate workspace`, 1 single
+`gate workspace-heavy` and these 5 leaves. Three of them were earlier attempts of runs whose
+latest attempt is counted below: 136177983041 and 136408071558 of run 44703647201, and
+136583725221 (74m01s) of run 44821587380.
+
+**Ruled out or unlikely.** Each of these would have left a log under the caps, or does not fit
+the measurements:
+
+- **Memory.** The cap OOM-kills inside the scope, with `exit=1` and the kernel's lines.
+- **Tasks.** `TasksMax=4096` would refuse a fork storm with `EAGAIN` inside the scope.
+- **CPU starvation of the agent.** CPU 3 is outside the scope's cpuset.
+- **Disk.** Every start and end record read shows a 145 GB root with 82 to 85 GB free:
+  `/dev/root 145G 63G 82G 44%` at the start of run 44797660117's workspace phase, and
+  `/dev/mapper/cow-root 145G 60G 85G 42%` at both ends of run 44967184073's workspace phase and of
+  run 44849226664's 61-minute heavy phase, which ran `tool-fleet:test` in full. Filling 85 GB in
+  an hour needs about 21 MB/s, sustained, and used space in the surviving runs moved by 1 GB or
+  less.
+
+A steady accumulation would not repeat to the second across three regimes either. The trigger
+looks fixed: a point in the job, or a deadline on the host.
+
+**A healthy leaf finishes in about 40 minutes.** Main run 44972618306 (`ae79ba936`) ran its
+`tool-fleet` leaf (job 137055572828) on an Azure host, as this amendment predicted before it
+ended. It succeeded in 39m27s (01:41:46Z to 02:21:13Z), and its #963 final report read `exit=0`
+and `pidsPeak=67`. A peer's run 44973329598 also passed its leaf on Azure, in 31.6 minutes. These
+are the first survivals of the leaf on its own. A lost leaf therefore hangs for about 27 minutes
+past the point where a healthy one has finished.
+
+**The losses follow the hosting cloud.** Each job's `Set up job` log names its runner image and
+its provider (`Runner Image Provisioner`, `Cloud: AWS` or `Cloud: Azure`). The image version maps
+one-to-one to the cloud: `20261111.127.1` and `20261116.133.1` run on AWS, while `20261101.360.1`,
+`20261111.370.1` and `20261116.376.1` run on Azure. AWS-backed runners first appear in this
+repository's gate jobs on 2026-11-12. The runner agent stayed at 2.338.2 throughout, and every
+heap limit read was 4345298944. `ci.yml` did not change between 2026-11-08 and 2026-11-20, and the
+first loss came on 2026-11-18 at 02:28Z.
+
+The 2026-11-16 images rolled out gradually, cloud by cloud:
+
+- The first surviving AWS job on `20261116.133.1` is run 44393042208, at 2026-11-18 20:38Z.
+- The first surviving Azure job on `20261116.376.1` is run 44797660117, at 2026-11-20 18:58Z.
+- The provisioner moved from `20261103.629` to `20261111.635` along with each image.
+- The first three losses came at 02:28Z, 05:22Z and 14:01Z on 2026-11-18. In those runs (44223434187,
+  44243790538, 44319636759) the surviving AWS job, `gate remote`, still ran `20261111.127.1` on
+  provisioner `20261103.629`.
+
+The lost jobs' own images are unknown, so the image roll is not tied to the losses.
+
+The surviving gate jobs of the latest attempts of the 31 main runs from 2026-11-17 22:40Z to
+2026-11-22 01:41Z show the skew. A lost job keeps no log, so its cloud is unknown. The table
+counts survivors only and leaves out earlier attempts:
+
+| Surviving jobs since 2026-11-17 | AWS | Azure |
+| ------------------------------- | --- | ----- |
+| Ran `tool-fleet:test`           | 2   | 14    |
+| Every other gate job            | 62  | 31    |
+
+The jobs that ran `tool-fleet:test` are the pre-split workspace jobs, the single heavy job and the
+`tool-fleet` leaf. The AWS workspace job of run 44519931198 failed after 3 minutes, before any test,
+and is left out. Against the two-thirds AWS share of every other job, two or fewer AWS survivors
+out of 16 has a binomial probability of about 1e-5. Survivors that ran the suite are therefore
+mostly on Azure. The two AWS survivors (workspace run 44393042208 and heavy run 44849226664, both
+on `20261116.133.1`) show that AWS does not lose the suite every time.
+
+A consistency check: suppose all 13 latest-attempt losses were on AWS. Then 15 of the 29 jobs that
+ran the suite were on AWS, 52% against the 67% base. `P[X ≤ 15 | n = 29, p = 0.667]` is about 0.07,
+so that reading is consistent with how the pool assigns jobs. It is still inference.
+
+**Remaining candidates**, all on the hosted side:
+
+- **Network breakage on AWS hosts.** tool-fleet's native tests run `bwrap` sandboxes and an
+  in-namespace `dockerd` (`bridge: none`, `iptables: false`, the `vfs` storage driver). If one of
+  them disturbs the host's network or the agent's connection on that platform, GitHub would lose
+  the runner with no log.
+- **A signal to the runner**, from the host side or from the suite.
+- **A platform regression on the AWS pool.** No lost job's image is known, so the 2026-11-16
+  image roll is a weaker lead than the cloud itself.
+
+**The lever (A-CI-LEAF-DISK-1).** It is telemetry only:
+
+- Every `runtime headroom sample` line ends with four fields: `rootAvailKiB`, `mntAvailKiB`,
+  `tmpAvailKiB` and `dockerRootAvailKiB`. These are the free KiB from `df --output=avail -k` on /, /mnt,
+  `${TMPDIR:-/tmp}` and the data root that `docker info -f '{{.DockerRootDir}}'` names. A missing
+  mount, a failed df, a non-count answer or a host without a daemon reads `unavailable` for that
+  field alone, and the sample never fails.
+- The tool-fleet leaf's #963 report gains a `disk` section: the data root, then one `df -h` line
+  each for /, /mnt, `$TMPDIR` and the data root, or `unavailable`. df's own status decides each
+  line, with no pipeline. With the samples' free KiB, the last tick before a loss shows the disk
+  trend.
+- The start record and the #963 header name the host's cloud from
+  `/sys/class/dmi/id/sys_vendor` and `product_name`: `cloud=azure` ("Microsoft Corporation"),
+  `cloud=aws` ("Amazon EC2") or `cloud=other:VENDOR`, then `dmiProduct=…`. An absent or unreadable
+  file gives `cloud=unavailable dmiProduct=unavailable`, and the record never fails on it. The next
+  AWS loss's last #963 tick will name both the cloud and the hanging test.
+
+A low-disk watchdog that stops the scope below 2 GiB was considered and dropped. With 82 to 85 GB
+free and no measured growth, it would guard an implausible failure with untested code on the
+shared step. tool-fleet's in-namespace Docker data roots live in test scratch under the process's
+`os.tmpdir()`, which is `/tmp` on the runner's root disk. That is harmless at these figures.
+
+`pr-merge-base.test.ts` runs the production step and functions with three fakes:
+
+- a fake `df` that scripts free KiB per path, where `absent` fails every form, as a missing mount
+  does;
+- a fake `docker`;
+- a scratch DMI root bound through the step's `dmi_root=` line, with Azure, AWS, other, absent and
+  unreadable cases.
+
+Each of these faults failed a test:
+
+- Dropping `mntAvailKiB` or the `sample_disk` call failed the disk test and the headroom tests'
+  sample patterns.
+- Dropping `disk_avail`'s count check passed a `12G` answer through.
+- Dropping `disk_avail`'s or the Docker branch's `unavailable` fallback left an empty field.
+- Changing the heavy-leaf copy alone failed the byte-equality test.
+- Dropping the recorder's disk section, its per-path `unavailable` line or the header's cloud field
+  failed the living-comment test.
+- Dropping the cloud field from the start record failed the cloud test and the start-record and
+  heap-limit patterns. Dropping the "Amazon EC2" mapping failed the aws case.
+
+**Proof plan and the next lever.**
+
+- **An AWS leaf.** A leaf whose start record and #963 header read `cloud=aws` should be lost
+  near 67 minutes, with healthy disk fields. Its last tick names the hanging test. If the disk
+  fields fall instead, disk is back in.
+- **Refutation.** An Azure leaf lost the same way refutes the cloud hypothesis.
+- **If the hypothesis is confirmed,** skipping the native tests on AWS hosts would hide the fault.
+  Under R5 that is not sound unless the skip is loud and the gate hosts run those tests instead.
+  "Fail fast and re-queue" has no primitive in GitHub Actions. The sound levers are:
+  - run that leaf's native tests on the gate hosts;
+  - give the leaf a runner label that keeps it off the AWS pool, if GitHub offers one.
+
+### Amendment, 2026-11-22 (second): AWS leaves go dark 20 minutes into the phase
+
+Three `tool-fleet` leaves on AWS-hosted runners went dark at the same point in the phase, each in
+a different test file. Each #963 comment kept its tick 11 and nothing after it:
+
+| Run         | Job          | Host                       | Last tick (UTC) | Phase seconds | Test file in the tail                |
+| ----------- | ------------ | -------------------------- | --------------- | ------------- | ------------------------------------ |
+| 44982325124 | 137085408175 | `cloud=aws`, `m8id.xlarge` | 04:11:04Z       | 1214          | `k3d-resource-caller.test.ts`        |
+| 44985451809 | 137095018944 | `cloud=aws`, `m8id.xlarge` | 04:53:45Z       | 1214          | `lab-settlement-publication.test.ts` |
+| 44988319045 | 137103806229 | `cloud=aws` (PR, entities) | 05:33:29Z       | 1216          | a CRD-inventory test                 |
+
+The first two ran on main (`142c91669` and `98cfe6be9`), the third on the `feat/puni-entities-cli`
+PR (`3fb17e0af`). Ticks were 120 s apart, so each runner died between 1214 s and about 1336 s
+after the phase start, about 22 minutes after job start. An Azure leaf of the same period, main
+run 44987434788 (`89fc265fb`), passed its tick 14 at 1577 s and went on. Azure reaches
+`lab-settlement-publication.test.ts` about 30 minutes into its phase, so the AWS leaves were at
+different points of the suite when they died.
+
+**The first death's last tick shows a healthy host:**
+
+- `Runner.Listener` and `Runner.Worker` were alive, and the largest `bun` held 3.4 GB RSS.
+- `memAvailable` was 11 GB, the host ran 197 tasks, and the scope held 47 pids and 5.6 GiB.
+- Every disk path had 84 GB free, and the kernel log of the last 3 minutes read "No entries".
+- Docker, k3d and kubectl are fakes in the file its tail ended in.
+
+**The death is time-based and on the host's side.** Three different files at the same elapsed
+time rule out any one test as the trigger, so "skip the dying test" is refuted. Something on
+AWS-hosted runners ends the runner's connection about 20 minutes into this phase.
+
+**GitHub declares the loss about 45 minutes late.** At 04:50Z the first job still showed
+`in_progress`. The earlier losses lasted 67m00s to 67m03s from job start: each one died about 22
+minutes in, and the fixed 67 minutes is GitHub's declaration timeout. That last step is an
+inference. It means the earlier amendment's "hangs for about 27 minutes past the point where a
+healthy one has finished" is wrong: the runner dies about 10 to 18 minutes before a healthy leaf
+would finish. Azure-hosted leaves finish in 31 to 40 minutes.
+
+**The sharpened recorder (A-CI-LEAF-RECORDER-2).** It is the same step text in both copies, and
+still optional telemetry. It is for confirming the host-side trigger, not for naming a test:
+
+- **Tick.** Every 45 s instead of 120 s, one PATCH per tick, with the 61440-byte cap kept.
+- **Log section.** Every other `nx-gate.log` line written since the previous tick, read from a
+  stored byte offset as whole lines, the last 200 that fit 40960 bytes, with ANSI escapes stripped
+  and the redaction kept. `shown=` counts the lines posted. A tick with no new line says so and
+  repeats the last earlier line. The final report's section is incremental as well, so the full
+  log stays in the artifact. The offset advances when the report is built, so a failed PATCH
+  loses that window from later ticks. A NUL byte in the log, which a bash string cannot hold,
+  makes the offset undercount, and a later tick repeats lines.
+- **Network.** `ip -br addr`, `ip -br link`, `ip route`, `ss -s`, the first 20 lines of
+  `resolvectl status` (or `/etc/resolv.conf`), and the line counts of `sudo -n iptables -S` and
+  `sudo -n nft list ruleset`. Then the byte, packet, error and drop counters from `/proc/net/dev`
+  for every interface but `lo`, with the default route's interface marked, beside the previous
+  tick's counters. Each probe prints `unavailable` when it fails.
+- **Journal.** `sudo -n journalctl --since -3min -o short-iso`, filtered after the time and host
+  fields to network, DHCP, time sync, provisioner (`provjobd`), runner, `sshd`, `cloud-init`,
+  `ena`, link, carrier, OOM and `systemd-logind` lines, the last 40. The trigger may log there
+  before the link dies. The kernel section stays.
+- **Recent processes.** Processes started in the last 60 s, newest first, at most 30, with their
+  arguments cut at 120 characters. The recorder's and the sampler's own trees are left out.
+
+`pr-merge-base.test.ts` covers it with the production step text. A pass-through `sleep` scaled
+45 times runs the real 45 s tick; fake `ip`, `ss`, `iptables` and `journalctl` stand in for the
+host tools, and a scratch `/proc/net/dev` is bound through the step's `recorder_net_dev=` line.
+Each of these faults failed a test:
+
+- `recorder_interval=120` asked for no 45 s nap and posted 3 ticks in the 8 s window. The test
+  asks for at least 4, which leaves room for a gate host's slowdown.
+- Dropping the offset update reposted the log from byte 0.
+- Dropping the 200-line cap posted 258 lines. Dropping the byte condition from the whole-line trim
+  posted 200 wide lines past the body cap, so no tick showed the last one.
+- Running the trim's awk in the step's own locale posted 41154 bytes on hosted run 44991572202:
+  under `LANG=C.UTF-8` gawk's `length()` counts the 3-byte ✓ as one character. The awk now runs
+  under `LC_ALL=C`, and the test runs the step under `LANG=C.UTF-8`, `LC_ALL=C.UTF-8` and
+  `LC_ALL=C`. On a mawk host the fault does not show; gawk 5.2.1 reproduced the 41154 locally.
+- Dropping the probes' `unavailable` branch left absent tools' labels empty.
+- Dropping the network section, the previous tick's counters, the journal section, its filter, the
+  120-character cut, the 60 s filter or the own-tree exclusion failed the living-comment test.
+- A 60 s tick in the heavy-leaf copy alone failed the byte-equality test.
+
+**The levers, host-side first:**
+
+1. **Fail fast on AWS and rerun.** The `tool-fleet` leaf's start record refuses `cloud=aws` with a
+   refusal line, so the job fails in about a minute instead of being lost after 67. A final
+   `if: failure()` job then reruns the failed leaf with `gh run rerun <run> --failed`, which needs
+   `actions: write`, for at most 3 attempts of about a minute each. GitHub Actions has no re-queue
+   primitive, but this works as one: each attempt draws a new host.
+2. **Gate hosts only.** Run `tool-fleet`'s tests on the gate hosts and drop the hosted leaf.
+3. **A runner label off the AWS pool**, if GitHub offers one.
+
+The next AWS death's journal and network sections either show the host-side trigger or show
+nothing before the link dies. Neither outcome changes the lever order.
+
+### Amendment, 2026-11-22 (third): refuse AWS hosts for the tool-fleet leaf and requeue
+
+The second amendment's first lever is now in place, as assumption **A-CI-LEAF-AWS-1**, for Dany to
+confirm. It does not explain the fault. It turns an AWS draw from a lost runner into a refusal
+in about a minute of runner time, followed by an automatic requeue. It does not shorten red main
+much: see the arithmetic.
+
+**Refusal.** Both copies of the shared step check the start record's cloud right after writing
+it. On `partition=heavy-tool-fleet` with `cloud=aws` the step does four things before the sampler,
+the recorder or the gate scope starts. It writes the refusal line to `nx-gate.log` and stderr,
+`aws_refused=true` to the step outputs, a line to the job summary and `aws-refused.txt` to the
+workspace. Then it exits 78. The gate-log upload still carries `nx-gate.log`. A new
+`if: always()` upload, gated on `aws_refused == 'true'`, publishes the marker artifact
+`aws-refused-heavy-tool-fleet-attempt-${{ github.run_attempt }}`. Only `gate_heavy` uploads that
+marker, so only the tool-fleet leaf can trigger a requeue. Every other partition runs
+unchanged, and so does the leaf on `cloud=azure`, `cloud=other:*` or `cloud=unavailable`. An
+unreadable DMI file proves nothing about the host, so it must not refuse.
+
+**Requeue.** A new job, `requeue tool-fleet leaf`, needs `gate_heavy` and `gate`, so it fires at
+the end of the run, and runs when `gate_heavy` failed on attempt 1, 2 or 3. `gate` does not need
+it. It is the only job in `ci.yml` with `actions: write`, and it is
+`continue-on-error`, so its own failure is visible but changes no verdict. It lists this run's
+artifacts by the marker's name and goes on only if this attempt's marker exists, so an ordinary
+failure is never rerun automatically. A fork pull request's token cannot requeue, so that case
+logs a line and stops.
+
+The brief asked this job to run `gh run rerun --failed` itself. This change makes an assumption
+instead, **A-CI-LEAF-AWS-2**, which is unverified: a run cannot rerun its own failed jobs while
+one of its jobs, this one, is still running. GitHub's re-run documentation describes re-runs of
+finished runs only. So the job dispatches `ci-requeue.yml` with the run id, the attempt and the
+run's head commit. The dispatch names no ref, so it runs that file from the default branch, and
+the first dispatch fails until the file is on main. That workflow checks the inputs and the
+marker again. It polls the run once a minute, for at most 150 minutes, until it completes. It
+tolerates three consecutive failed or malformed polls; a polled attempt outside 1 to 4 counts as
+malformed. It stops without rerunning when the run has moved to another attempt or records
+another head. It also stops when the run concluded anything but `failure`: off main
+`cancel-in-progress` cancels a superseded PR run, and rerunning it would cancel the newer
+commit's live run. Only a `failure` gets `gh run rerun <run> --failed` and the line
+`A-CI-LEAF-AWS-1: requeued attempt N+1 after an AWS refusal`.
+
+The #982 review found the first version's 15-minute wait too short. That version fired at about
+20 minutes, after `gate_heavy`. Main runs complete about 85 to 88 minutes after they start, with
+`gate twilight` last, so every real requeue would have timed out unrerun. The native alternative
+is a separate workflow on `workflow_run: completed`, which fires only after the run completes and
+needs no wait. It was not taken because it is unverified whether `workflow_run` fires for an
+attempt that `GITHUB_TOKEN` started, which every requeued attempt is. A `workflow_dispatch` from
+`GITHUB_TOKEN` is documented to start a run. The rerun includes the requeue job, a dependent of the
+failed leaf, so the chain carries itself to attempt 4 and no further. `--failed` also reruns any
+other failed job of the same attempt.
+
+`gate` keeps failing every refused attempt: `Require every gate shard` neither waits on nor reads
+the requeue. Main stays red until an attempt draws Azure.
+
+**Arithmetic.** About two thirds of today's runners were AWS. The chance that all four attempts
+draw AWS is 0.67^4 ≈ 0.20, so about 80% of runs reach an Azure leaf within four attempts. The
+expected number of attempts is 1 + 0.67 + 0.45 + 0.30 ≈ 2.42, or about 1.4 reruns. A refused
+attempt costs the job's setup, about 1 to 2 minutes of runner time, plus the requeue job and the
+waiter's polling. Wall-clock red main is different. The rerun waits for the whole run to complete,
+about 88 minutes. The requeued Azure leaf then takes its own 31 to 40 minutes, so one refusal
+still means about 2 hours of red main. A lost runner had meant about 68 minutes of red main with
+no automatic retry. The other 20% end red after four attempts, with four refusal lines and no
+lost runner. The figure is only as good as the two-thirds share.
+
+**Proof plan.** On the next main runs:
+
+- refused attempts show `aws_refused=true`, the refusal line in the uploaded `nx-gate.log` and the
+  marker artifact;
+- the requeue job logs a dispatch and `ci-requeue` logs `requeued attempt N+1`;
+- a requeued attempt on Azure finishes the leaf in 31 to 40 minutes;
+- no `tool-fleet` leaf is lost after 67 minutes any more.
+
+A loss after this change on `cloud=azure` would refute the "AWS only" reading.
+
+`pr-merge-base.test.ts` runs the production step on an `Amazon EC2` DMI fixture: exit 78, the
+refusal line after the start record, `aws_refused=true`, the summary line and the marker file, no
+sample, no recorder, no gate scope and no runtime call. Azure, another vendor, an absent or
+unreadable vendor, another heavy leaf on AWS and the workspace shard on AWS all run their phase.
+`gate-workflow.test.ts` pins the requeue job's condition, permissions and marker upload. It also
+runs both requeue scripts against a fake `gh`. Each of these faults failed a test:
+
+- deleting `exit 78` or the output line;
+- dropping the partition check;
+- refusing every cloud but Azure, or also `cloud=unavailable`;
+- changing one step copy alone;
+- dropping `< 4`, adding `actions: write` to `gate_heavy`, or making `gate` need the requeue;
+- dropping `always()` from the marker upload;
+- skipping either marker check or the fork guard;
+- dropping `gate` from the requeue job's needs, or the head commit from the dispatch;
+- widening the attempt bound, admitting any run id or head commit, or skipping the completion
+  wait, the moved-attempt check or the poll bound;
+- in the waiter, dropping the conclusion check (a cancelled run was rerun), the head check, or
+  the polled attempt's 1-4 check (a garbled attempt read as moved);
+- in the waiter, exiting on the first failed poll, never resetting the failure count, or a
+  45-poll bound;
+- dropping `--failed`.
+
+**What stays unexplained.** The AWS host-side fault itself. A refused leaf never starts the
+recorder, so from now on no AWS host carries the #963 journal and network sections. Those
+sections were the evidence that could show the trigger. Other leaves on AWS keep their
+`nx-gate.log` samples but have no recorder. Seeing the fault again needs the recorder on another
+leaf that runs long on AWS, or a deliberate AWS run of this leaf.
+
+**Structural options for Dany.** The requeue is a workaround that depends on GitHub's host mix.
+Options that remove the dependence:
+
+- a runner label that avoids the AWS pool, if GitHub offers one;
+- larger runners, whose pool and host type differ;
+- running `tool-fleet`'s tests on the gate hosts and dropping the hosted leaf.
+
+### Amendment, 2026-11-22 (fourth): a longer requeue bound and a 10-minute delay
+
+The third amendment's requeue ran for the first time on main run 45012388967 (`709c7edf8`), and
+it ended red. This amendment records that exercise, corrects the "AWS always dies" reading with
+the day's full leaf table, and makes assumption **A-CI-LEAF-AWS-3**, for Dany to confirm: a bound
+of six attempts and a 10-minute pause before each rerun.
+
+**Structural options for Dany come first.** The requeue is still a workaround that depends on
+GitHub's host mix. These options remove the dependence, and any one of them retires it:
+
+- a runner label that avoids the AWS pool, if GitHub offers one;
+- larger runners, whose pool and host type differ;
+- running `tool-fleet`'s tests on the gate hosts and dropping the hosted leaf.
+
+**The first live exercise.** Attempt 1 drew AWS and refused at 10:26Z, 75 s into the job. The run
+completed at about 11:38Z, and `ci-requeue` reran its failed jobs. Attempts 2, 3 and 4 each drew
+AWS again and each refused within about 75 s, at 11:38, 11:40 and 11:41Z. Attempt 4 was the
+bound, so the chain stopped and main stayed red. The marker, the dispatch, the wait and the
+rerun all ran. What failed was the bound together with the timing: three back-to-back draws.
+
+**AWS does not always die.** The #963 recorder headers of the day, with the cloud and outcome of
+every `tool-fleet` leaf:
+
+| Cloud              | Leaves | Finished | Lost | Notes                                                    |
+| ------------------ | ------ | -------- | ---- | -------------------------------------------------------- |
+| Azure              | 7      | 7        | 0    | 25 to 40 minutes                                         |
+| AWS, `m8id.xlarge` | 6      | 1        | 5    | run 45004146162 finished, 08:44 to 09:13Z, `state=final` |
+
+The five lost AWS leaves went dark 1095 to 1339 s into the phase: runs 44982325124 and
+44985451809 on main, and 44988319045, 45000106372 and 45009725192 on pull requests (newer pushes
+later cancelled the PR runs). So the leaf died on 5 of 6 AWS hosts today, and one finished in 28
+minutes. Wherever these notes or the step comments say the leaf dies on AWS hosts, read "died on
+5 of 6 today". The refusal still pays: a loss holds the runner about 67 minutes, and one finish in
+six is too small a sample to plan on.
+
+**Draws are correlated over minutes, not frozen per hour.** The cloud alternated within minutes
+all day: 05:28 AWS and 05:42 Azure; 08:22 AWS, 08:25 Azure and 08:44 AWS. But the three reruns
+inside five minutes, 11:38 to 11:41Z, all drew AWS. A rerun seconds after a refusal seems to draw
+from the same pool state, so back-to-back reruns are weaker evidence than independent draws.
+
+**The change (A-CI-LEAF-AWS-3).**
+
+- **Bound.** The `requeue tool-fleet leaf` job runs when `github.run_attempt < 6`, so attempts 1
+  to 5 can requeue and a run reaches attempt 6, with five reruns at most. `ci-requeue` accepts a
+  refused attempt of 1 to 5 and treats a polled attempt outside 1 to 6 as malformed.
+- **Delay.** After the run completes with `failure`, `ci-requeue` prints
+  `A-CI-LEAF-AWS-1: waiting 600 s before the rerun so the next draw is less correlated with this host pool`
+  and sleeps `REQUEUE_DELAY_SECONDS`, which the step sets to 600 and the script validates as a
+  whole number. The job's timeout grows from 160 to 175 minutes to hold the delay.
+- **Read again.** After the delay it reads the run again, with the same three tolerated failed
+  polls. A different head, a different attempt (someone reran by hand) or anything but
+  `completed failure` (someone reran and cancelled) ends it with `no requeue`. Only then does it
+  run `gh run rerun --failed`.
+
+**Arithmetic.** It still assumes about two thirds of draws are AWS and, with the delay, that
+draws are independent; the 11:38 to 11:41Z chain says they were not without it.
+
+- Uncapped, the expected number of attempts is 1/(1 − 0.67) ≈ 3.
+- Capped at six, the expected number is 1 + 0.67 + 0.45 + 0.30 + 0.20 + 0.14 ≈ 2.76 attempts,
+  about 1.8 reruns. P(all six draw AWS) is 0.67^6 ≈ 0.09, so about 9% of all runs still end red
+  (0.67^5 ≈ 13% of runs whose first draw was AWS), against about 20% (30%) with four attempts.
+- Runner time: each refused attempt costs about 75 s plus the requeue job's well under a minute,
+  so a full chain of six refusals costs under 10 minutes of working runner time. Each waiter also
+  holds an idle runner through its 10-minute sleep, about 50 minutes over five reruns.
+- Wall clock per refusal: the run's length, then the 10-minute delay, then the next attempt. The
+  first refusal waits for the whole run, about 88 minutes. A rerun runs only the failed jobs, so
+  a further refused attempt completes in about 2 minutes and adds about 12 minutes. An Azure draw
+  then takes 25 to 40 minutes. One refusal means about 2 hours 15 minutes of red main; five
+  refusals before an Azure draw, about 3 hours.
+
+**Proof.** `gate-workflow.test.ts` pins `< 6` and runs `ci-requeue`'s script with a fake `gh` and
+a fake `sleep` that write one ordered trace. The trace shows the 600 s sleep after the completed
+poll and before the read again and the rerun. Attempt 5 reruns as attempt 6, and a polled attempt
+6 reads as moved. After the delay, a cancelled attempt, a new attempt and another head are each
+left alone, and the read again tolerates three failed polls. Each of these faults failed a test:
+
+- the bound put back to `< 4`;
+- the refused-attempt bound put back to 1 to 3, or the polled attempt back to 1 to 4;
+- the delay's validation dropped;
+- the delay's `sleep` replaced with `:` (the order check);
+- the read after the delay and its checks replaced with `if false` (the cancelled attempt was
+  rerun).
+
+**Proof plan.** On the next AWS-first main run, `ci-requeue` logs the waiting line and the rerun
+starts about 10 minutes after completion. If reruns 10 minutes apart keep drawing AWS, the delay
+does not decorrelate the draw, and only the structural options above remain.
+
+## A race measured in one shape can lose in another
+
+**R5-33**, observed 2026-11-22 on h2puni (gate calibration e1b18304). Dash's container watch
+read each container's bounds with `docker inspect` after its create event, and a removed
+container's failed inspect made the run `unverified`, as R5 requires. The review of #952
+"measured" the race against a `--rm` container and saw inspect win every time for lifetimes
+from 250 ms to 1 s (`dash-host-jobs` verify.md, S22-A4). The hourly `keinos/sqlite3` backup
+snapshots, about one second each, then lost it twice in one gate. Each loss printed
+`attribution incomplete: <id> unverified: container ended or was unreadable before its bound
+was read: Error response from daemon: No such container`, and the calibration was excluded.
+
+The check was sound; the proof that it would not fire was not. The measurement came from one
+host and one start shape, and a different caller's timing on another host reversed it. A race
+argued away by measurement is a claim about the measured cases only. The watch now models the
+loss as an outcome instead: it reads die events too, and a host-service container whose create
+and die events date a lifetime within one sampling interval is `lifetime-bounded`
+(A-ATTR-ENDED-1), a stated tolerance whose bounds stay unread.
+`containers.test.ts` makes the race certain with a real daemon by removing the container before
+the watch starts. With the `No such container` branch removed it printed the exact h2puni
+reason above; restored, it passed.
 
 ## Checks kept without a reachable negative
 

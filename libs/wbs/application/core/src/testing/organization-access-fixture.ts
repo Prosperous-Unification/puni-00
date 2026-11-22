@@ -12,6 +12,8 @@ import type { SharedPeopleRestoreApprovals } from '../ports/shared-people-restor
  * `SqliteOrganizationAccess` in `project-organization.controller.db.test.ts`.
  */
 export const legacyOrganizationAccess: OrganizationAccess = {
+  mayReadProjectWithin: () =>
+    Promise.reject(new Error('unbound project read in a resolve-only fixture')),
   resolve: () => Promise.resolve({ ok: true, access: { kind: 'legacy' } }),
 };
 

@@ -1,4 +1,11 @@
-import type { Project, ProjectStore, ProjectWithAccess, Step, UserStore } from '@wbs/core';
+import {
+  type Project,
+  type ProjectStore,
+  projectVisibleWithin,
+  type ProjectWithAccess,
+  type Step,
+  type UserStore,
+} from '@wbs/core';
 import { DEFAULT_ESTIMATE_RULE, suggestProjectAbbreviationCandidates } from '@wbs/domain';
 
 import { inMemoryUsers } from './auth-fixture';
@@ -133,6 +140,8 @@ export function inMemoryProjects(
   }
 
   const store: ProjectStore = {
+    mayReadProjectWithin: (project, actorId, access) =>
+      projectVisibleWithin(store, project, actorId, access),
     createInOrganization(project, starting, _stamp, organizationId) {
       const written = createProject(project, starting, organizationId);
       if (typeof written === 'string') return Promise.resolve(written);
