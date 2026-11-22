@@ -20,16 +20,15 @@ import {
 } from './db';
 import { WriteCoordinator } from './gate';
 import { MachineCredentialRepository } from './machine-credential';
-import { runMigrations } from './migrate';
 import { SqliteOrganizationAccess } from './organization-access';
 import { SqliteProjectAdministration } from './project-administration';
 import { isSqliteCleanupUnknown } from './sqlite-cleanup';
+import { migrateEmptyCatalogueFixture } from './testing/catalogue-database';
 import { seedDependencyAuthority } from './testing/dependency-activation';
 import { TypedDependencyRepository } from './typed-dependency';
 import { WorkItemRepository } from './work-item';
 import { WorkPackageRepository } from './work-package';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 let sqlite: ReturnType<typeof openDatabase>, connection: Connection, gate: WriteCoordinator;
 let administration: SqliteProjectAdministration;
 let statements: string[];
@@ -85,7 +84,7 @@ beforeEach(async () => {
     const directory = mkdtempSync(join(tmpdir(), 'admitted-package-move-'));
     acquired.directory = directory;
     const path = join(directory, 'store.db');
-    runMigrations(path, FOLDER);
+    migrateEmptyCatalogueFixture({ path, directory, reportedAt: 1 }, { hasUnknownOwner: false });
     sqlite = openDatabase(path);
     acquired.closeSqlite = sqlite.close.bind(sqlite, true);
     statements = [];
@@ -657,11 +656,9 @@ for (const fault of [
         ? 'stored move package organization is malformed'
         : fault === 'restriction'
           ? 'stored move package restricted flag is malformed'
-          : fault === 'source parent'
-            ? 'stored work package parent is absent'
-            : fault === 'source organization'
-              ? 'stored work package parent organization differs'
-              : 'stored project name is malformed',
+          : fault === 'source parent' || fault === 'source organization'
+            ? 'package moving has an absent, malformed or foreign parent'
+            : 'stored project name is malformed',
     );
     expect(snapshot()).toEqual(before);
   });

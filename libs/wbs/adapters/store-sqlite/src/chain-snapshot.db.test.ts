@@ -41,6 +41,7 @@ import {
   solverSlot,
 } from './schema';
 import { StepParallelRepository } from './step-parallel';
+import { seedPackageParent } from './testing/legacy-package-parent';
 import { nodeDigest } from './testing/node-digest';
 import { openSpaceDatabase } from './testing/space-database';
 import { activateTestStepBlockages } from './testing/step-blockage-activation';
@@ -76,9 +77,6 @@ beforeEach(async () => {
   path = await openSpaceDatabase(dir);
   closed = 0;
   write("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
-  write(
-    "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'ada', 'member', 1)",
-  );
   write("UPDATE organization_activation SET state = 'activated', activated_at = 1");
   for (const personId of ['ana', 'ben']) {
     write(`INSERT INTO person (id, name) VALUES ('${personId}', '${personId}')`);
@@ -91,16 +89,25 @@ beforeEach(async () => {
     ['a2', ['ana', 'ben']],
     ['a3', ['ben']],
   ] as const) {
+    const projectId = 'project-' + workPackageId;
+    seedPackageParent(path, 'org-a', projectId);
     write(
-      `UPDATE work_package SET start_date = '2026-10-05', estimate_rounding = 'exact' WHERE id = '${workPackageId}'`,
+      `UPDATE work_package SET project_id = '${projectId}', start_date = '2026-10-05', estimate_rounding = 'exact' WHERE id = '${workPackageId}'`,
     );
     write(
       `INSERT INTO work_item (id, work_package_id, position, name) VALUES ('${workPackageId}', '${workPackageId}', 10, '${workPackageId}')`,
     );
     for (const [index, personId] of people.entries()) {
       const stepId = `${workPackageId}-s${String(index)}`;
+      const position = String(index * 10);
       write(
-        `INSERT INTO step (id, work_package_id, name, position) VALUES ('${stepId}', '${workPackageId}', '${stepId}', ${String(index)})`,
+        `INSERT INTO step_definition (id,organization_id,code,name,estimate_unit,default_allowance_bps,position,defined_at_scope_kind,defined_at_scope_id,origin) VALUES ('${stepId}','org-a','${stepId}','${stepId}','workdays',0,${position},'project','${projectId}','authored')`,
+      );
+      write(
+        `INSERT INTO step_binding (id,organization_id,scope_kind,scope_id,step_id,position,origin) VALUES ('binding-${stepId}','org-a','project','${projectId}','${stepId}',${position},'authored')`,
+      );
+      write(
+        `INSERT INTO work_package_step (work_package_id,step_id,estimate_unit,allowance_bps,allowance_revision) VALUES ('${workPackageId}','${stepId}','workdays',0,0)`,
       );
       write(
         `INSERT INTO estimate (work_item_id, step_id, optimistic, realistic, pessimistic) VALUES ('${workPackageId}', '${stepId}', 1, 1, 1)`,
@@ -246,12 +253,18 @@ describe('the chain snapshot', () => {
     write(
       "UPDATE work_package_organization SET organization_id = 'org-b' WHERE resource_id = 'a3'",
     );
-    // Keep abbreviation metadata coherent so this fault reaches the reference guard.
+    // Keep abbreviation metadata coherent while the target parent belongs to the old owner.
     write(
       "UPDATE work_package_abbreviation SET namespace = 'org:org-b' WHERE work_package_id = 'a3'",
     );
     expect((await failureOf(reader.readWorkPackage('a3'))).message).toContain(
-      'references outside its organization',
+      'settings target parent is absent, malformed or foreign',
+    );
+    write(
+      "UPDATE work_package_organization SET organization_id = 'org-a' WHERE resource_id = 'a3'",
+    );
+    write(
+      "UPDATE work_package_abbreviation SET namespace = 'org:org-a' WHERE work_package_id = 'a3'",
     );
     write('DROP TRIGGER organization_activation_no_revert');
     write("UPDATE organization_activation SET state = 'pre_activation', activated_at = NULL");
@@ -285,7 +298,7 @@ describe('the chain snapshot', () => {
     // An unmapped root uses the legacy namespace; ownership itself is the injected fault.
     write("UPDATE work_package_abbreviation SET namespace = 'legacy' WHERE work_package_id = 'a3'");
     expect((await failureOf(reader.readWorkPackage('a3'))).message).toContain(
-      'work package ownership is absent',
+      'settings organization mapping is absent or malformed',
     );
   });
 
@@ -826,7 +839,9 @@ describe('the chain snapshot', () => {
     write("DELETE FROM assignment WHERE work_item_id = 'a1'");
     write("DELETE FROM estimate WHERE work_item_id = 'a1'");
     write("DELETE FROM work_item WHERE work_package_id = 'a1'");
-    write("DELETE FROM step WHERE work_package_id = 'a1'");
+    write("DELETE FROM step_binding WHERE step_id = 'a1-s0'");
+    write("DELETE FROM work_package_step WHERE work_package_id = 'a1'");
+    write("DELETE FROM step_definition WHERE id = 'a1-s0'");
     write("DELETE FROM work_package WHERE id = 'a1'");
     const read = await saved.read('saved-chain');
     expect(read.outcome).toBe('read');

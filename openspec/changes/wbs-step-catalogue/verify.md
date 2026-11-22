@@ -2147,3 +2147,13 @@ checks the exact historical rollback ledger and reads the retained local edge
 after the catalogue transition. Historical step writes and cascades still run
 against migration 116, while the step list and allowance readers exercise
 current catalogue storage. The SQLite Nx typecheck passed.
+
+Focused Nx SQLite runs passed 63 tests across chain snapshots and sparse step
+parallelism, plus 35 project-move administration tests. The originals failed
+in fixture setup. Chain snapshots use current catalogue steps and still check
+that foreign assignments refuse and saved dates survive upstream deletion.
+Sparse parallelism uses the actual catalogue upgrade for current reads and SQL
+constraints, migration 116 for legacy removal and the original migration
+prefix for rollback ledger checks. Admitted move fixtures run through the
+catalogue and verify that a missing or foreign source parent is rejected
+before writes, with the original snapshot preserved.
