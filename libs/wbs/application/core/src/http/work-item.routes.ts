@@ -17,6 +17,7 @@ import {
   readPersonWork,
   readProjectClaims,
   readProjectResources,
+  readResourceOccupancy,
   readStartableWork,
   redoProject,
   responseSchema,
@@ -841,14 +842,18 @@ export function workItemRoutes(
           return { ok: false, status: 400, body: { error: 'invalid_query' } };
         const resolved = await organizations.resolve(principal);
         if (!resolved.ok) return organizationRefusal(resolved);
-        const startable = await workItems.startableWithin(
+        const startable = await workItems.readStartableWithin(
           params.id,
+          principal.id,
           resolved.access,
           query.team ?? null,
         );
-        if (startable === null) return { ok: false, status: 404, body: { error: 'not_found' } };
-        if ('kind' in startable) return { ok: false, status: 404, body: { error: startable.kind } };
-        return { ok: true, status: 200, body: startable };
+        if (startable.kind === 'not_found')
+          return { ok: false, status: 404, body: { error: 'not_found' } };
+        if (startable.kind === 'unknown_team')
+          return { ok: false, status: 404, body: { error: 'unknown_team' } };
+        if (startable.kind === 'access_refused') return organizationRefusal(startable.refusal);
+        return { ok: true, status: 200, body: startable.value };
       },
     ),
     bind(
@@ -946,7 +951,9 @@ export function workItemRoutes(
         const resolved = await organizations.resolve(principal);
         if (!resolved.ok) return organizationRefusal(resolved);
         const read = await workItems.resourcesWithin(params.id, resolved.access);
-        if (read === null) return { ok: false, status: 404, body: { error: 'not_found' } };
+        if (read.kind === 'not_found')
+          return { ok: false, status: 404, body: { error: 'not_found' } };
+        if (read.kind === 'access_refused') return organizationRefusal(read.refusal);
         // The provider columns are added after the planned read and never
         // reach it (`compute-providers` P4).
         // Proof: with this call replaced by the planned read alone, `sets,
@@ -956,8 +963,28 @@ export function workItemRoutes(
         return {
           ok: true,
           status: 200,
-          body: await withProviderReadings(read, providers.reports, providers.clock.now()),
+          body: await withProviderReadings(read.value, providers.reports, providers.clock.now()),
         };
+      },
+    ),
+    bind(
+      readResourceOccupancy,
+      async ({ params, principal }): Promise<HttpReply<typeof readResourceOccupancy>> => {
+        const resolved = await organizations.resolve(principal);
+        if (!resolved.ok) return organizationRefusal(resolved);
+        // Proof: dispatching a legacy session made the mounted no-observation assertion fail.
+        if (resolved.access.kind === 'legacy') return organizationRefusal('no_active_organization');
+        const occupancy = await workItems.readResourceOccupancyWithin(
+          params.resourceId,
+          principal.id,
+          resolved.access.scope,
+        );
+        if (!occupancy.ok && 'refusal' in occupancy) return organizationRefusal(occupancy);
+        if (!occupancy.ok)
+          return occupancy.reason === 'forbidden'
+            ? { ok: false, status: 403, body: { error: 'forbidden' } }
+            : { ok: false, status: 404, body: { error: 'not_found' } };
+        return { ok: true, status: 200, body: occupancy.value };
       },
     ),
     bind(
@@ -974,8 +1001,10 @@ export function workItemRoutes(
         const preview = await workItems.previewDirectoryCapacityWithin(
           params.resourceId,
           units,
+          principal.id,
           resolved.access.scope,
         );
+        if (!preview.ok && 'refusal' in preview) return organizationRefusal(preview);
         if (!preview.ok)
           return preview.reason === 'forbidden'
             ? { ok: false, status: 403, body: { error: 'forbidden' } }

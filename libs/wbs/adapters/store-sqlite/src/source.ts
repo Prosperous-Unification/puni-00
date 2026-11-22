@@ -164,6 +164,7 @@ function openSqliteSourceWithSeams(
     bindLivePlans(scheduling) {
       const publicPlans = createLivePlanStore({
         ...scheduling,
+        organizationDefaultLimits: defaults,
         captureRead,
         kind: 'owned',
         openConnection: () => reads.acquire(),
@@ -180,6 +181,7 @@ function openSqliteSourceWithSeams(
               // Proof: overriding connected with undefined here made the borrowed mounted ready tree unavailable.
               const commandPlans = createLivePlanStore({
                 ...scheduling,
+                organizationDefaultLimits: defaults,
                 captureRead,
                 kind: 'borrowed',
                 db: process.db,

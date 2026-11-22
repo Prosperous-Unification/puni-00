@@ -533,3 +533,15 @@ Wrong-level isolation emits JSON with exit one; isolated observations exit zero 
 failed/skipped cases and index review debt. No candidate execution or supplied JSON observation
 is admitted. Source/installed command dispatch remains thin and v1 readers remain unchanged.
 No new domain vocabulary or hard-to-reverse architecture decision is introduced.
+
+## Whole-root Unit collection
+
+A Bun owner declaring its project root uses the complete project
+census. Verification compares its selections to that census in both
+directions. Selected identities are canonical workspace paths; find
+operands retain their leading dot and slash when passed to Bun.
+The existing inventory, level, command and JUnit checks still apply.
+
+Smoke and Runtime Portable use whole-project Unit declarations,
+their existing ten-second budget and independent JUnit paths. The
+selector prunes hidden entries and ignored dependencies and outputs.

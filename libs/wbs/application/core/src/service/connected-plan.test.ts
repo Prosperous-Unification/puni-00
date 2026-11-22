@@ -79,6 +79,7 @@ const reads = (id: string, startDate: IsoDate | null = '2026-10-05'): PlanInputR
   capacity: new Map(),
   demands: [],
   resourceCapacities: [],
+  directoryCapacities: [],
   resources: [],
   priorityBands: [],
   people: [],

@@ -1,42 +1,3 @@
-## MODIFIED Requirements
-
-### Requirement: Solver edges represent the expanded authored graph
-
-The scheduler input hash SHALL include typed endpoint/type relationships
-distinctly from legacy `depReach` links, including the stable project identities
-of external endpoints. The shared step-node graph SHALL emit the FS, SS or FF
-constraint for every resolved typed step-node pair with `authored` provenance
-beside `workflow` step order and `legacy` edges. Each project's legacy edges
-SHALL use that project's own reach and each endpoint SHALL use its own project's
-steps and tree. CP-SAT SHALL receive those resolved constraints or their exact
-fixed-boundary equivalents; Fast SHALL enforce them at the selected successor
-step. Zero-duration unknown slices SHALL remain nodes and SHALL consume no
-resources. A versioned contract change SHALL retire stale optimized results.
-Independent response validation SHALL recheck every materialized real typed
-boundary, including external incoming and outgoing boundaries, before publication.
-These scheduling constraints SHALL follow the existing hold reduction;
-authored relationship and hold evidence SHALL remain captured separately.
-
-#### Scenario: External FS targets the second step
-
-- **GIVEN** a typed dependency targeting node `B.qa` rather than `B.dev`
-- **WHEN** Fast and CP-SAT schedule the plan
-- **THEN** B.QA waits for the selected predecessor finish
-- **AND** B.Dev runs earlier when its other constraints permit it
-
-#### Scenario: Solver omits one expanded pair
-
-- **GIVEN** a parent relationship expands into several FS slice edges
-- **WHEN** a solver response violates one pair despite satisfying the others
-- **THEN** independent validation rejects it as invalid output
-
-#### Scenario: Cross-project SS and FF retain their actual boundaries
-
-- **GIVEN** `A.dev SS B.dev` and `B.qa FF C.qa` across three projects
-- **WHEN** either engine schedules their connected work
-- **THEN** B.dev starts no earlier than A.dev starts and C.qa finishes no earlier than B.qa finishes
-- **AND** neither relation is substituted with whole-work-item FS
-
 ## ADDED Requirements
 
 ### Requirement: Connected scheduling preserves task interleaving
@@ -70,6 +31,8 @@ Each project SHALL retain its estimate rules, step order, start floor, manual
 constraints and project-scoped team/resource capacities. Person capacity SHALL
 be shared only under shared-capacity mode. Projects unaffected by external
 dependencies SHALL retain the existing scheduling path.
+
+Each endpoint SHALL resolve against its owning project's tree and configured steps. Each project's legacy edges SHALL use its own reach. Connected expansion SHALL retain each resolved pair with authored relationship, workflow or legacy provenance. Scheduling SHALL apply the existing hold reduction. Authored relationships and hold evidence SHALL be captured separately.
 
 #### Scenario: Shared catalog IDs do not merge project pools
 
@@ -220,6 +183,8 @@ boundary placement and scheduler contract version. Stage identity SHALL use
 the captured boundaries for that stage rather than recursively depending on
 later selected variants.
 
+The hash SHALL include the stable owning project identities of both endpoints of an external relationship, alongside the typed relationship and its scoped endpoints.
+
 #### Scenario: Outgoing constraints participate in cache identity
 
 - **GIVEN** A's optimization has an outgoing relationship to a fixed B step
@@ -258,6 +223,22 @@ Solver requests SHALL carry incoming lower bounds, outgoing upper bounds and
 shared-person bookings, with conservative quantization. Publication SHALL
 validate that foreign starts are unchanged and every real FS/SS/FF boundary
 remains satisfied. A violated boundary SHALL refuse the complete candidate.
+
+CP-SAT SHALL receive all resolved constraints with incoming and outgoing boundaries, or their exact fixed-boundary equivalents. Fast SHALL enforce each constraint at the selected successor step. Independent validation SHALL recheck every materialized real typed boundary, including the actual incoming and outgoing external boundaries, before publication.
+
+#### Scenario: External FS targets the second step
+
+- **GIVEN** a typed dependency targeting node `B.qa` rather than `B.dev`
+- **WHEN** Fast and CP-SAT schedule the plan
+- **THEN** B.QA waits for the selected predecessor finish
+- **AND** B.Dev runs earlier when its other constraints permit it
+
+#### Scenario: Cross-project SS and FF retain their actual boundaries
+
+- **GIVEN** `A.dev SS B.dev` and `B.qa FF C.qa` across three projects
+- **WHEN** either engine schedules their connected work
+- **THEN** B.dev starts no earlier than A.dev starts and C.qa finishes no earlier than B.qa finishes
+- **AND** neither relation is substituted with whole-work-item FS
 
 #### Scenario: Quantization cannot hide a violated external boundary
 

@@ -9,26 +9,28 @@ export const ORGANIZATION_LIMIT_BOUNDS = { least: 0, most: 1_000_000 } as const;
 export interface OrganizationLimitValues {
   readonly maxAgentPersons: number;
   readonly maxConcurrentClaims: number;
-  /** Applied to each resource separately: the sum of its stated units over the organization's projects (L2). */
+  /** Caps each directory statement and its project ceilings, or their sum when the directory is unstated. */
   readonly maxCapacityUnitsPerResource: number;
 }
 
 /** Where an organization's effective caps came from: its own row, or the deployment default. */
 export type OrganizationLimitsSource = 'default' | 'organization';
 
-/** The units of one resource the organization's projects state, summed (L5). */
+/** A stated directory capacity or the sum of one resource’s project capacities. */
 export interface ResourceCapacityUsage {
   readonly resourceId: string;
   readonly name: string;
   readonly unitLabel: string;
   readonly units: number;
+  readonly countedFrom: 'directory' | 'projects';
 }
 
 /**
  * What an organization holds against each cap (L5): its persons of kind
  * `agent`, its bound claims (distinct work item, person and run triples holding
  * at least one claim row) and, per resource with at least one stated
- * capacity, the stated units summed over its projects, in resource-id order.
+ * capacity, its directory capacity when stated or its project capacities summed,
+ * in resource-id order.
  */
 export interface OrganizationLimitUsage {
   readonly agentPersons: number;
@@ -86,9 +88,10 @@ export function refuseLimit(request: LimitCrossed): LimitCrossed | null {
 }
 
 /**
- * A capacity statement past the organization's cap (L2, L9): the resource,
- * the cap, the units its **other** projects state (`declared`) and the units
- * this project would state (`asked`).
+ * A capacity statement past its organization's cap. For a project ask,
+ * `declared` counts other projects when the directory is unstated. A directory
+ * ask counts only itself; its clear instead exposes the full project sum as
+ * `declared` with 0 asked.
  */
 export interface CapacityLimitCrossed {
   readonly resourceId: string;
@@ -131,4 +134,28 @@ export function refuseCapacityStatement(request: {
   if (asked <= held) return null;
   const crossed = refuseLimit({ cap, current: declared, added: asked });
   return crossed === null ? null : { resourceId, cap, declared, asked };
+}
+
+/** The organization cap and both statements a directory transition can expose. */
+export interface DirectoryCapacityLimit {
+  readonly cap: number;
+  readonly before: number | null;
+  readonly projectUnits: number;
+}
+
+/** Predicts the directory write against the same reading used for an applied transition. */
+export function refuseDirectoryCapacity(
+  resourceId: string,
+  { cap, before, projectUnits }: DirectoryCapacityLimit,
+  units: number | null,
+  confirm: boolean,
+): CapacityLimitCrossed | null {
+  // Proof: removing the cap check or letting confirmation waive it made the
+  // mounted above-cap batch apply instead of refusing the confirmed 65.
+  if (units !== null) return units > cap ? { resourceId, cap, declared: 0, asked: units } : null;
+  // Proof: bypassing confirmation let the staged 96-unit batch clear a stated
+  // zero. Treating absence as a transition incorrectly refused an already absent clear.
+  return before !== null && projectUnits > cap && !confirm
+    ? { resourceId, cap, declared: projectUnits, asked: 0 }
+    : null;
 }

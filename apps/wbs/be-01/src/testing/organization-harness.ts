@@ -886,6 +886,7 @@ export class OrganizationHarness {
         loginThrottle: services.loginThrottle,
         projects: services.projects,
         organizations: {
+          mayReadProjectWithin: (...args) => organizationAccess.mayReadProjectWithin(...args),
           resolve: async (principal) => {
             const access = await organizationAccess.resolve(principal);
             afterResolve?.();

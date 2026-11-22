@@ -3,7 +3,7 @@ import {
   type ClientReply,
   createAgentPool,
   listAgentPools,
-  readOrganizationLimits,
+  readOrganizationLimitsCompat,
   rekeyAgentPool,
   revokeAgentPool,
 } from '@wbs/contracts';
@@ -49,7 +49,7 @@ import {
 
 const POOL_SHAPES = [
   listAgentPools,
-  readOrganizationLimits,
+  readOrganizationLimitsCompat,
   createAgentPool,
   rekeyAgentPool,
   revokeAgentPool,

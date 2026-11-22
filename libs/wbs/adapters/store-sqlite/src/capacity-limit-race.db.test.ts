@@ -127,6 +127,8 @@ async function seeded(cap: number, counting: { source: CountSource }) {
     return {
       readAgentPersonCap: (organizationId) => gauge.readAgentPersonCap(organizationId),
       readConcurrentClaimCap: (organizationId) => gauge.readConcurrentClaimCap(organizationId),
+      readDirectoryCapacityLimit: (organizationId, resourceId) =>
+        gauge.readDirectoryCapacityLimit(organizationId, resourceId),
       readCapacityCap: async (organizationId, resourceId, exceptProjectId) => {
         const reading = await gauge.readCapacityCap(organizationId, resourceId, exceptProjectId);
         if (hold.armed) {

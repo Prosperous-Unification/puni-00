@@ -842,7 +842,12 @@ test('production selector refuses a pointed-row render overlay that drops editor
 const ganttCanonicalPath = 'openspec/specs/wbs-domain/spec.md';
 const ganttCalendarPath = 'openspec/changes/gantt-calendar-axis/specs/wbs-domain/spec.md';
 const ganttHoverPath = 'openspec/changes/gantt-bar-hover/specs/wbs-domain/spec.md';
+const ganttLegibilityPath = 'openspec/changes/gantt-legibility/specs/wbs-domain/spec.md';
 const ganttOriginalTitle = 'A bar explains itself and finds its row';
+const ganttVisibilityTitle =
+  'Leaves draw bars for the work somebody costed, and the rest is behind the switch';
+const ganttLegibilityTitle = 'The Gantt chart stays legible at every rung and in both themes';
+const ganttDoneTitle = 'A done work item draws one done bar over its fact span';
 const ganttHoverTitle = "A bar's explanation uses the shared accessible surface";
 const ganttCalendarScenarios = [
   'the reason is on the bar',
@@ -864,6 +869,7 @@ function ganttSources(): Record<string, string> {
     [ganttCanonicalPath]: readFileSync(join(sourceRoot, ganttCanonicalPath), 'utf8'),
     [ganttCalendarPath]: readFileSync(join(sourceRoot, ganttCalendarPath), 'utf8'),
     [ganttHoverPath]: readFileSync(join(sourceRoot, ganttHoverPath), 'utf8'),
+    [ganttLegibilityPath]: readFileSync(join(sourceRoot, ganttLegibilityPath), 'utf8'),
   };
 }
 
@@ -876,12 +882,13 @@ test('production selector preserves calendar ownership and all hover obligations
   expect(selection?.inputs.map(({ path }) => path)).toEqual([
     ganttHoverPath,
     ganttCalendarPath,
+    ganttLegibilityPath,
     source,
     ganttCanonicalPath,
   ]);
   expect(
     selection?.operations.filter(({ capability }) => capability === 'wbs-domain'),
-  ).toHaveLength(14);
+  ).toHaveLength(15);
   expect(
     selection?.operations
       .filter(({ source: owner }) => owner === ganttCalendarPath)
@@ -893,7 +900,6 @@ test('production selector preserves calendar ownership and all hover obligations
       'ADDED: One resolved calendar geometry places every mark',
       'ADDED: Without a project start date the chart stays on the workday axis',
       'MODIFIED: The calendar day is the SVG unit',
-      'MODIFIED: Leaves draw bars for the work somebody costed, and the rest is behind the switch',
       'MODIFIED: Calendar labels agree with the date columns',
       `MODIFIED: ${ganttOriginalTitle}`,
       'MODIFIED: The canvas holds every mark',
@@ -914,6 +920,64 @@ test('production selector preserves calendar ownership and all hover obligations
       `ADDED: ${ganttHoverTitle}`,
     ].sort(),
   );
+  expect(
+    selection?.operations
+      .filter(({ source: owner }) => owner === ganttLegibilityPath)
+      .map(({ kind, title }) => `${kind}: ${title}`)
+      .sort(),
+  ).toEqual([`ADDED: ${ganttLegibilityTitle}`, `MODIFIED: ${ganttVisibilityTitle}`]);
+  // Proof: removing the transferred unestimated-slice scenario from the committed scratch
+  // fixture kept selector acceptance but failed this exact scenario list.
+  expect(
+    selection?.effective.find(({ title }) => title === 'The calendar day is the SVG unit'),
+  ).toMatchObject({
+    source: ganttCalendarPath,
+    aliases: [ganttCanonicalPath],
+    scenarios: [
+      'user space is the calendar',
+      'user space equals engine numbers',
+      'a slice estimated at no days still says where it is',
+      'the data attributes outlive the drawn width',
+      'a workday number is not a coordinate',
+      'the workday is still the unit without a start date',
+      'an unestimated slice',
+      'the horizon holds the assumed span',
+    ].map((title) => ({ title })),
+  });
+  expect(selection?.effective.find(({ title }) => title === ganttVisibilityTitle)).toMatchObject({
+    source: ganttLegibilityPath,
+    aliases: [ganttCanonicalPath],
+    scenarios: [
+      'a two-role leaf',
+      'a leaf half estimated, at rest and asked for',
+      'a parent over staggered children',
+      'a parent whose projection has no days',
+      'a start date held on a row that draws nothing',
+      'the critical path is visible',
+    ].map((title) => ({ title })),
+  });
+  expect(selection?.effective.find(({ title }) => title === ganttLegibilityTitle)).toMatchObject({
+    source: ganttLegibilityPath,
+    aliases: [],
+    scenarios: [
+      'two placeholders at one instant',
+      'every bar colour, light and dark',
+      'a quarter at Months',
+      'full screen at every rung',
+    ].map((title) => ({ title })),
+  });
+  expect(selection?.effective.find(({ title }) => title === ganttDoneTitle)).toMatchObject({
+    source: ganttCanonicalPath,
+    aliases: [],
+    scenarios: [
+      'the estimate reaches past the fact and the bar does not',
+      'a plan that drifted past the fact still draws the fact',
+      "a fact start moves the bar's start",
+      'the arrow leaves the done bar',
+      'a person link still finds the done bar',
+      'the done bar is not the assumed span',
+    ].map((title) => ({ title })),
+  });
   expect(selection?.effective.find(({ title }) => title === ganttOriginalTitle)).toMatchObject({
     source: ganttCalendarPath,
     aliases: [ganttCanonicalPath],
@@ -944,8 +1008,7 @@ test('production selector preserves calendar ownership and all hover obligations
       "calendar: The calendar scale binds the chart to the project's first working day: 6",
       'calendar: One resolved calendar geometry places every mark: 3',
       'calendar: Without a project start date the chart stays on the workday axis: 2',
-      'calendar: The calendar day is the SVG unit: 6',
-      'calendar: Leaves draw bars for the work somebody costed, and the rest is behind the switch: 8',
+      'calendar: The calendar day is the SVG unit: 8',
       'calendar: Calendar labels agree with the date columns: 3',
       `calendar: ${ganttOriginalTitle}: 4`,
       'calendar: The canvas holds every mark: 2',

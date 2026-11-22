@@ -1,10 +1,12 @@
 import {
   chargedDemandsOf,
   deadlineOffsetsOf,
+  effectivePoolSizesOf,
   effectiveTeamsOf,
   type Elsewhere,
   type EstimateRule,
   type IsoDate,
+  leafDemandResourceIdsOf,
   type PlanInputReads,
   withoutHeldSubtrees,
   workdaysBetween,
@@ -39,10 +41,13 @@ export function prepareScheduleParts(
   poolSizes: PlanInputReads['capacity'],
   demands: PlanInputReads['demands'],
   resourceCapacities: PlanInputReads['resourceCapacities'],
+  directoryCapacities: PlanInputReads['directoryCapacities'],
 ): ScheduleParts {
   const hasChildren = new Set(rows.map((row) => row.parentId).filter((id) => id !== null));
-  const capacityByResource = new Map(
-    resourceCapacities.map(({ resourceId, units }) => [resourceId, units] as const),
+  const capacityByResource = effectivePoolSizesOf(
+    resourceCapacities,
+    directoryCapacities,
+    leafDemandResourceIdsOf(rows, demands),
   );
   const assigneesOf = new Map<string, Record<string, string>>();
   for (const assignment of assignments) {
@@ -67,6 +72,8 @@ export function prepareScheduleParts(
     assigneesOf,
     effectiveTeamsOf(rows),
     poolSizes,
+    // Proof: charging against raw project capacity left 24 units on the
+    // slices whose pool holds 16 in resource-schedule.test.ts.
     chargedDemandsOf(demands, capacityByResource),
   );
   const notBefore = new Map<string, number>();
@@ -106,8 +113,10 @@ export function prepareScheduleParts(
     reach: project.depReach,
     deadlines,
     typed,
-    // Stated only when the project states one, so every plan with no
-    // resource keeps the input, and the hash, it had before.
+    // Empty pools leave plans without resources byte-identical.
+    // Proof: injecting an extra pool changed the prepared Fast corpus bytes.
+    // Keeping raw project capacity here sent 32 rather than 16 to Fast in
+    // resource-schedule.test.ts, independently of the charged vector.
     // Proof: left out, both levelling cases of resource-schedule.test.ts
     // threw `no capacity for resource …`; watched 2026-10-20.
     ...(capacityByResource.size === 0 ? {} : { resourceCapacities: capacityByResource }),
@@ -138,6 +147,9 @@ export function prepareCapturedScheduleParts(
     reads.capacity,
     reads.demands,
     reads.resourceCapacities,
+    // Proof: omitting this argument made the mounted isolated saved input
+    // hash diverge from the live hash with the same captured raw statements.
+    reads.directoryCapacities,
   );
   return elsewhere === undefined
     ? prepared

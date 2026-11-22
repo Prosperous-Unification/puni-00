@@ -616,6 +616,70 @@ describe('entry classification production CLI', () => {
     'docs/wiki-policy/bootstrap-policy.json',
     'docs/code-organization/rule-policy.json',
     'apps/twilight-structure/twilight-burokrat/cli/src/contracts/fixtures/classification-policy.v1.json',
+  ])('classifies only the reviewed frontend lint declaration with %s', async (policyPath) => {
+    const workspace = join(import.meta.dir, '../../../../../..');
+    const envelope = JSON.parse(readFileSync(join(workspace, policyPath), 'utf8')) as
+      ClassificationPolicy | { classificationPolicy: ClassificationPolicy };
+    const classification =
+      'classificationPolicy' in envelope ? envelope.classificationPolicy : envelope;
+    const name = 'apps/wbs/fe-01/tools/owner-lint-plan.d.mts';
+    const bytes = readFileSync(join(workspace, name));
+    const repository = createRepository();
+    write(repository, name, bytes);
+    const revision = commitAll(repository);
+    const selected = await classify(repository, revision, writePolicy(repository, classification));
+    expect(selected.exitCode, output(selected)).toBe(0);
+    const classified = JSON.parse(standardOutput(selected)) as { entries: unknown };
+    expect(classified.entries).toEqual([
+      {
+        path: name,
+        mode: '100644',
+        blob: hash(repository, name),
+        classification: { kind: 'content', contentClass: 'source' },
+      },
+    ]);
+
+    // Proof: deleting just this exact source selector makes the unchanged real declaration refuse.
+    const omitted = {
+      ...classification,
+      contentRules: classification.contentRules.map((rule) =>
+        rule.contentClass === 'source'
+          ? {
+              ...rule,
+              include: rule.include.filter(
+                (entry) => entry.kind !== 'path' || entry.value !== name,
+              ),
+            }
+          : rule,
+      ),
+    };
+    const refused = await classify(repository, revision, writePolicy(repository, omitted));
+    expect(refused.exitCode, output(refused)).toBe(1);
+    expect(output(refused)).toContain(`ordinary content ${name} matched 0 classification rules`);
+    const restored = await classify(repository, revision, writePolicy(repository, classification));
+    expect(restored.exitCode, output(restored)).toBe(0);
+    expect(standardOutput(restored)).toEqual(standardOutput(selected));
+
+    const sibling = 'apps/wbs/fe-01/tools/unreviewed-lint-plan.d.mts';
+    const siblingRepo = createRepository();
+    write(siblingRepo, sibling, bytes);
+    const siblingRevision = commitAll(siblingRepo);
+    const unlisted = await classify(
+      siblingRepo,
+      siblingRevision,
+      writePolicy(siblingRepo, classification),
+    );
+    expect(unlisted.exitCode, output(unlisted)).toBe(1);
+    expect(output(unlisted)).toContain(
+      `ordinary content ${sibling} matched 0 classification rules`,
+    );
+  });
+
+  test.each([
+    'docs/wiki-policy/policy.json',
+    'docs/wiki-policy/bootstrap-policy.json',
+    'docs/code-organization/rule-policy.json',
+    'apps/twilight-structure/twilight-burokrat/cli/src/contracts/fixtures/classification-policy.v1.json',
   ])(
     'classifies registry systemd units and refuses an omitted timer selector with %s',
     async (policyPath) => {

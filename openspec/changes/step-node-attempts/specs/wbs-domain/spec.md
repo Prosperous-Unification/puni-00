@@ -153,7 +153,7 @@ Marking a work item `done` SHALL fill the fact end of every work item the act wr
 leaves and, for a parent, the parent itself — whose `factEnd` is `null` with `on`, and the
 fact start of each whose `factStart` is `null` with `factStart` when the command carries one.
 With `on` absent, a leaf holding at least one ended attempt SHALL take the project-timezone
-day of its last attempt's end, and every other row SHALL take the project-timezone day of the
+day of its last ended attempt's end, and every other row SHALL take the project-timezone day of the
 act's own write stamp. With `factStart` absent, `in_progress` or `done` on a leaf holding at
 least one attempt and no fact start SHALL fill it with the project-timezone day of its first
 attempt's start. Under the default `UTC` zone and with no attempts every fill SHALL equal
@@ -209,6 +209,35 @@ takes them away or puts them back together.
 - **GIVEN** a `setStatus` with `factStart: 'last week'`
 - **WHEN** it reaches the commands route
 - **THEN** it is refused `400 factStart_must_be_a_date` and no row is written
+
+#### Scenario: leaving done takes the fact end away, and undo puts it back
+
+- **GIVEN** a done leaf whose fact end reads `2026-09-12` and whose fact start reads
+  `2026-09-08`
+- **WHEN** `setStatus` sets it `unknown`, then the actor undoes once
+- **THEN** after the act its `progress` is empty and both facts are `null`; after the undo every
+  statement and both days are back, from one journal entry
+
+#### Scenario: a parent's unknown clears only what read done
+
+- **GIVEN** an in-progress parent with a typed fact end `2026-09-12` over two leaves, one done
+  with fact end `2026-09-11`, one in progress whose fact end was typed as `2026-09-09`
+- **WHEN** `setStatus` sets the parent `unknown`
+- **THEN** the done leaf's fact end is `null`, and the parent's `2026-09-12` and the other
+  leaf's `2026-09-09` stand
+
+#### Scenario: a done parent's unknown clears the parent and every leaf, and one undo restores them
+
+- **GIVEN** a parent marked `done` on `2026-09-12`, so it and both leaves hold that fact end
+- **WHEN** `setStatus` sets the parent `unknown`, then the actor undoes once
+- **THEN** all three fact ends are `null` after the act and `2026-09-12` again after the undo,
+  and the act added one journal entry
+
+#### Scenario: unknown on a row that was not done leaves the facts
+
+- **GIVEN** an in-progress leaf with a typed fact end
+- **WHEN** `setStatus` sets it `unknown`
+- **THEN** its `progress` is empty and its fact end is what it was
 
 #### Scenario: unknown takes both days, and one undo brings both back
 

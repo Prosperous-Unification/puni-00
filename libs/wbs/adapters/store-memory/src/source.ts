@@ -14,7 +14,11 @@ import type {
   TransactionalStores,
 } from '@wbs/core';
 import { captureLocalTypedDependency } from '@wbs/core';
-import type { OrganizationLimitValues } from '@wbs/domain';
+import { previewCapacity } from '@wbs/core/module/work-item/capacity-preview';
+import { readResourceOccupancy } from '@wbs/core/module/work-item/resource-occupancy';
+import type { ResourceOccupancyStore } from '@wbs/core/ports/chain-snapshot-store';
+import type { ProjectReportSnapshot } from '@wbs/core/ports/project-report-store';
+import { type OrganizationLimitValues, scheduleResourceIdsOf } from '@wbs/domain';
 
 import { type CaptureReadSeam, inertMemoryCaptureReadSeam } from './capture-read-seam';
 import { endMemoryLeases } from './claim-fixture';
@@ -81,7 +85,8 @@ function coordinatedStores(
     users: coordinatedStore(stores.users, ['create', 'resolveOidcIdentity'], coordinator),
     projects: coordinatedStore(
       stores.projects,
-      ['create', 'recordOpen', 'update', 'setStepAllowance'],
+      // Proof: an uncoordinated scoped create appeared before the staged publication finished.
+      ['create', 'createInOrganization', 'recordOpen', 'update', 'setStepAllowance'],
       coordinator,
     ),
     directory: coordinatedStore(
@@ -338,6 +343,46 @@ function openMemorySourceWithSeams(
     lateWrite,
     captureRead,
   );
+  const committedSnapshot = async (defaults?: OrganizationLimitValues) => {
+    // Proof: binding the live tables mixed old capacity with released units in the composed reports.
+    const snapshot = await coordinator.run(() => Promise.resolve(committed.clone()));
+    return bindStores(snapshot, undefined, defaults);
+  };
+  const projectReportSnapshot: ProjectReportSnapshot = async (read) =>
+    read(await committedSnapshot());
+  const resourceOccupancy: ResourceOccupancyStore = {
+    readResourceOccupancyWithin(resourceId, actorId, scope) {
+      // Proof: dropping the actor comparison stopped rejecting the mismatched memory observer.
+      if (actorId !== scope.userId)
+        return Promise.reject(new Error('organization read actor differs from its admitted scope'));
+      return readResourceOccupancy(
+        // Proof: borrowing the live tables returned the new alias from an earlier read.
+        () => committedSnapshot(),
+        resourceId,
+        actorId,
+        scope,
+      );
+    },
+  };
+  const capacityPreview: NonNullable<Source['capacityPreview']> = {
+    previewDirectoryCapacityWithin(resourceId, units, actorId, scope) {
+      return previewCapacity(
+        async () => {
+          const snapshot = await committedSnapshot(limits);
+          return {
+            claims: snapshot.claims,
+            projects: snapshot.projects,
+            directory: snapshot.directory,
+            limits: snapshot.organizationLimits,
+          };
+        },
+        resourceId,
+        units,
+        actorId,
+        scope,
+      );
+    },
+  };
   const stores = coordinatedStores(bindStores(committed, lateWrite), coordinator);
   const activeCommandHistory = (): SavedPlanStore => {
     if (commandHistoryState === null) throw new Error('command history stage is not active');
@@ -524,7 +569,7 @@ function openMemorySourceWithSeams(
     },
     endLeasesOf: (personId, at) => endMemoryLeases(committed.tables.claims, personId, at),
     ownProjectInOrganization(projectId, organizationId) {
-      committed.tables.organizationLimits.projectOrganization.set(projectId, organizationId);
+      committed.tables.projects.owning.set(projectId, organizationId);
     },
     ownResourceInOrganization(resourceId, organizationId) {
       committed.tables.directory.organizationOf.set(resourceId, organizationId);
@@ -574,6 +619,9 @@ function openMemorySourceWithSeams(
     source: {
       stores,
       history,
+      resourceOccupancy,
+      capacityPreview,
+      projectReportSnapshot,
       uow: {
         run: (act) =>
           coordinator.run(async () => {
@@ -806,6 +854,11 @@ async function capturePlanInput(
     stores.directory.listWorkItemTypes(),
     stores.directory.listExternalSystems(),
   ]);
+  const resourceIds = scheduleResourceIdsOf(workItems, resourceCapacities, demands);
+  // Proof: omitting the read made the competing-write memory capture test
+  // lose the earlier 16-unit directory statement while retaining raw 32.
+  const directoryCapacities =
+    resourceIds.length === 0 ? [] : await stores.directory.directoryCapacitiesOf(resourceIds);
   return structuredClone({
     project: { ...project, timezone },
     steps,
@@ -828,6 +881,7 @@ async function capturePlanInput(
     // capture none; watched 2026-10-20.
     demands,
     resourceCapacities,
+    directoryCapacities,
     resources: resourceCatalog,
     priorityBands,
     people,

@@ -35,17 +35,22 @@ const organizationLimitValues = type({
   maxCapacityUnitsPerResource: 'number',
 });
 
-/** What the organization holds against each cap (L5); `capacityUnits` in resource-id order. */
-const organizationLimitUsage = type({
+const capacityUsage = {
+  resourceId: 'string',
+  name: 'string',
+  unitLabel: 'string',
+  units: 'number',
+} as const;
+
+const countedFrom = "'directory' | 'projects'";
+const limitsRead = {
+  source: "'default' | 'organization'",
+  limits: organizationLimitValues,
+} as const;
+const limitUsage = {
   agentPersons: 'number',
   concurrentClaims: 'number',
-  capacityUnits: type({
-    resourceId: 'string',
-    name: 'string',
-    unitLabel: 'string',
-    units: 'number',
-  }).array(),
-});
+} as const;
 
 /**
  * Reads the active organization's caps beside its usage, for its admins and
@@ -67,9 +72,11 @@ export const readOrganizationLimits = defineEndpointShape({
       status: 200,
       schema: responseSchema(
         type({
-          source: "'default' | 'organization'",
-          limits: organizationLimitValues,
-          usage: organizationLimitUsage,
+          ...limitsRead,
+          usage: type({
+            ...limitUsage,
+            capacityUnits: type({ ...capacityUsage, countedFrom }).array(),
+          }),
         }),
       ),
     },
@@ -83,4 +90,24 @@ export const readOrganizationLimits = defineEndpointShape({
     { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) },
   ],
   document: { summary: 'Read the active organization limits with usage beside each.' },
+});
+
+/** The browser reads old limits responses that omit capacity provenance during a swap. */
+export const readOrganizationLimitsCompat = defineEndpointShape({
+  ...readOrganizationLimits,
+  responses: [
+    {
+      kind: 'json',
+      status: 200,
+      schema: responseSchema(
+        type({
+          ...limitsRead,
+          usage: type({
+            ...limitUsage,
+            capacityUnits: type({ ...capacityUsage, 'countedFrom?': countedFrom }).array(),
+          }),
+        }),
+      ),
+    },
+  ],
 });

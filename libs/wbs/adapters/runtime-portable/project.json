@@ -17,6 +17,20 @@
         "command": "bunx eslint libs/wbs/adapters/runtime-portable/src --cache --cache-location .nx/eslintcache-wbs-runtime-portable"
       }
     },
+    "test:unit:level": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "inputs": ["default", "^production"],
+      "options": {
+        "command": "mkdir -p ../../../../tmp/junit && rm -f ../../../../tmp/junit/wbs-runtime-portable.unit.xml && files=$(find . ! -path . -name '.*' -prune -o -type d -name node_modules -prune -o -type d -name dist -prune -o -type d -name coverage -prune -o -type d -name test-results -prune -o -type f -name '*.test.ts' ! -name '*.db.test.ts' -print) && if [ -z \"$files\" ]; then echo 'no-cases: wbs-runtime-portable:test:unit:level' >&2; exit 1; fi && bun test $files --reporter=junit --reporter-outfile=../../../../tmp/junit/wbs-runtime-portable.unit.xml --timeout=10000",
+        "cwd": "libs/wbs/adapters/runtime-portable",
+        "env": {
+          "CLAUDECODE": "0",
+          "AGENT": "0"
+        },
+        "forwardAllArgs": false
+      }
+    },
     "test": {
       "executor": "nx:run-commands",
       "options": {

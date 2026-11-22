@@ -47,6 +47,36 @@ describe('the generated shared OpenAPI document', () => {
       'postInternalMcpMachineGrants',
     );
   });
+  it('emits the mounted organization occupancy GET and its typed holding claims', async () => {
+    const document = await documentFromApp(testApp());
+    const operation = ['/api/organization/resources/{resourceId}/occupancy', 'get'];
+    const paths = document['paths'];
+    expect(paths).toHaveProperty(
+      [...operation, 'operationId'],
+      'getApiOrganizationResourcesByResourceIdOccupancy',
+    );
+    expect(paths).toHaveProperty(
+      [
+        ...operation,
+        'responses',
+        '200',
+        'content',
+        'application/json',
+        'schema',
+        'properties',
+        'projects',
+        'items',
+        'properties',
+        'claims',
+        'items',
+        'properties',
+        'releasableBy',
+        'enum',
+      ],
+      ['claimant', 'claimant_or_admin'],
+    );
+  });
+
   it('does not change descriptors after another app parses requests', async () => {
     const before = serialiseDocument(await documentFromApp(testApp()));
     await testApp().handle(

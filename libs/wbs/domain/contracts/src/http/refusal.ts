@@ -377,6 +377,7 @@ export interface OccupancyRefusalHolder {
  * resource; `resources` lists every one in resource-id order.
  */
 export interface ResourceShortageDetail {
+  hiddenHolders?: { units: number };
   resourceId: string;
   asked: number;
   free: number;

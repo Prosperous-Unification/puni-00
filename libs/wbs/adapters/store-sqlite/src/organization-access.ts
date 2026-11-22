@@ -6,13 +6,17 @@ import {
   type OrganizationAccessResolution,
   type OrganizationPrincipal,
   organizationRoleOf,
+  type ProjectReadOrigin,
+  type ResourceAccess,
   subjectPrefixOf,
 } from '@wbs/core';
 import { ORGANIZATION_ROLES, type OrganizationRole } from '@wbs/domain';
 import { and, eq, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
+import { OPEN } from './gate';
 import { readOrganizationActivation } from './organization-activation';
+import { ProjectRepository } from './project';
 import { organizationMembership } from './schema';
 import { checkedPolicy } from './session-policy';
 
@@ -51,6 +55,14 @@ export const NO_BOUND_ORGANIZATION: ActiveOrganizationOf = () => Promise.resolve
  * it is ignored like every other organization claim.
  */
 export class SqliteOrganizationAccess implements OrganizationAccess {
+  mayReadProjectWithin(
+    project: ProjectReadOrigin,
+    actorId: string,
+    access: ResourceAccess,
+  ): Promise<boolean> {
+    return new ProjectRepository(this.db, OPEN).mayReadProjectWithin(project, actorId, access);
+  }
+
   /**
    * `now` is the evaluating service's injected clock (ADR 0012), read once
    * per evaluation for session policy; never `Date.now` inside the rule.

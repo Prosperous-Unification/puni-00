@@ -19,6 +19,7 @@ import { DirectoryRepository } from './directory';
 import { OPEN } from './gate';
 import { runMigrations } from './migrate';
 import { ProjectRepository } from './project';
+import { ResourceCapacityRepository } from './resource';
 import type { PlanInputReads } from './saved-plan-capture';
 import { SavedPlanCaptureRepository } from './saved-plan-capture';
 import { person, project, step, tag, workItem, workItemTag } from './schema';
@@ -228,6 +229,45 @@ describe('capturing a project’s plan input', () => {
       seen.close();
     }
   };
+
+  it('captures distinct directory and project capacities before a competing SQLite write', async () => {
+    const writing = openConnection(path);
+    const resourceId = 'ram';
+    try {
+      expect(
+        await new DirectoryRepository(writing.db, OPEN).addResource(
+          { id: resourceId, name: 'RAM', kind: 'divisible', unitLabel: 'GB' },
+          wrote,
+        ),
+      ).toHaveProperty('ok', true);
+      expect(
+        await new ResourceCapacityRepository(writing.db, OPEN).set('p1', resourceId, 32, wrote),
+      ).toHaveProperty('ok', true);
+      writing.db.run(
+        sql`INSERT INTO resource_directory_capacity (resource_id, units) VALUES (${resourceId}, 16)`,
+      );
+      const port = new SavedPlanCaptureRepository(
+        { openConnection: () => openConnection(path) },
+        {
+          afterFirstRead() {
+            writing.db.run(
+              sql`UPDATE resource_directory_capacity SET units = 24 WHERE resource_id = ${resourceId}`,
+            );
+            return Promise.resolve();
+          },
+        },
+      );
+      const captured = await port.readPlanInput('p1');
+      expect(captured?.resourceCapacities).toEqual([{ resourceId, units: 32 }]);
+      expect(captured?.directoryCapacities).toEqual([{ resourceId, units: 16 }]);
+      expect((await capture().readPlanInput('p1'))?.directoryCapacities).toEqual([
+        { resourceId, units: 24 },
+      ]);
+      expect(captured?.directoryCapacities).toEqual([{ resourceId, units: 16 }]);
+    } finally {
+      writing.close();
+    }
+  });
 
   it('captures sparse parallel facts on the SQLite snapshot before concurrent clear', async () => {
     const writing = openConnection(path);

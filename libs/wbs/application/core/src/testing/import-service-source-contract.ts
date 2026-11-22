@@ -404,6 +404,7 @@ function heldSolutionUnitOfWork(
         const stored = scope.stores.projects;
         let held = false;
         const projects: ProjectStore = {
+          mayReadProjectWithin: (...args) => stored.mayReadProjectWithin(...args),
           async create(project, steps, stamp) {
             if (!held) {
               held = true;

@@ -55,6 +55,37 @@ describe('the organization access credential facts', () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
+  it('reads same-organization holders for a viewer and refuses foreign origins for an admin', async () => {
+    const db = openDrizzle(path);
+    const policy = new SqliteOrganizationAccess(
+      db,
+      () => Promise.resolve('org-a'),
+      () => 1000,
+    );
+    const viewer = {
+      kind: 'scoped',
+      scope: { organizationId: 'org-a', userId: 'mia', role: 'viewer' },
+    } as const;
+    const admin = { kind: 'scoped', scope: { ...viewer.scope, role: 'admin' } } as const;
+    expect(
+      await policy.mayReadProjectWithin({ id: 'own', organizationId: 'org-a' }, 'mia', viewer),
+    ).toBe(true);
+    expect(
+      await policy.mayReadProjectWithin({ id: 'foreign', organizationId: 'org-b' }, 'mia', admin),
+    ).toBe(false);
+    const mismatch = await policy
+      .mayReadProjectWithin({ id: 'own', organizationId: 'org-a' }, 'different', viewer)
+      .then(
+        () => null,
+        (error: unknown) => error,
+      );
+    expect(mismatch).toBeInstanceOf(Error);
+    expect(mismatch).toHaveProperty(
+      'message',
+      'project read actor differs from its admitted scope',
+    );
+  });
+
   /** A drizzle handle that counts every statement the access issues through it. */
   function counted(db: SQLiteBunDatabase): { db: SQLiteBunDatabase; statements: () => number } {
     let statements = 0;

@@ -138,10 +138,11 @@ interface MemoryTables {
 }
 
 function emptyTables(): MemoryTables {
+  const projects = memoryProjectTables();
   return {
     runtime: memoryRuntimeTable(),
     users: memoryUserTable(),
-    projects: memoryProjectTables(),
+    projects,
     directory: memoryDirectoryTables(),
     steps: memoryStepTable(),
     dependencies: memoryDependencyTable(),
@@ -162,7 +163,8 @@ function emptyTables(): MemoryTables {
     calendarMarkers: memoryCalendarMarkerTable(),
     eventLog: memoryEventLogTables(),
     journal: memoryCommandJournalTables(),
-    organizationLimits: memoryOrganizationLimitTables(),
+    // Proof: a separate map made ordinary scoped creation invisible through occupancy.
+    organizationLimits: memoryOrganizationLimitTables(projects.owning),
   };
 }
 
@@ -221,6 +223,7 @@ export class MemoryState {
   // Proof: aliasing tables here failed `discards refused state and gives the next
   // batch a fresh scope` at the refused-state read (2026-10-16).
   clone(): MemoryState {
+    // Proof: separating the cloned ownership maps hid the project from its staged occupancy read.
     return new MemoryState(structuredClone(this.tables));
   }
 
@@ -233,6 +236,8 @@ export class MemoryState {
     replaceMap(this.tables.users.byId, next.tables.users.byId);
     replaceMap(this.tables.projects.projects, next.tables.projects.projects);
     replaceMap(this.tables.projects.steps, next.tables.projects.steps);
+    // Proof: omitting ownership publication made the scoped lookup fail after commit.
+    replaceMap(this.tables.projects.owning, next.tables.projects.owning);
     replaceMap(this.tables.projects.opened, next.tables.projects.opened);
     // Proof: with this line removed, `undoes an allowance edit committed in an
     // earlier unit of work` failed: the undo answered ok: false (2026-09-27).
@@ -326,10 +331,6 @@ export class MemoryState {
     replaceArray(this.tables.journal.entries, next.tables.journal.entries);
     replaceArray(this.tables.journal.events, next.tables.journal.events);
     replaceMap(this.tables.organizationLimits.caps, next.tables.organizationLimits.caps);
-    replaceMap(
-      this.tables.organizationLimits.projectOrganization,
-      next.tables.organizationLimits.projectOrganization,
-    );
   }
 }
 

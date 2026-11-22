@@ -56,7 +56,7 @@ export type OrganizationAccessResolution =
  * @throws when trusted state (the marker, membership) is absent, unreadable or
  * malformed. That is a server fault and never a reason to answer `legacy`.
  */
-export interface OrganizationAccess {
+export interface OrganizationAccess extends ProjectReadAccess {
   /**
    * The access `principal` has for this request. After activation a verified
    * delegation's organization is the one checked; otherwise the
@@ -66,6 +66,58 @@ export interface OrganizationAccess {
    * never selects authority. Controls and signed delegations need no expectation.
    */
   resolve(principal: OrganizationPrincipal): Promise<OrganizationAccessResolution>;
+}
+
+/** Immutable identity from a project owner lookup or an organization occupancy join. */
+export interface ProjectReadOrigin {
+  readonly id: string;
+  readonly organizationId: string;
+}
+
+/** Answers one holder origin for an authenticated actor and an admitted observation. */
+export interface ProjectReadAccess {
+  mayReadProjectWithin(
+    project: ProjectReadOrigin,
+    actorId: string,
+    access: ResourceAccess,
+  ): Promise<boolean>;
+}
+
+/**
+ * Current project read policy, using the observation's project store for legacy admission.
+ * Permissions can replace this policy in the bound read capability without changing projections.
+ *
+ * @throws on inconsistent actor or ownership evidence, or when a legacy origin no longer exists.
+ */
+export async function projectVisibleWithin(
+  projects: Pick<ProjectStore, 'findById' | 'findInOrganization'>,
+  project: ProjectReadOrigin,
+  actorId: string,
+  access: ResourceAccess,
+): Promise<boolean> {
+  if (
+    typeof project.id !== 'string' ||
+    project.id.length === 0 ||
+    typeof project.organizationId !== 'string' ||
+    project.organizationId.length === 0 ||
+    typeof actorId !== 'string' ||
+    actorId.length === 0
+  )
+    throw new Error('malformed admitted project read');
+  switch (access.kind) {
+    case 'scoped':
+      // Proof: removing the actor comparison made the mismatch case resolve instead of rejecting.
+      if (access.scope.userId !== actorId)
+        throw new Error('project read actor differs from its admitted scope');
+      // Proof: the 4.1 viewer-edit fault rejected the real viewer's same-org holder read.
+      return access.scope.organizationId === project.organizationId;
+    case 'legacy':
+      if ((await findProjectWithin(projects, project.id, access)) === null)
+        throw new Error('admitted legacy project origin no longer exists');
+      return true;
+    default:
+      throw new Error('missing project read access');
+  }
 }
 
 /** What {@link OrganizationAccess.resolve} reads of a principal. */

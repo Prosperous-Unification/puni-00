@@ -4,8 +4,8 @@ import { RESOURCE_KINDS, type ResourceKind } from './stored-vocabularies';
  * A claimable thing work can state a demand on, named in the directory like a
  * team (`wbs-resources` R1): unique by name, with a {@link ResourceKind} that
  * never changes and a free-text unit label shown beside every number of it.
- * It has no global size; how many units a plan may use is a
- * {@link ResourceCapacity} of one project.
+ * Project and directory capacity statements together define the scheduling pool
+ * through {@link effectivePoolSizesOf}.
  */
 export interface Resource {
   readonly id: string;
@@ -15,9 +15,8 @@ export interface Resource {
 }
 
 /**
- * How many units of one resource one project's plan may use, when stated. An
- * unstated pair is the absence of one of these and constrains nothing; a stated
- * 0 means the plan may use none.
+ * A stated project or directory capacity. Absence leaves that scope unsized,
+ * while 0 states that it offers no units.
  */
 export interface ResourceCapacity {
   readonly resourceId: string;
@@ -58,9 +57,64 @@ export function refuseDemand(kind: ResourceKind, units: number): 'exclusive_dema
 }
 
 /**
+ * The resources actually demanded by the project's leaves, before hold reduction.
+ * Parent demands and demands outside these rows never introduce a scheduling pool.
+ */
+export function leafDemandResourceIdsOf(
+  rows: readonly { readonly id: string; readonly parentId: string | null }[],
+  demands: readonly Demand[],
+): Set<string> {
+  const parents = new Set(rows.map(({ parentId }) => parentId));
+  const leaves = new Set(rows.filter(({ id }) => !parents.has(id)).map(({ id }) => id));
+  const resourceIds = new Set<string>();
+  for (const { workItemId, resourceId } of demands) {
+    // Proof: skipping the leaf check sent parent-only to the store in
+    // resource-schedule.test.ts's batched statement and demand case.
+    if (leaves.has(workItemId)) resourceIds.add(resourceId);
+  }
+  return resourceIds;
+}
+
+/** The batch of directory statements needed for one project's schedule. */
+export function scheduleResourceIdsOf(
+  rows: Parameters<typeof leafDemandResourceIdsOf>[0],
+  projectCapacities: readonly ResourceCapacity[],
+  demands: readonly Demand[],
+): string[] {
+  return [
+    ...new Set([
+      ...projectCapacities.map(({ resourceId }) => resourceId),
+      ...leafDemandResourceIdsOf(rows, demands),
+    ]),
+  ];
+}
+
+/**
+ * Size the resource pools for both schedulers. A project statement always
+ * contributes a pool and a directory statement caps it, including at zero.
+ * A directory statement alone contributes only when the project's leaves
+ * demand it. Occupancy is irrelevant to placement.
+ */
+export function effectivePoolSizesOf(
+  projectCapacities: readonly ResourceCapacity[],
+  directoryCapacities: readonly ResourceCapacity[],
+  demandedResourceIds: ReadonlySet<string>,
+): Map<string, number> {
+  const pools = new Map(projectCapacities.map(({ resourceId, units }) => [resourceId, units]));
+  for (const { resourceId, units } of directoryCapacities) {
+    const project = pools.get(resourceId);
+    // Proof: returning the raw project value made resource.test.ts's pool
+    // table receive 32 at both a 16-unit ceiling and a zero ceiling.
+    if (project !== undefined) pools.set(resourceId, Math.min(project, units));
+    else if (demandedResourceIds.has(resourceId)) pools.set(resourceId, units);
+  }
+  return pools;
+}
+
+/**
  * Each leaf's demand vector as both engines charge it (`wbs-resources` R2 and
- * R5): its own demands only, on resources the project states a capacity for,
- * each in resource-id order with its units clamped to that capacity.
+ * R5): its own demands on effective resource pools, each in resource-id
+ * order with its units clamped to that pool.
  *
  * Three rules, the team pool's three (`poolsFor`) restated for units:
  *

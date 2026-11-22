@@ -1,14 +1,8 @@
-## MODIFIED Requirements
+## ADDED Requirements
 
-### Requirement: Working plans expose committed typed dependency mutations
+### Requirement: Resolved dependency validation preserves the working snapshot
 
-A working plan SHALL include legacy and typed dependencies distinctly after each successful mutation in its admitted batch. A retained read after a typed edit SHALL see its stable relationship ID, relationship type, endpoint scopes, owning project IDs, work-item IDs and applicable step node IDs or step IDs; a refused mutation SHALL NOT change the working plan. Cross-project endpoint labels SHALL come from authorized endpoint projections rather than requiring the predecessor to exist in the successor project's tree. Mutation validation SHALL reject actual cycles among resolved work items or steps, including cross-project cycles, and SHALL NOT reject an acyclic relationship solely because the projects also connect in the opposite direction.
-
-#### Scenario: A typed edit is visible to a later batch command
-
-- **GIVEN** an admitted batch with a typed dependency edit
-- **WHEN** a later command reads the working plan
-- **THEN** it sees the committed relationship state and endpoint label
+Mutation validation SHALL reject actual cycles among resolved work items or steps, including cycles spanning projects. Reverse links between projects alone SHALL NOT cause rejection of an acyclic resolved graph. A refused resolved-graph mutation SHALL preserve the preceding working snapshot.
 
 #### Scenario: A refused edit leaves the working plan unchanged
 
@@ -22,11 +16,11 @@ A working plan SHALL include legacy and typed dependencies distinctly after each
 - **WHEN** the working plan validates the relationships
 - **THEN** it accepts them when their resolved work-item and step graph is acyclic
 
-## ADDED Requirements
-
 ### Requirement: Live plans project external endpoint meaning and navigation identity
 
 Live reads SHALL project authorized external endpoints without loading remote trees. Projections SHALL include project, work-item, step and relationship identities, scope, project abbreviation, work-item number and name, and applicable step reference and name. Qualified addresses SHALL use dots, including `PUNI-CORE.080.39` and `PUNI_CORE.010.s1-dev`. Navigation SHALL use stable identities rather than parsing displayed addresses.
+
+A retained live read after a successful typed mutation SHALL continue to project its authorized external endpoint label and stable navigation identity. It SHALL use the authorized projection even when the predecessor is outside the successor project's tree.
 
 #### Scenario: A remote predecessor renders without its project tree
 
