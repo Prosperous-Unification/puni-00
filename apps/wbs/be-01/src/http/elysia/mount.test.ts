@@ -1528,7 +1528,7 @@ test('refuses a resource declaration whose user identity policy was lost', async
     new Request('https://backend.example/api/work-packages', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name: 'unsafe' }),
+      body: JSON.stringify({ name: 'unsafe', projectId: 'project-a' }),
     }),
   );
   expect(response.status).toBe(500);

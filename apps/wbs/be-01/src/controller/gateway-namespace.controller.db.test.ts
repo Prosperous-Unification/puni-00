@@ -34,11 +34,7 @@ beforeEach(async () => {
   owner.member('org-a', 'ada', 'admin', ['org-admin']);
   owner.bind('ada', 'org-a');
   owner.activate();
-  const created = await owner.call('ada', 'POST', '/api/work-packages', {
-    name: 'Current namespace',
-  });
-  expect(created.status).toBe(200);
-  aWorkPackage = (created.body as { workPackage: { id: string } }).workPackage.id;
+  aWorkPackage = await owner.createProjectPackage('ada', 'Current namespace');
 });
 afterEach(async () => {
   if (h !== undefined) {

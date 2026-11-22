@@ -64,7 +64,7 @@ describe('the generated shared OpenAPI document', () => {
         'application/json',
         'schema',
         'properties',
-        'projects',
+        'workPackages',
         'items',
         'properties',
         'claims',

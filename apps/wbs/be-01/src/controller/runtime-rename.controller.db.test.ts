@@ -4,6 +4,7 @@ import { parseStoredRuntimeAcceptance } from '@wbs/core/ports/runtime-command-re
 import { afterEach, beforeEach, expect, test } from 'bun:test';
 
 import { OrganizationHarness } from '../testing/organization-harness';
+import { createFixturePackage, readFixturePackage } from '../testing/space-rollup';
 
 let h: OrganizationHarness;
 let workPackageId: string;
@@ -14,13 +15,7 @@ beforeEach(async () => {
   h.member('org-a', 'ada', 'admin', ['org-admin']);
   h.bind('ada', 'org-a');
   h.activate();
-  const created = await h.call('ada', 'POST', '/api/work-packages', { name: 'Runtime rename' });
-  expect(created.status).toBe(200);
-  const stored = h.sqlite
-    .query<{ id: string }, [string]>('SELECT id FROM work_package WHERE name=?')
-    .get('Runtime rename');
-  if (stored === null) throw new Error('runtime work package absent');
-  workPackageId = stored.id;
+  workPackageId = await createFixturePackage(h, 'ada', 'Runtime rename');
   h.sqlite.run("INSERT INTO person (id,name) VALUES ('person','Person')");
   h.sqlite.run(
     "INSERT INTO person_organization(resource_id,organization_id,name) VALUES ('person','org-a','Person')",
@@ -124,18 +119,33 @@ test('mounted current claim and write persist only runtime2 then replay without 
   expect(authority.kind).toBe('success');
   if (authority.kind !== 'success' || authority.body.schemaVersion !== 2)
     throw new Error('current authority2 required');
-  const first = h.sqlite
-    .query<{ position: number }, [string]>(
-      'SELECT position FROM step WHERE work_package_id=? ORDER BY position LIMIT 1',
-    )
-    .get(workPackageId);
-  if (first === null) throw new Error('default workflow missing');
+  const { workPackage, steps } = await readFixturePackage(h, 'ada', workPackageId);
+  const first = steps.at(0);
+  if (first === undefined) throw new Error('fixture workflow missing');
   expect(first.position).toBeGreaterThan(0);
-  h.sqlite
-    .query(
-      "INSERT INTO step(id,work_package_id,name,position,code) VALUES ('dev',?,'Runtime',0,'runtime-test')",
-    )
-    .run(workPackageId);
+  await h.publicWrites().uow.run(async ({ stores }) => {
+    const bound = await stores.stepCatalogue.defineAndBindStep(
+      'org-a',
+      {
+        id: 'dev',
+        code: 'runtime-test',
+        name: 'Runtime',
+        position: 0,
+        defaultEstimateUnit: 'workdays',
+        defaultAllowancePercent: 0,
+      },
+      {
+        bindingId: 'dev-runtime-binding',
+        scopeKind: 'project',
+        scopeId: workPackage.projectId,
+        workItemTypeId: null,
+        position: 0,
+      },
+      { at: 100, by: h.userId('ada') },
+    );
+    if (!bound.ok) throw new Error('runtime step binding refused: ' + bound.reason);
+    return { commit: true, value: undefined };
+  });
   h.sqlite
     .query(
       "INSERT INTO work_item(id,work_package_id,position,name,readiness) VALUES ('leaf',?,10,'Leaf','ready')",

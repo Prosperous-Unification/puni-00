@@ -12,6 +12,7 @@ import { optimizedScheduleCache } from '@wbs/store-sqlite/schema';
 import { afterEach, expect, it } from 'bun:test';
 
 import { OrganizationHarness } from '../testing/organization-harness';
+import { createFixturePackage, readFixturePackage } from '../testing/space-rollup';
 
 let harness: OrganizationHarness | undefined;
 afterEach(async () => {
@@ -46,13 +47,11 @@ it('uses a selected ready upstream booking for a mounted rank move without optim
   h.activate();
   const workPackages: { id: string; stepId: string }[] = [];
   for (const name of ['A', 'B', 'C']) {
-    const response = await h.call('ada', 'POST', '/api/work-packages', { name });
-    if (response.status !== 200)
-      throw new Error(`rank fixture create refused: ${String(response.status)}`);
-    const body = response.body as { workPackage: { id: string }; steps: { id: string }[] };
-    const stepId = body.steps.at(0)?.id;
+    const id = await createFixturePackage(h, 'ada', name);
+    const { steps } = await readFixturePackage(h, 'ada', id);
+    const stepId = steps.at(0)?.id;
     if (stepId === undefined) throw new Error('rank fixture work package has no step');
-    workPackages.push({ id: body.workPackage.id, stepId });
+    workPackages.push({ id, stepId });
   }
   const upstream = workPackages.at(0);
   const firstLower = workPackages.at(1);

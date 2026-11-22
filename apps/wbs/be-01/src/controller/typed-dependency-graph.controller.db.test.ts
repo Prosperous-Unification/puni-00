@@ -665,41 +665,54 @@ describe('graph-changing writes against typed dependencies', () => {
     expect(await dependencies.listByWorkPackage(at.workPackageId)).toEqual([]);
   });
 
-  it('refuses removing a step a typed dependency names, whatever cascade says', async () => {
-    const at = await plan();
-    const named = await seedTyped(at, node(at.a, at.qaId), node(at.b, at.devId));
-
-    const res = await send(
-      `/api/work-packages/${at.workPackageId}/steps/${at.qaId}?cascade=true`,
-      at.token,
-      { method: 'DELETE' },
+  async function unbindFixtureStep(at: Plan, stepId: string) {
+    const owner = 'http-fixture-legacy';
+    const current = await catalogue.readCatalogue(owner);
+    const binding = current?.bindings.find((each) => each.stepId === stepId);
+    if (binding === undefined) throw new Error('fixture catalogue binding absent');
+    return await catalogue.unbindStep(
+      owner,
+      binding.bindingId,
+      { dryRun: false },
+      testClock.stampFor(at.userId),
     );
+  }
 
-    expect(res.status).toBe(409);
-    expect(await res.json()).toEqual({
-      error: 'referenced_by_dependency',
-      dependencyIds: [named],
+  it('refuses unbinding a step whose node a typed dependency names', async () => {
+    const at = await plan();
+    await seedTyped(at, node(at.a, at.qaId), node(at.b, at.devId));
+
+    expect(await unbindFixtureStep(at, at.qaId)).toMatchObject({
+      kind: 'step_nodes_in_use',
+      count: 1,
+      pairs: [
+        { id: at.a, workPackageId: at.workPackageId, stepId: at.qaId, facts: ['typed_dependency'] },
+      ],
     });
     expect((await workPackages.stepsOf(at.workPackageId)).map((step) => step.id)).toContain(
       at.qaId,
     );
   });
 
-  it('refuses removing a step that moves a legacy anchor into a cycle', async () => {
+  it('retains the estimated Dev binding that determines a legacy dependency anchor', async () => {
     const at = await plan();
     await anchoredAtBDev(at);
     await seedTyped(at, node(at.a, at.qaId), node(at.b, at.qaId));
 
-    // Without Dev, legacy B → A leaves B.qa and enters A.qa, which the typed
-    // relationship joins back to B.qa.
-    const res = await send(
-      `/api/work-packages/${at.workPackageId}/steps/${at.devId}?cascade=true`,
-      at.token,
-      { method: 'DELETE' },
+    const refused = await unbindFixtureStep(at, at.devId);
+    if (refused.kind !== 'step_nodes_in_use')
+      throw new Error('legacy anchor binding was not protected');
+    expect(refused.count).toBe(2);
+    expect(refused.pairs.map((pair) => pair.id).sort()).toEqual([at.a, at.b].sort());
+    for (const pair of refused.pairs) {
+      expect(pair).toMatchObject({
+        workPackageId: at.workPackageId,
+        stepId: at.devId,
+        facts: ['estimate'],
+      });
+    }
+    expect((await workPackages.stepsOf(at.workPackageId)).map((step) => step.id)).toContain(
+      at.devId,
     );
-
-    expect(res.status).toBe(409);
-    expect(await res.json()).toEqual({ error: 'dependency_cycle' });
-    expect((await steps.findById(at.devId))?.id).toBe(at.devId);
   });
 });

@@ -10,7 +10,6 @@ import { openSqliteSource } from '@wbs/store-sqlite';
 import { bootBe01, type RunningBe } from '../boot';
 import { loadMcpServiceSettings } from '../config';
 import { openDatabase } from '../repository/db';
-import { runMigrations } from '../repository/migrate';
 import { TEST_JWT_KEY } from '../testing/auth-fixture';
 import {
   activateOrganizations,
@@ -19,6 +18,7 @@ import {
   insertOrganization,
 } from '../testing/booted-browser-process';
 import { TEST_MACHINE_GRANT_ENV } from '../testing/machine-grant-fixture';
+import { migrateOrganizationCatalogueFixture } from '../testing/organization-catalogue-fixture';
 import { TEST_ORGANIZATION_DEFAULT_LIMITS } from '../testing/organization-limits-fixture';
 
 /** Printed on start so a reader finds this process's banner in mixed logs. */
@@ -101,7 +101,7 @@ async function serveActivatedOrganization({
   const dbPath = join(directory, 'local.db');
   let running: RunningBe | undefined;
   try {
-    runMigrations(dbPath, new URL('../../drizzle', import.meta.url).pathname);
+    migrateOrganizationCatalogueFixture(dbPath);
     running = await bootBe01(
       {
         appOrigin,

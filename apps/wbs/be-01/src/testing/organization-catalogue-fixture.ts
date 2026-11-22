@@ -20,7 +20,7 @@ export function migrateOrganizationCatalogueFixture(path: string): void {
   );
 }
 
-/** Migrates a restored runtime database through rename111, exposes the read-only rename checkpoint, then applies the explicit catalogue migration to its historical steps. */
+/** Migrates a restored runtime database through rename111, exposes the read-only rename checkpoint, then applies the catalogue and subsequent additive migrations. */
 export function migrateRenamedRuntimeCatalogueFixture(
   path: string,
   inspectRename?: (database: ReturnType<typeof openReadOnlyDatabase>) => void,
@@ -39,4 +39,5 @@ export function migrateRenamedRuntimeCatalogueFixture(
     }
   }
   applyHistoricalCatalogueFixture(path, directory, {});
+  runMigrations(path, new URL('../../drizzle', import.meta.url).pathname);
 }

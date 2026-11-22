@@ -5,7 +5,7 @@ import { gunzipSync } from 'node:zlib';
 
 import { afterEach, beforeEach, expect, test } from 'bun:test';
 
-import { runMigrations } from '../repository/migrate';
+import { migrateRenamedRuntimeCatalogueFixture } from '../testing/organization-catalogue-fixture';
 import { OrganizationHarness } from '../testing/organization-harness';
 
 const fixture = new URL(
@@ -38,18 +38,23 @@ const capture = JSON.parse(
   tables: { runtime_command_receipt: { command_id: string; accepted: string }[] };
 };
 const workPackageId = capture.scope.projectId;
-const migrations = new URL('../../drizzle', import.meta.url).pathname;
 let opened: OrganizationHarness | undefined;
+let renameLedgerCount: number | undefined;
 function requireHarness() {
   if (opened === undefined) throw new Error('runtime migration harness not acquired');
   return opened;
 }
 beforeEach(async () => {
   opened = undefined;
+  renameLedgerCount = undefined;
   opened = OrganizationHarness.openComposedWith({
     migrate: (path) => {
       writeFileSync(path, snapshot, { flag: 'wx' });
-      runMigrations(path, migrations);
+      migrateRenamedRuntimeCatalogueFixture(path, (database) => {
+        renameLedgerCount = database
+          .query<{ total: number }, []>('SELECT COUNT(*) AS total FROM __drizzle_migrations')
+          .get()?.total;
+      });
     },
   });
   await opened.register('current-reader');
@@ -100,11 +105,7 @@ test('actual rename preserves original runtime1 accepted strings and installatio
     schema_version: 1,
     receipt_count: 3,
   });
-  expect(
-    h.sqlite
-      .query<{ total: number }, []>('SELECT COUNT(*) AS total FROM __drizzle_migrations')
-      .get()?.total,
-  ).toBe(111);
+  expect(renameLedgerCount).toBe(111);
 });
 for (const [name, request, receipt, endpoint] of [
   ['grant', capture.authorityRequest, capture.receipts.authority, 'runtime-authority'],

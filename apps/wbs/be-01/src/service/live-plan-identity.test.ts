@@ -1,8 +1,9 @@
+import { bindFixtureSteps } from '@wbs/core/testing/bound-package-fixture';
 import { createLegacyWorkPackageFixture } from '@wbs/core/testing/legacy-work-package-fixture';
 import type { Scheduled } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
-import type { Step, StoredDependency, WorkItem, WorkPackage, WriteStamp } from '../repository';
+import type { StoredDependency, WorkItem, WorkPackage, WriteStamp } from '../repository';
 import { STEP_POSITION_STEP } from '../repository';
 import { createTestServices } from '../testing/harness';
 import { workItemRow } from '../testing/work-item-fixture';
@@ -82,13 +83,15 @@ function stepsInPlan(): string[] {
  * which is the rule an unestimated `Dev` in front of an estimated `QA` rests on.
  */
 async function replay(extraSteps: readonly string[]) {
+  const { source } = await createLegacyWorkPackageFixture(
+    'owner',
+    'backend-unit-legacy',
+    'backend-unit-parent',
+  );
   const {
     service,
     stores: { workPackages, workItems, estimates, dependencies },
-  } = createTestServices(
-    (await createLegacyWorkPackageFixture('owner', 'backend-unit-legacy', 'backend-unit-parent'))
-      .source,
-  );
+  } = createTestServices(source);
 
   const workPackage: WorkPackage = workPackageRow({
     id: WORK_PACKAGE_ID,
@@ -103,16 +106,32 @@ async function replay(extraSteps: readonly string[]) {
     startDate: plan.startDate,
     revision: plan.workPackageRevision,
   });
-  const steps: Step[] = [...stepsInPlan(), ...extraSteps].map((id, place) => ({
-    id,
-    workPackageId: WORK_PACKAGE_ID,
-    name: `Step ${String(place)}`,
-    code: `step-${String(place)}`,
-    position: (place + 1) * STEP_POSITION_STEP,
-    allowancePercent: 0,
-    estimateUnit: 'workdays' as const,
-  }));
-  await workPackages.create(workPackage, steps, STAMP);
+  await bindFixtureSteps(
+    source,
+    'backend-unit-legacy',
+    [...stepsInPlan(), ...extraSteps].map((id, place) => {
+      const position = (place + 1) * STEP_POSITION_STEP;
+      return {
+        definition: {
+          id,
+          name: `Step ${String(place)}`,
+          code: `step-${String(place)}`,
+          position,
+          defaultAllowancePercent: 0,
+          defaultEstimateUnit: 'workdays',
+        },
+        binding: {
+          bindingId: id + '-binding',
+          scopeKind: 'project',
+          scopeId: 'backend-unit-parent',
+          workItemTypeId: null,
+          position,
+        },
+      };
+    }),
+    STAMP,
+  );
+  await workPackages.create(workPackage, [], STAMP);
 
   for (const row of capturedRows) {
     const stored: WorkItem = workItemRow({

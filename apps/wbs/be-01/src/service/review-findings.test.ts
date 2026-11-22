@@ -1,3 +1,4 @@
+import { bindFixtureSteps } from '@wbs/core/testing/bound-package-fixture';
 import { createLegacyWorkPackageFixture } from '@wbs/core/testing/legacy-work-package-fixture';
 import { deriveNumbers } from '@wbs/domain';
 import { beforeEach, describe, expect, it } from 'bun:test';
@@ -21,31 +22,41 @@ async function newWorkPackage(name: string): Promise<string> {
     name,
     projectId: 'backend-unit-parent',
   });
-  // Seeded with the step the estimates below name. The service refuses a step
-  // the work package does not hold, and production's foreign key refuses it harder.
-  await workPackages.create(
-    workPackage,
-    [
-      {
-        id: 'step-dev',
-        workPackageId: workPackage.id,
-        name: 'Dev',
-        position: 10,
-        code: 'dev',
-        allowancePercent: 0,
-        estimateUnit: 'workdays' as const,
-      },
-    ],
-    { at: 1, by: OWNER },
-  );
+  await workPackages.create(workPackage, [], { at: 1, by: OWNER });
   return workPackage.id;
 }
 
 beforeEach(async () => {
-  const harness = createTestServices(
-    (await createLegacyWorkPackageFixture(OWNER, 'backend-unit-legacy', 'backend-unit-parent'))
-      .source,
+  const { source } = await createLegacyWorkPackageFixture(
+    OWNER,
+    'backend-unit-legacy',
+    'backend-unit-parent',
   );
+  await bindFixtureSteps(
+    source,
+    'backend-unit-legacy',
+    [
+      {
+        definition: {
+          id: 'step-dev',
+          name: 'Dev',
+          position: 10,
+          code: 'dev',
+          defaultAllowancePercent: 0,
+          defaultEstimateUnit: 'workdays',
+        },
+        binding: {
+          bindingId: 'step-dev-binding',
+          scopeKind: 'project',
+          scopeId: 'backend-unit-parent',
+          workItemTypeId: null,
+          position: 10,
+        },
+      },
+    ],
+    { at: 1, by: OWNER },
+  );
+  const harness = createTestServices(source);
   ({ workPackages } = harness.stores);
   broadcast = harness.broadcast;
   service = harness.service;

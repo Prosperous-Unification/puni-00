@@ -1,15 +1,18 @@
 import { deepStrictEqual } from 'node:assert';
 import { createHash } from 'node:crypto';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { gunzipSync } from 'node:zlib';
 
 import { resourceRuntimeEvent } from '@wbs/contracts';
 import { resourceUseActorOf } from '@wbs/core/http/resource-use.routes';
+import { openReadOnlyDatabase } from '@wbs/store-sqlite/db';
 import { afterEach, beforeAll, beforeEach, expect, test } from 'bun:test';
 
-import { runMigrations } from '../repository/migrate';
 import { grantCredential } from '../testing/machine-credential-fixture';
-import { callForwarded, forwardingMachineGrants } from '../testing/mcp-forwarded-call';
+import { callForwarded as forward, forwardingMachineGrants } from '../testing/mcp-forwarded-call';
+import { migrateRenamedRuntimeCatalogueFixture } from '../testing/organization-catalogue-fixture';
 import { type HarnessMachineGrants, OrganizationHarness } from '../testing/organization-harness';
 
 interface CapturedRequest extends Record<string, unknown> {
@@ -41,7 +44,6 @@ interface Capture {
     registered: { request: CapturedRequest; response: unknown };
     hostJobs: { linked: boolean; request: CapturedRequest; response: unknown }[];
   };
-  tables: Record<string, Record<string, unknown>[]>;
 }
 const fixtureRoot = new URL(
   '../../../../../openspec/changes/wbs-work-packages/fixtures/',
@@ -51,15 +53,50 @@ const compressed = readFileSync(new URL('legacy-resource-database1.sqlite.gz', f
 const hash = (bytes: Uint8Array | string) => createHash('sha256').update(bytes).digest('hex');
 if (hash(compressed) !== '2f7b2f5d842f5c260a7481a61472deb50a540d841e11d70c5a0723b384dacd2d')
   throw new Error('original resource database fixture changed');
-const snapshot = gunzipSync(compressed);
-if (hash(snapshot) !== '18b7ce2e8b51d409c295631a56a6e0e2d7836731574a0a7c11160868a8b46b7c')
+const originalSnapshot = gunzipSync(compressed);
+if (hash(originalSnapshot) !== '18b7ce2e8b51d409c295631a56a6e0e2d7836731574a0a7c11160868a8b46b7c')
   throw new Error('original resource snapshot changed');
 const captureBytes = readFileSync(new URL('legacy-resource-database1.txt', fixtureRoot), 'utf8');
 if (hash(captureBytes) !== '3a747bbee51fba8131a66df82e135cfda5f0911bdf369abc552d8c907dad31a6')
   throw new Error('original resource capture changed');
 // The exact captured source/output hashes pin this test fixture; actual current routes validate all requests.
 const capture = JSON.parse(captureBytes) as Capture;
-const migrations = new URL('../../drizzle', import.meta.url).pathname;
+const cleanup = JSON.parse(
+  readFileSync(new URL('legacy-resource-cleaned-capture.json', fixtureRoot), 'utf8'),
+) as {
+  originalSha256: string;
+  snapshotSha256: string;
+  compressedSha256: string;
+  credentialOverlapUntil: number;
+  runtime: {
+    operation: string;
+    useId: string;
+    eventId: string;
+    sequence: number;
+    revision: number;
+  }[];
+  tables: { table: string; fields: string[]; rows: number; sha256: string }[];
+};
+const cleaned = readFileSync(new URL('legacy-resource-cleaned1.sqlite.gz', fixtureRoot));
+const snapshot = gunzipSync(cleaned);
+if (
+  hash(originalSnapshot) !== cleanup.originalSha256 ||
+  hash(cleaned) !== cleanup.compressedSha256 ||
+  hash(snapshot) !== cleanup.snapshotSha256 ||
+  !Number.isSafeInteger(cleanup.credentialOverlapUntil)
+)
+  throw new Error('outgoing resource cleanup capture changed');
+const replayNow = () => Math.max(Date.now(), cleanup.credentialOverlapUntil + 1);
+function callForwarded(
+  harness: OrganizationHarness,
+  key: string,
+  method: string,
+  path: string,
+  body?: unknown,
+) {
+  return forward(harness, key, method, path, body, { now: replayNow() });
+}
+const firstSequence = Math.max(...cleanup.runtime.map((event) => event.sequence)) + 1;
 let machineGrants: HarnessMachineGrants;
 let opened: OrganizationHarness | undefined;
 let runtimeKey: string;
@@ -89,9 +126,10 @@ beforeEach(async () => {
   opened = undefined;
   opened = OrganizationHarness.openComposedWith({
     machineGrants,
+    now: replayNow,
     migrate: (path) => {
       writeFileSync(path, snapshot, { flag: 'wx' });
-      runMigrations(path, migrations);
+      migrateRenamedRuntimeCatalogueFixture(path);
     },
   });
   const h = requireHarness();
@@ -211,7 +249,7 @@ test('new resource runtime identity has explicit format2 even without an optiona
   const request = {
     ...readCurrentRequest(entry.request),
     eventId: 'current-event',
-    sequence: 4,
+    sequence: firstSequence,
     useId: 'current-job',
     incarnation: 'current-incarnation',
   };
@@ -240,7 +278,7 @@ test('new resource runtime identity has explicit format2 even without an optiona
   const returned = {
     ...request,
     eventId: 'current-job-return',
-    sequence: 5,
+    sequence: firstSequence + 1,
     revision: 2,
     kind: 'release_verified',
     evidence: {
@@ -274,23 +312,57 @@ test('new resource runtime identity has explicit format2 even without an optiona
   );
   deepStrictEqual(readHistory(), beforeChangedEvent);
 });
-test('physical rename leaves every original resource fingerprint declaration and projection string unchanged', () => {
+test('physical rename retains resource fingerprints, declarations and projections from the authorized cleanup capture', () => {
   const h = requireHarness();
-  for (const [table, fields] of [
-    ['resource_use', ['id', 'snapshot', 'request_fingerprint', 'registration_response']],
-    ['resource_use_event', ['id', 'snapshot', 'fingerprint', 'response']],
-    ['resource_runtime_use', ['use_id', 'declaration']],
-    ['resource_runtime_event', ['event_id', 'fingerprint', 'response']],
-    ['resource_host_job', ['use_id', 'declaration']],
-  ] as const) {
-    const original = capture.tables[table];
+  expect(cleanup.tables.map(({ table }) => table)).toEqual([
+    'resource_use',
+    'resource_use_event',
+    'resource_runtime_use',
+    'resource_runtime_event',
+    'resource_host_job',
+  ]);
+  for (const { table, fields, rows, sha256 } of cleanup.tables) {
     const current = h.sqlite
       .query('SELECT ' + fields.join(',') + ' FROM ' + table + ' ORDER BY rowid')
       .all();
-    deepStrictEqual(
-      current,
-      original.map((row) => Object.fromEntries(fields.map((field) => [field, row[field]]))),
-    );
+    expect(current).toHaveLength(rows);
+    expect(hash(JSON.stringify(current))).toBe(sha256);
+  }
+});
+
+test('current location migration refuses the untouched active resource capture atomically', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'wbs-location-refusal-'));
+  try {
+    const path = join(directory, 'original.db');
+    writeFileSync(path, originalSnapshot, { flag: 'wx' });
+    let refusal: unknown;
+    try {
+      migrateRenamedRuntimeCatalogueFixture(path);
+    } catch (error) {
+      refusal = error;
+    }
+    if (!(refusal instanceof Error) || !(refusal.cause instanceof Error))
+      throw new Error('actual location migration did not refuse the active snapshot', {
+        cause: refusal,
+      });
+    expect(refusal.cause.message).toContain('unprovable lifecycle continuity');
+    expect(refusal.cause.message).toContain(capture.runtime.admissions[0].request.useId);
+    const database = openReadOnlyDatabase(path);
+    try {
+      expect(
+        database.query("SELECT count(*) AS count FROM resource_use WHERE state='active'").get(),
+      ).toEqual({ count: 3 });
+      expect(
+        database.query("SELECT name FROM sqlite_master WHERE name='resource_use_location'").get(),
+      ).toBeNull();
+      expect(
+        database.query('SELECT name FROM __drizzle_migrations ORDER BY id DESC LIMIT 1').get(),
+      ).toEqual({ name: '20261115130000_add_step_catalogue' });
+    } finally {
+      database.close();
+    }
+  } finally {
+    rmSync(directory, { recursive: true });
   }
 });
 
@@ -397,18 +469,31 @@ async function removePlanningRows() {
   h.sqlite
     .query('DELETE FROM work_package_access WHERE work_package_id=?')
     .run(capture.scope.projectId);
-  h.sqlite.query('DELETE FROM step WHERE work_package_id=?').run(capture.scope.projectId);
+  h.sqlite
+    .query('DELETE FROM work_package_step WHERE work_package_id=?')
+    .run(capture.scope.projectId);
   h.sqlite.query('DELETE FROM work_package WHERE id=?').run(capture.scope.projectId);
 }
 for (const deleted of [false, true]) {
   test(
-    'old provisional confirmation preserves ' +
+    'old provisional confirmation replay preserves ' +
       (deleted ? 'deleted' : 'live') +
       ' observations and newer cleanup without grant or planning lookup',
     async () => {
       const h = requireHarness();
       const entry = capture.runtime.admissions.at(deleted ? 1 : 0);
       if (entry === undefined) throw new Error('provisional witness absent');
+      const prior = cleanup.runtime.find(
+        (event) =>
+          event.operation === 'confirmed' &&
+          event.eventId === entry.publication.eventId &&
+          event.useId === entry.request.useId,
+      );
+      if (prior === undefined) throw new Error('captured confirmation sequence absent');
+      const retained = h.sqlite
+        .query<{ revision: number }, [string]>('SELECT revision FROM resource_use WHERE id=?')
+        .get(entry.request.useId);
+      if (retained === null) throw new Error('retained resource use absent');
       const path =
         '/api/work-packages/' +
         capture.scope.projectId +
@@ -420,7 +505,7 @@ for (const deleted of [false, true]) {
           await h.call('current-admin', 'POST', path, {
             eventId: 'operator-before-confirmation',
             kind: 'cleanup_requested',
-            expectedRevision: 1,
+            expectedRevision: retained.revision,
             reason: 'Newer operator intent',
           })
         ).status,
@@ -451,7 +536,7 @@ for (const deleted of [false, true]) {
         .all(entry.request.useId);
       h.sqlite.run('ALTER TABLE access_grant RENAME TO unavailable_access_grant');
       h.sqlite.run('ALTER TABLE work_package RENAME TO unavailable_work_package');
-      const confirmation = { ...readCurrentRequest(entry.publication), sequence: 4 };
+      const confirmation = { ...readCurrentRequest(entry.publication), sequence: prior.sequence };
       try {
         expect((await publishEvent(confirmation)).status).toBe(200);
       } finally {
@@ -467,14 +552,14 @@ for (const deleted of [false, true]) {
         )
         .get(entry.request.useId);
       if (changed === null) throw new Error('confirmed projection absent');
-      expect(changed.registration_response).toBe(row.registration_response);
+      expect(changed).toEqual(row);
       const projected = JSON.parse(changed.snapshot) as Record<string, unknown>;
       expect(projected).toMatchObject({
         state: observed['state'],
         revision: observed['revision'],
         updatedBy: observed['updatedBy'],
         pendingCleanupRequest: true,
-        runtimeRevision: 1,
+        runtimeRevision: 2,
       });
       deepStrictEqual(
         h.sqlite
@@ -488,7 +573,6 @@ for (const deleted of [false, true]) {
         )
         .get(entry.request.useId);
       if (stored === null) throw new Error('confirmed declaration absent');
-      expect(JSON.parse(stored.declaration)).toEqual({ schemaVersion: 2, use: confirmation.use });
       const beforeReplay = readHistory();
       expect((await publishEvent(confirmation)).status).toBe(200);
       deepStrictEqual(readHistory(), beforeReplay);
@@ -497,8 +581,8 @@ for (const deleted of [false, true]) {
           await publishEvent({
             ...confirmation,
             eventId: 'following-current-declaration',
-            sequence: 5,
-            revision: 2,
+            sequence: firstSequence,
+            revision: 3,
             kind: 'cleanup_pending',
           })
         ).status,
@@ -532,8 +616,8 @@ for (const deleted of [false, true]) {
       const followup = {
         ...request,
         eventId: 'legacy-followup',
-        sequence: 4,
-        revision: 2,
+        sequence: firstSequence,
+        revision: 3,
         kind: 'cleanup_pending',
       };
       if (deleted) h.sqlite.run('ALTER TABLE access_grant RENAME TO unavailable_access_grant');
@@ -573,8 +657,8 @@ test('old live declaration still requires the actual credential grant before fol
   const reply = await publishEvent({
     ...readCurrentRequest(capture.runtime.registered.request),
     eventId: 'forbidden-live-followup',
-    sequence: 4,
-    revision: 2,
+    sequence: firstSequence,
+    revision: 3,
     kind: 'cleanup_pending',
   });
   expect(reply.status).toBe(403);
@@ -743,8 +827,8 @@ for (const tagged of [false, true]) {
           await publishEvent({
             ...request,
             eventId: 'malformed-declaration-followup',
-            sequence: 4,
-            revision: 2,
+            sequence: firstSequence,
+            revision: 3,
             kind: 'cleanup_pending',
           })
         ).status,
@@ -827,7 +911,7 @@ for (const linked of [false, true]) {
       const returned = {
         ...request,
         eventId: 'return-old-' + (linked ? 'linked' : 'unlinked') + '-job',
-        sequence: 4,
+        sequence: firstSequence,
         revision: 2,
         kind: 'release_verified',
         evidence: {

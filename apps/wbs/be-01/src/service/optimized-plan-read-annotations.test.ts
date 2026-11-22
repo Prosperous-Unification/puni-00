@@ -1,11 +1,11 @@
-import { createLegacyWorkPackageFixture } from '@wbs/core/testing/legacy-work-package-fixture';
-const PARENT_PROJECT_ID = 'service-fixture-parent';
 import { materialiseOptimized } from '@wbs/contracts/solver/materialise-optimized';
 import { quantisedFastBaseline } from '@wbs/contracts/solver/quantised-baseline';
 import { LEGACY_EDIT_ADMISSION } from '@wbs/core';
 import type { WorkItemServiceOptions } from '@wbs/core/module/work-item/work-item.resource';
 import { INACTIVE_EXTERNAL_DEPENDENCIES } from '@wbs/core/ports/external-dependency-authoring';
 import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
+import { bindFixtureSteps } from '@wbs/core/testing/bound-package-fixture';
+import { createLegacyWorkPackageFixture } from '@wbs/core/testing/legacy-work-package-fixture';
 import { sliceKey, SOLVER_QUANTUM } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 import { beforeEach, describe, expect, it } from 'bun:test';
@@ -47,6 +47,7 @@ import { optimizerWiring } from './optimizer-wiring';
  * unit offsets exactly as a parsed solver response would drive it.
  */
 
+const PARENT_PROJECT_ID = 'service-fixture-parent';
 const OWNER = 'owner-account';
 const WROTE: WriteStamp = { at: 1, by: OWNER };
 /** The one team a single-pool case here draws from. */
@@ -102,31 +103,36 @@ beforeEach(async () => {
   const workPackage = workPackageRow({ id: crypto.randomUUID(), projectId: PARENT_PROJECT_ID });
   stepId = crypto.randomUUID();
   laterStepId = crypto.randomUUID();
-  await workPackages.create(
-    workPackage,
-    [
-      {
-        id: stepId,
-        workPackageId: workPackage.id,
-        name: 'Dev',
-        position: 10,
-        code: 'dev',
-        allowancePercent: 0,
-        estimateUnit: 'workdays' as const,
+  await bindFixtureSteps(
+    packageFixture.source,
+    'service-fixture-legacy',
+    (
+      [
+        [stepId, 'Dev', 'dev', 10],
+        [laterStepId, 'QA', 'qa', 20],
+      ] as const
+    ).map(([id, name, code, position]) => ({
+      definition: {
+        id,
+        name,
+        code,
+        position,
+        defaultAllowancePercent: 0,
+        defaultEstimateUnit: 'workdays',
       },
-      {
-        id: laterStepId,
-        workPackageId: workPackage.id,
-        name: 'QA',
-        position: 20,
-        code: 'qa',
-        allowancePercent: 0,
-        estimateUnit: 'workdays' as const,
+      binding: {
+        bindingId: id + '-binding',
+        scopeKind: 'project',
+        scopeId: PARENT_PROJECT_ID,
+        workItemTypeId: null,
+        position,
       },
-    ],
+    })),
     WROTE,
   );
+  await workPackages.create(workPackage, [], WROTE);
   workPackageId = workPackage.id;
+  await directory.addTeam({ id: PLATFORM, name: 'Platform' }, WROTE);
   const moved = await workPackages.update(
     workPackageId,
     { optimizationEnabled: true, scheduleEngine: 'optimized' },
@@ -536,10 +542,17 @@ describe("the materialiser's annotations, through the plan read", () => {
     // Watched red: `annotateCapacity`'s
     // `window.blocking.filter(finishesByStart)` reduced to `window.blocking`.
     await capacity.set(workPackageId, PLATFORM, 2, WROTE);
-    const long = await leaf('Long', 10, PLATFORM);
-    const short = await leaf('Short', 5, PLATFORM);
-    const pinned = await leaf('Pinned', 2, PLATFORM);
-    const tree = await servedBy({ [sliceKey(pinned, stepId)]: units(5) });
+    const long = await leaf('Long', 10, PLATFORM, 10);
+    const short = await leaf('Short', 5, PLATFORM, 20);
+    const pinned = await leaf('Pinned', 2, PLATFORM, 30);
+    const tree = await servedBy({
+      [sliceKey(long, stepId)]: units(0),
+      [sliceKey(long, laterStepId)]: units(10),
+      [sliceKey(short, stepId)]: units(0),
+      [sliceKey(short, laterStepId)]: units(5),
+      [sliceKey(pinned, stepId)]: units(5),
+      [sliceKey(pinned, laterStepId)]: units(7),
+    });
 
     const shortSlice = slicedFor(tree, short);
     expect(slicedFor(tree, pinned)).toMatchObject({

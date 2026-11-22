@@ -1,4 +1,5 @@
 import {
+  bindFixtureSteps,
   createBoundFixturePackage,
   type FixtureStepBinding,
 } from '@wbs/core/testing/bound-package-fixture';
@@ -566,9 +567,27 @@ describe('a priority ladder moves no date', () => {
           nodeResources,
           blockages,
           blockageCauses,
+          steps,
           charged,
           ...row
         }) => {
+          expect(steps).toEqual(
+            row.rolledUp
+              ? undefined
+              : tree.steps.map(({ id, name }) => ({
+                  stepId: id,
+                  name,
+                  code: suggestStepCode(name, new Set()),
+                  via: [
+                    {
+                      bindingId: id + ':identity-binding',
+                      scopeKind: 'project',
+                      scopeId: PARENT_PROJECT_ID,
+                      workItemTypeId: null,
+                    },
+                  ],
+                })),
+          );
           // Native charges retain the workday figures pinned by the historical oracle.
           // Proof: replacing production finalsOf charged with {} failed both historical
           // replays and the ladder comparison here on 2026-10-13.
@@ -916,13 +935,10 @@ describe('a priority ladder moves no date', () => {
         position: (place + 1) * STEP_POSITION_STEP,
       },
     }));
-    await createBoundFixturePackage(
-      source,
-      'identity-fixture-legacy',
-      workPackage,
-      bindings,
-      STAMP,
-    );
+    await bindFixtureSteps(source, 'identity-fixture-legacy', bindings, STAMP);
+    const created = await workPackages.create(workPackage, [], STAMP);
+    if (typeof created === 'string')
+      throw new Error('Identity fixture package creation refused: ' + created);
     for (const row of plan.rows) {
       const stored: WorkItem = workItemRow({
         id: row.id,

@@ -605,7 +605,7 @@ it('refuses redo of a child create when a newer node relationship pins its paren
   expect(redo.status).toBe(409);
   const refusal = (await redo.json()) as { error: string; detail: string };
   expect(refusal.error).toBe('stale_undo');
-  expect(refusal.detail).toContain('redo-create-relationship');
+  expect(refusal.detail).toBe('“010” has changed since then.');
   const tree = await send(`/api/work-packages/${plan.workPackageId}/work-items`, plan.token);
   const body = (await tree.json()) as { workItems: { id: string }[] };
   expect(body.workItems.some((row) => row.id === child)).toBe(false);

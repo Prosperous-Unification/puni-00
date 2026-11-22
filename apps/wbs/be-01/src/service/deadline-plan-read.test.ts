@@ -1,9 +1,9 @@
-import { createLegacyWorkPackageFixture } from '@wbs/core/testing/legacy-work-package-fixture';
-const PARENT_PROJECT_ID = 'service-fixture-parent';
 import { LEGACY_EDIT_ADMISSION } from '@wbs/core';
 import type { WorkItemServiceOptions } from '@wbs/core/module/work-item/work-item.resource';
 import { INACTIVE_EXTERNAL_DEPENDENCIES } from '@wbs/core/ports/external-dependency-authoring';
 import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
+import { bindFixtureSteps } from '@wbs/core/testing/bound-package-fixture';
+import { createLegacyWorkPackageFixture } from '@wbs/core/testing/legacy-work-package-fixture';
 import { beforeEach, describe, expect, it } from 'bun:test';
 
 import type {
@@ -47,6 +47,7 @@ import { optimizerWiring } from './optimizer-wiring';
  * design: the cache-key case watches the ask, which is the other seam.
  */
 
+const PARENT_PROJECT_ID = 'service-fixture-parent';
 const OWNER = 'owner-account';
 const WROTE: WriteStamp = { at: 1, by: OWNER };
 /**
@@ -93,21 +94,31 @@ beforeEach(async () => {
     estimateMethod: 'realistic',
     estimateRounding: 'exact',
   });
-  await workPackages.create(
-    workPackage,
+  await bindFixtureSteps(
+    packageFixture.source,
+    'service-fixture-legacy',
     [
       {
-        id: stepId,
-        workPackageId: workPackage.id,
-        name: 'Dev',
-        position: 10,
-        code: 'dev',
-        allowancePercent: 0,
-        estimateUnit: 'workdays' as const,
+        definition: {
+          id: stepId,
+          name: 'Dev',
+          code: 'dev',
+          position: 10,
+          defaultAllowancePercent: 0,
+          defaultEstimateUnit: 'workdays',
+        },
+        binding: {
+          bindingId: stepId + '-binding',
+          scopeKind: 'project',
+          scopeId: PARENT_PROJECT_ID,
+          workItemTypeId: null,
+          position: 10,
+        },
       },
     ],
     WROTE,
   );
+  await workPackages.create(workPackage, [], WROTE);
   workPackageId = workPackage.id;
 });
 

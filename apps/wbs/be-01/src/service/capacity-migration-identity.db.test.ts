@@ -1,7 +1,4 @@
-import {
-  createBoundFixturePackage,
-  type FixtureStepBinding,
-} from '@wbs/core/testing/bound-package-fixture';
+import { bindFixtureSteps, type FixtureStepBinding } from '@wbs/core/testing/bound-package-fixture';
 import { createLegacyWorkPackageFixture } from '@wbs/core/testing/legacy-work-package-fixture';
 const PARENT_PROJECT_ID = 'service-fixture-parent';
 import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
@@ -340,9 +337,27 @@ describe('every plan schedules identically across the migration', () => {
             nodeResources,
             blockages,
             blockageCauses,
+            steps,
             charged,
             ...row
           }) => {
+            expect(steps).toEqual(
+              row.rolledUp
+                ? undefined
+                : tree.steps.map(({ id, name }) => ({
+                    stepId: id,
+                    name,
+                    code: suggestStepCode(name, new Set()),
+                    via: [
+                      {
+                        bindingId: id + ':identity-binding',
+                        scopeKind: 'project',
+                        scopeId: PARENT_PROJECT_ID,
+                        workItemTypeId: null,
+                      },
+                    ],
+                  })),
+            );
             // Native charges are new wire fields. Their workday values must equal
             // finalDays, which the unchanged historical oracle pins below.
             // Proof: returning empty charged from production finalsOf failed this
@@ -748,13 +763,10 @@ describe('every plan schedules identically across the migration', () => {
         position: (place + 1) * STEP_POSITION_STEP,
       },
     }));
-    await createBoundFixturePackage(
-      source,
-      'identity-fixture-legacy',
-      workPackage,
-      bindings,
-      STAMP,
-    );
+    await bindFixtureSteps(source, 'identity-fixture-legacy', bindings, STAMP);
+    const created = await workPackages.create(workPackage, [], STAMP);
+    if (typeof created === 'string')
+      throw new Error('Identity fixture package creation refused: ' + created);
     for (const row of plan.rows) {
       const stored: WorkItem = workItemRow({
         id: row.id,

@@ -84,9 +84,13 @@ async function fixture(capture: (typeof cases)[number]) {
   mounted.bind('ada', 'org');
   mounted.activate();
   const owner = mounted.userId('ada');
+  const projectId = 'historical-project';
   mounted.sqlite
-    .query('INSERT INTO work_package(id,name,owner_id,created_at) VALUES (?,?,?,?)')
-    .run(capture.target, 'Historical package', owner, 1);
+    .query('INSERT INTO project(id,organization_id,name,created_at,created_by) VALUES(?,?,?,?,?)')
+    .run(projectId, 'org', 'Historical project', 1, owner);
+  mounted.sqlite
+    .query('INSERT INTO work_package(id,name,project_id,created_by,created_at) VALUES (?,?,?,?,?)')
+    .run(capture.target, 'Historical package', projectId, owner, 1);
   mounted.sqlite
     .query('INSERT INTO work_package_organization(resource_id,organization_id) VALUES (?,?)')
     .run(capture.target, 'org');
@@ -117,6 +121,9 @@ async function fixture(capture: (typeof cases)[number]) {
       body === null ? null : body.algorithmId,
       schedule === null ? 'unavailable' : null,
     );
+  mounted.sqlite
+    .query('INSERT INTO saved_plan_organization(resource_id,organization_id) VALUES (?,?)')
+    .run(id, 'org');
   mounted.sqlite
     .query('INSERT INTO saved_plan_body(saved_plan_id,kind,bytes) VALUES (?,?,?)')
     .run(id, 'input', input);

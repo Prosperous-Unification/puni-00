@@ -7,8 +7,8 @@ import { resourceRuntimeEvent } from '@wbs/contracts';
 import { resourceUseActorOf } from '@wbs/core/http/resource-use.routes';
 import { afterEach, beforeAll, beforeEach, expect, test } from 'bun:test';
 
-import { runMigrations } from '../repository/migrate';
 import { callForwarded, forwardingMachineGrants } from '../testing/mcp-forwarded-call';
+import { migrateRenamedRuntimeCatalogueFixture } from '../testing/organization-catalogue-fixture';
 import { type HarnessMachineGrants, OrganizationHarness } from '../testing/organization-harness';
 
 interface CapturedEvent extends Record<string, unknown> {
@@ -37,7 +37,6 @@ if (hash(captureBytes) !== 'ca9661a9746f3ff25ae5f27ccd29018a1cbd25d30fb3c2aab5dd
   throw new Error('terminal capture changed');
 // These casts describe the exact genuine outgoing artifact; actual routes validate every replay input.
 const capture = JSON.parse(captureBytes) as TerminalCapture;
-const migrations = new URL('../../drizzle', import.meta.url).pathname;
 let opened: OrganizationHarness | undefined;
 let machineGrants: HarnessMachineGrants;
 let runtimeKey: string;
@@ -68,7 +67,7 @@ beforeEach(async () => {
     machineGrants,
     migrate: (path) => {
       writeFileSync(path, snapshot, { flag: 'wx' });
-      runMigrations(path, migrations);
+      migrateRenamedRuntimeCatalogueFixture(path);
     },
   });
   const h = requireHarness();

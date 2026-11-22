@@ -5,6 +5,8 @@ import { join, resolve } from 'node:path';
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import { createProject } from '@wbs/contracts';
+import { openDatabase } from '@wbs/store-sqlite/db';
 import { afterEach, expect, it } from 'bun:test';
 
 import { TEST_MACHINE_GRANT_ENV } from '../testing/machine-grant-fixture';
@@ -207,9 +209,15 @@ it("issues an agent's key a token at the local mcp-01 and answers its tool call"
     const owner = (method: string, path: string, body?: unknown) =>
       asOwner(origin, cookies, method, path, body);
 
-    expect(await owner('POST', '/api/work-packages', { name: 'Local plan' })).toMatchObject({
-      status: 200,
+    const project = await owner('POST', '/api/projects', {
+      name: 'Local project',
+      workPackage: { name: 'Local plan' },
     });
+    expect(project.status).toBe(201);
+    const checked = await createProject.responses[0].schema.validator['~standard'].validate(
+      project.body,
+    );
+    if (checked.issues !== undefined) throw new Error('local project response was malformed');
     const made = await owner('POST', '/api/directory/commands', {
       commands: [{ kind: 'createPerson', name: 'claire', personKind: 'agent' }],
     });
@@ -226,8 +234,24 @@ it("issues an agent's key a token at the local mcp-01 and answers its tool call"
       personId,
     });
     expect(created.status).toBe(201);
+    const credential = created.body as { id: string; key: string };
+    const databases = readdirSync(temp).filter((name) =>
+      name.startsWith('wbs-activated-organization-'),
+    );
+    const directory = databases.at(0);
+    if (databases.length !== 1 || directory === undefined)
+      throw new Error('the child did not leave one fixture database');
+    const sqlite = openDatabase(join(temp, directory, 'local.db'));
+    try {
+      sqlite.run(
+        "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES(?,'org-local','project',?,'machine_credential',?,'project-viewer','route',?)",
+        [crypto.randomUUID(), checked.value.project.id, credential.id, Date.now()],
+      );
+    } finally {
+      sqlite.close();
+    }
     const keyFile = join(temp, 'claire.key');
-    writeFileSync(keyFile, (created.body as { key: string }).key);
+    writeFileSync(keyFile, credential.key);
     chmodSync(keyFile, 0o600);
 
     const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });

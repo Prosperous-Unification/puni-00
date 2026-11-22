@@ -14,10 +14,10 @@ import { type } from 'arktype';
 import { expect, test } from 'bun:test';
 import { Elysia } from 'elysia';
 
-import { runMigrations } from '../../repository/migrate';
 import { admitDependencyClient } from '../../runtime/dependency-client';
 import { testApp } from '../../testing/app-fixture';
 import { testAuthService } from '../../testing/auth-fixture';
+import { migrateOrganizationCatalogueFixture } from '../../testing/organization-catalogue-fixture';
 import { bind } from '../endpoint';
 import { mountEndpoints } from './mount';
 
@@ -39,7 +39,7 @@ const shape = defineEndpointShape({
 test('mounted resource freshly checks durable authority and exact claims without enabling authoring', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'dependency-client-'));
   const path = join(directory, 'plan.db');
-  runMigrations(path, new URL('../../../drizzle', import.meta.url).pathname);
+  migrateOrganizationCatalogueFixture(path);
   const connection = openConnection(path);
   try {
     const failures: unknown[] = [];
@@ -234,7 +234,7 @@ test('production app refuses omitted authority callback at composition', () => {
 test('request authority uses one coherent snapshot when another connection activates mid-inspection', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'dependency-client-snapshot-'));
   const path = join(directory, 'plan.db');
-  runMigrations(path, new URL('../../../drizzle', import.meta.url).pathname);
+  migrateOrganizationCatalogueFixture(path);
   let armed = true;
   const connection = openConnection(path, {
     logQuery(query) {

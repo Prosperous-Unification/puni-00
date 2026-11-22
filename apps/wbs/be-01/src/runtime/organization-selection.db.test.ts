@@ -6,7 +6,6 @@ import type { AuthenticatedUser, VerifiedOrganizationCredential } from '@wbs/con
 import {
   openConnection,
   openDatabase,
-  runMigrations,
   SqliteBrowserCredentialRevocations,
   SqliteOrganizationAccess,
   SqliteOrganizationSelection,
@@ -15,15 +14,14 @@ import {
 import { expect, test } from 'bun:test';
 
 import { organizationSelectionRoutes } from '../controller/organization-selection.routes';
+import { migrateOrganizationCatalogueFixture } from '../testing/organization-catalogue-fixture';
 import { organizationCookieBinding } from './organization-cookie';
 import { organizationSelection } from './organization-selection';
-
-const MIGRATIONS = new URL('../../drizzle', import.meta.url).pathname;
 
 test('a selection in flight before revocation cannot restore authority after its cookie issues', async () => {
   const folder = mkdtempSync(join(tmpdir(), 'wbs-revocation-race-'));
   const path = join(folder, 'test.db');
-  runMigrations(path, MIGRATIONS);
+  migrateOrganizationCatalogueFixture(path);
   const connection = openConnection(path);
   // The selection's own revocation lookup answers "not revoked" and is then
   // held, so revocation commits between that check and the cookie's issue.
@@ -100,7 +98,7 @@ const SELECTION_NOW = 1_800_000_000_000;
 async function openSelectionSnapshotFixture() {
   const folder = mkdtempSync(join(tmpdir(), 'wbs-role-evidence-selection-snapshot-'));
   const path = join(folder, 'test.db');
-  runMigrations(path, MIGRATIONS);
+  migrateOrganizationCatalogueFixture(path);
   const sqlite = openDatabase(path);
   try {
     sqlite.run("INSERT INTO users(id,username,created_at) VALUES('ada','ada',1),('bob','bob',1)");

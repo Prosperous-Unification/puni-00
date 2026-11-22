@@ -8,6 +8,7 @@ import { OPEN } from '../../repository/gate';
 import { admitDependencyClient } from '../../runtime/dependency-client';
 import { TEST_JWT_KEY } from '../../testing/auth-fixture';
 import { OrganizationHarness } from '../../testing/organization-harness';
+import { createFixturePackage } from '../../testing/space-rollup';
 
 // Bun's constructor includes forwarded headers; DOM declarations shadow that overload.
 const CookieSocket = WebSocket as unknown as new (
@@ -69,9 +70,7 @@ test('mounted SQLite authority ENABLED with zero external rows fences retained p
   const backendPort = backend.port;
   try {
     await harness.register('ada');
-    const created = await harness.call('ada', 'POST', '/api/work-packages', { name: 'Retained' });
-    expect(created.status).toBe(200);
-    const workPackageId = (created.body as { workPackage: { id: string } }).workPackage.id;
+    const workPackageId = await createFixturePackage(harness, 'ada', 'Retained');
     const subscription = `work-package:${workPackageId}`;
     gateway = Bun.spawn(
       [
@@ -110,11 +109,8 @@ test('mounted SQLite authority ENABLED with zero external rows fences retained p
       );
       return { socket, frames };
     };
-    const replayWorkPackage = await harness.call('ada', 'POST', '/api/work-packages', {
-      name: 'Replay',
-    });
-    expect(replayWorkPackage.status).toBe(200);
-    const replaySubscription = `work-package:${(replayWorkPackage.body as { workPackage: { id: string } }).workPackage.id}`;
+    const replayWorkPackageId = await createFixturePackage(harness, 'ada', 'Replay');
+    const replaySubscription = `work-package:${replayWorkPackageId}`;
     const pushing = await connect(subscription);
     const replaying = await connect(replaySubscription);
     const sentinel = await new DrizzleEventLogStore(connection.db, OPEN).recordEvent(

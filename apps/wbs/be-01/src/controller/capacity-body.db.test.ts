@@ -1,6 +1,7 @@
 import { openReadOnlyConnection as openPackageObservationConnection } from '@wbs/store-sqlite/db';
 import { NO_BOUND_ORGANIZATION } from '@wbs/store-sqlite/organization-access';
 import { refusingSavedCurrentCapture } from '@wbs/store-sqlite/saved-current-capture';
+import { StepCatalogueRepository } from '@wbs/store-sqlite/step-catalogue';
 import { SqliteWorkPackageObservation } from '@wbs/store-sqlite/work-package-observation';
 
 import { refusingPlanExports } from '../testing/plan-export-fixture';
@@ -50,6 +51,7 @@ import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broa
 import { testCalendarMarkerService } from '../testing/calendar-marker-fixture';
 import { testClock } from '../testing/clock-fixture';
 import { sqliteDependencyContext } from '../testing/dependency-graph-fixture';
+import { bindDevQaFixture } from '../testing/dev-qa-fixture';
 import {
   refusingEmailVerification,
   refusingInvitations,
@@ -461,6 +463,12 @@ describe('setCapacity on POST /api/work-packages/:id/commands', () => {
     // for it. The landmine that test recorded is spent; what is worth keeping is
     // the shape of the proof, now pointed at the command that replaced the route
     // it used.
+    await bindDevQaFixture(
+      new StepCatalogueRepository(db, OPEN, 'owned'),
+      'http-fixture-legacy',
+      PROJECT_ID,
+      { at: testClock.now(), by: ownerId },
+    );
     const workPackageId = await plan();
     const platform = await team('Platform');
     expect((await call(workPackageId, platform, { size: 1 })).status).toBe(200);
