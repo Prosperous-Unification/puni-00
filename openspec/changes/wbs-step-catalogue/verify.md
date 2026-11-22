@@ -2458,3 +2458,20 @@ Nx typecheck passed.
   the mounted legacy refusal and unreadable-fact precedence.
 - The focused uncached SQLite Nx target passed all four work-item status
   migration cases at the original historical schema and predecessor.
+
+### Boot, command organization and historical identity fixtures
+
+- The complete native backend boot owner passed all 42 cases with 97
+  assertions. It uses a real current fixture for current startup and a
+  genuine historical uncoded step with the explicit catalogue report and
+  apply path. The mounted gate race observes the actual coordinator under
+  both Source wrappers. Holding a separate coordinator made the response
+  beat the queue witness, then the restored test passed.
+- The native organization-command owner passed 24 cases and retains five
+  failed historical assertions that call the retired package-local step
+  DELETE route. The current fixture uses real parent and catalogue
+  bindings and preserves the exact corrupt owner, authorization and rollback
+  witnesses. No historical test was skipped.
+- The focused uncached SQLite Nx target passed all 12 saved-plan creator,
+  identity and email-verification migration cases. They retain the exact
+  original schema and migration sequences.

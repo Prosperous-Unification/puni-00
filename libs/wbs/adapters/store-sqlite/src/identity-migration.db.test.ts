@@ -7,8 +7,9 @@ import { describe, expect, it } from 'bun:test';
 import { openDatabase } from './db';
 import { runMigrations } from './migrate';
 import { readMigrationFolders, rollbackTo } from './migrate-down';
+import { copyRecoveryPrefix } from './testing/recovery-state';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+const PREFIX = '20261103110000_add_initial_access_offers';
 const PERSON_KIND = '20260821150000_add_person_kind';
 const OIDC_IDENTITY = '20260824010000_add_oidc_identity';
 const SOLUTION_REF = '20260824020000_add_solution_ref';
@@ -52,7 +53,7 @@ const OPTIMIZER_TABLES = '20260904100000_add_optimizer_tables';
  * every ascending one — the newest migration is the first thing any rollback
  * reverses.
  */
-const WORK_PACKAGE_SETTINGS = '20260904140000_add_work_package_settings';
+const WORK_PACKAGE_SETTINGS = '20260904140000_add_project_settings';
 /**
  * The newest: the `(work_package_id, id)` index that serves
  * `listByWorkPackage`'s stated `ORDER BY` (ADR 0016). Additive and
@@ -119,19 +120,20 @@ const ORGANIZATION_FROZEN = '20260927200000_freeze_organization_ownership';
 const TYPED_DEPENDENCY = '20260927213000_add_typed_dependency';
 const AUDIT_COLUMNS = '20260901120000_add_audit_columns';
 
-function tempDb(): { path: string; cleanup: () => void } {
+function tempDb(): { path: string; migrations: string; cleanup: () => void } {
   const dir = mkdtempSync(join(tmpdir(), 'wbs-identity-migrate-'));
   return {
     path: join(dir, 'test.db'),
+    migrations: copyRecoveryPrefix(dir, PREFIX),
     cleanup: () => {
       rmSync(dir, { recursive: true, force: true });
     },
   };
 }
 
-function beforeIdentity(dbPath: string): void {
-  runMigrations(dbPath, FOLDER);
-  expect(rollbackTo(dbPath, FOLDER, PERSON_KIND)).toEqual([
+function beforeIdentity(dbPath: string, migrations: string): void {
+  runMigrations(dbPath, migrations);
+  expect(rollbackTo(dbPath, migrations, PERSON_KIND)).toEqual([
     '20261103110000_add_initial_access_offers',
     '20261102130000_widen_organization_audit_access',
     '20261102120000_add_access_grants',
@@ -150,9 +152,9 @@ function beforeIdentity(dbPath: string): void {
     '20261023140000_add_measure',
     '20261023100000_add_claim_lease',
     '20261022213000_add_optimization_boundary_certificates',
-    '20261022212000_add_cross_work_package_dependency_activation',
+    '20261022212000_add_cross_project_dependency_activation',
     '20261022211000_add_external_dependencies',
-    '20261022210000_add_work_package_abbreviations',
+    '20261022210000_add_project_abbreviations',
     '20261022140100_widen_organization_audit_compute_providers',
     '20261022140000_add_resource_provider',
     '20261022130100_widen_organization_audit_organization_limits',
@@ -182,13 +184,13 @@ function beforeIdentity(dbPath: string): void {
     '20261011120000_add_browser_auth_lifecycle',
     '20261005110000_add_shared_people',
     '20261001010000_add_browser_credential_revocations',
-    '20260929180000_add_work_package_rank',
+    '20260929180000_add_project_rank',
     '20260929100000_add_spaces',
     '20260928200000_add_work_item_status_facts',
     '20260928040000_add_email_challenge',
     '20260928030000_add_delegation_use',
     '20260928020000_add_email_verification',
-    '20260928010000_add_work_package_solution',
+    '20260928010000_add_project_solution',
     '20260927220000_add_organization_audit',
     TYPED_DEPENDENCY,
     ORGANIZATION_FROZEN,
@@ -224,7 +226,7 @@ function beforeIdentity(dbPath: string): void {
       "INSERT INTO users (id, username, password_hash, created_at) VALUES ('legacy', 'ada', 'hash', 1)",
     );
     db.run(
-      "INSERT INTO work_package (id, name, owner_id, restricted, estimate_method, start_date, revision, created_at) VALUES ('p', 'Existing plan', 'legacy', 0, 'pert', NULL, 0, 1)",
+      "INSERT INTO project (id, name, owner_id, restricted, estimate_method, start_date, revision, created_at) VALUES ('p', 'Existing plan', 'legacy', 0, 'pert', NULL, 0, 1)",
     );
   } finally {
     db.close();
@@ -238,8 +240,8 @@ describe('the OIDC identity migration', () => {
     // columns' presence.
     const db = tempDb();
     try {
-      beforeIdentity(db.path);
-      runMigrations(db.path, FOLDER);
+      beforeIdentity(db.path, db.migrations);
+      runMigrations(db.path, db.migrations);
 
       const sqlite = openDatabase(db.path);
       try {
@@ -250,9 +252,9 @@ describe('the OIDC identity migration', () => {
             )
             .all(),
         ).toEqual([{ id: 'legacy', password_hash: 'hash', email: null }]);
-        expect(
-          sqlite.query<{ n: number }, []>('SELECT COUNT(*) AS n FROM work_package').get()?.n,
-        ).toBe(1);
+        expect(sqlite.query<{ n: number }, []>('SELECT COUNT(*) AS n FROM project').get()?.n).toBe(
+          1,
+        );
         sqlite.run(
           "INSERT INTO users (id, username, password_hash, email, idp_issuer, idp_sub, created_at) VALUES ('oidc', 'dany', NULL, 'dany@puni.show', 'https://issuer.example', 'sub-1', 2)",
         );
@@ -267,8 +269,8 @@ describe('the OIDC identity migration', () => {
   it('rejects normalized-email and issuer-bound-subject collisions independently', () => {
     const db = tempDb();
     try {
-      beforeIdentity(db.path);
-      runMigrations(db.path, FOLDER);
+      beforeIdentity(db.path, db.migrations);
+      runMigrations(db.path, db.migrations);
 
       const sqlite = openDatabase(db.path);
       try {
@@ -296,9 +298,9 @@ describe('the OIDC identity migration', () => {
   it('rolls legacy accounts back without deleting dependent plans', () => {
     const db = tempDb();
     try {
-      beforeIdentity(db.path);
-      runMigrations(db.path, FOLDER);
-      expect(rollbackTo(db.path, FOLDER, PERSON_KIND)).toEqual([
+      beforeIdentity(db.path, db.migrations);
+      runMigrations(db.path, db.migrations);
+      expect(rollbackTo(db.path, db.migrations, PERSON_KIND)).toEqual([
         '20261103110000_add_initial_access_offers',
         '20261102130000_widen_organization_audit_access',
         '20261102120000_add_access_grants',
@@ -317,9 +319,9 @@ describe('the OIDC identity migration', () => {
         '20261023140000_add_measure',
         '20261023100000_add_claim_lease',
         '20261022213000_add_optimization_boundary_certificates',
-        '20261022212000_add_cross_work_package_dependency_activation',
+        '20261022212000_add_cross_project_dependency_activation',
         '20261022211000_add_external_dependencies',
-        '20261022210000_add_work_package_abbreviations',
+        '20261022210000_add_project_abbreviations',
         '20261022140100_widen_organization_audit_compute_providers',
         '20261022140000_add_resource_provider',
         '20261022130100_widen_organization_audit_organization_limits',
@@ -349,13 +351,13 @@ describe('the OIDC identity migration', () => {
         '20261011120000_add_browser_auth_lifecycle',
         '20261005110000_add_shared_people',
         '20261001010000_add_browser_credential_revocations',
-        '20260929180000_add_work_package_rank',
+        '20260929180000_add_project_rank',
         '20260929100000_add_spaces',
         '20260928200000_add_work_item_status_facts',
         '20260928040000_add_email_challenge',
         '20260928030000_add_delegation_use',
         '20260928020000_add_email_verification',
-        '20260928010000_add_work_package_solution',
+        '20260928010000_add_project_solution',
         '20260927220000_add_organization_audit',
         TYPED_DEPENDENCY,
         ORGANIZATION_FROZEN,
@@ -399,9 +401,9 @@ describe('the OIDC identity migration', () => {
           { name: 'created_at', notnull: 1 },
         ]);
         expect(sqlite.query<{ n: number }, []>('SELECT COUNT(*) AS n FROM users').get()?.n).toBe(1);
-        expect(
-          sqlite.query<{ n: number }, []>('SELECT COUNT(*) AS n FROM work_package').get()?.n,
-        ).toBe(1);
+        expect(sqlite.query<{ n: number }, []>('SELECT COUNT(*) AS n FROM project').get()?.n).toBe(
+          1,
+        );
       } finally {
         sqlite.close();
       }
@@ -413,8 +415,8 @@ describe('the OIDC identity migration', () => {
   it('locks OIDC-only accounts during downgrade and restores every identity on re-apply', async () => {
     const db = tempDb();
     try {
-      beforeIdentity(db.path);
-      runMigrations(db.path, FOLDER);
+      beforeIdentity(db.path, db.migrations);
+      runMigrations(db.path, db.migrations);
       const sqlite = openDatabase(db.path);
       try {
         sqlite.run(
@@ -424,13 +426,13 @@ describe('the OIDC identity migration', () => {
           "INSERT INTO users (id, username, password_hash, email, idp_issuer, idp_sub, created_at) VALUES ('oidc', 'dany', NULL, 'dany@puni.show', 'https://issuer.example', 'sub-1', 2)",
         );
         sqlite.run(
-          "INSERT INTO work_package (id, name, owner_id, restricted, estimate_method, start_date, revision, created_at) VALUES ('oidc-plan', 'OIDC plan', 'oidc', 0, 'pert', NULL, 0, 2)",
+          "INSERT INTO project (id, name, owner_id, restricted, estimate_method, start_date, revision, created_at) VALUES ('oidc-plan', 'OIDC plan', 'oidc', 0, 'pert', NULL, 0, 2)",
         );
       } finally {
         sqlite.close();
       }
 
-      expect(rollbackTo(db.path, FOLDER, PERSON_KIND)).toEqual([
+      expect(rollbackTo(db.path, db.migrations, PERSON_KIND)).toEqual([
         '20261103110000_add_initial_access_offers',
         '20261102130000_widen_organization_audit_access',
         '20261102120000_add_access_grants',
@@ -449,9 +451,9 @@ describe('the OIDC identity migration', () => {
         '20261023140000_add_measure',
         '20261023100000_add_claim_lease',
         '20261022213000_add_optimization_boundary_certificates',
-        '20261022212000_add_cross_work_package_dependency_activation',
+        '20261022212000_add_cross_project_dependency_activation',
         '20261022211000_add_external_dependencies',
-        '20261022210000_add_work_package_abbreviations',
+        '20261022210000_add_project_abbreviations',
         '20261022140100_widen_organization_audit_compute_providers',
         '20261022140000_add_resource_provider',
         '20261022130100_widen_organization_audit_organization_limits',
@@ -481,13 +483,13 @@ describe('the OIDC identity migration', () => {
         '20261011120000_add_browser_auth_lifecycle',
         '20261005110000_add_shared_people',
         '20261001010000_add_browser_credential_revocations',
-        '20260929180000_add_work_package_rank',
+        '20260929180000_add_project_rank',
         '20260929100000_add_spaces',
         '20260928200000_add_work_item_status_facts',
         '20260928040000_add_email_challenge',
         '20260928030000_add_delegation_use',
         '20260928020000_add_email_verification',
-        '20260928010000_add_work_package_solution',
+        '20260928010000_add_project_solution',
         '20260927220000_add_organization_audit',
         TYPED_DEPENDENCY,
         ORGANIZATION_FROZEN,
@@ -531,7 +533,7 @@ describe('the OIDC identity migration', () => {
             >(
               `SELECT
               (SELECT COUNT(*) FROM users) AS users,
-              (SELECT COUNT(*) FROM work_package) AS work_packages,
+              (SELECT COUNT(*) FROM project) AS workPackages,
               (SELECT COUNT(*) FROM oidc_identity_downgrade) AS identities,
               (SELECT COUNT(*) FROM __drizzle_migrations) AS migrations`,
             )
@@ -541,7 +543,7 @@ describe('the OIDC identity migration', () => {
         downgraded.close();
       }
 
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
       const restored = openDatabase(db.path);
       try {
         expect(
@@ -578,7 +580,7 @@ describe('the OIDC identity migration', () => {
             .query<{ users: number; workPackages: number; migrations: number }, []>(
               `SELECT
               (SELECT COUNT(*) FROM users) AS users,
-              (SELECT COUNT(*) FROM work_package) AS work_packages,
+              (SELECT COUNT(*) FROM project) AS workPackages,
               (SELECT COUNT(*) FROM __drizzle_migrations) AS migrations`,
             )
             .get(),
@@ -589,7 +591,11 @@ describe('the OIDC identity migration', () => {
           // 20260901120000_add_audit_columns, 34 until
           // 20260902120000_add_lookup_indexes, and every one of those changes
           // broke this line in a way that said nothing about identity.
-        ).toEqual({ users: 2, workPackages: 2, migrations: readMigrationFolders(FOLDER).length });
+        ).toEqual({
+          users: 2,
+          workPackages: 2,
+          migrations: readMigrationFolders(db.migrations).length,
+        });
         expect(
           restored
             .query<{ n: number }, []>('SELECT COUNT(*) AS n FROM oidc_identity_downgrade')

@@ -62,25 +62,61 @@ beforeEach(async () => {
   );
 });
 
-afterEach(() => {
-  h.close();
+afterEach(async () => {
+  await h.closeComposed();
 });
 
 async function create(username: string, name: string): Promise<string> {
-  const answer = await h.call(username, 'POST', '/api/work-packages', { name });
+  const activation = h.sqlite
+    .query<{ state: string }, []>('SELECT state FROM organization_activation WHERE singleton=1')
+    .get();
+  if (activation === null) throw new Error('fixture activation absent');
+  const scoped = activation.state === 'activated';
+  const organizationId = scoped ? (username === 'grace' ? 'org-b' : 'org-a') : 'command-legacy';
+  let projectId: string;
+  if (scoped) {
+    const parent = await h.call(username, 'POST', '/api/projects', { name: name + ' project' });
+    expect(parent.status).toBe(201);
+    projectId = (parent.body as { project: { id: string } }).project.id;
+    await h.publicWrites().uow.run(async ({ stores }) => {
+      const definition = await stores.stepCatalogue.defineAndBindStep(
+        organizationId,
+        {
+          id: crypto.randomUUID(),
+          code: name.toLowerCase().replaceAll(' ', '-'),
+          name: name + ' step',
+          position: 10,
+          defaultEstimateUnit: 'workdays',
+          defaultAllowancePercent: 0,
+        },
+        {
+          bindingId: crypto.randomUUID(),
+          scopeKind: 'project',
+          scopeId: projectId,
+          workItemTypeId: null,
+          position: 10,
+        },
+        { at: 1, by: h.userId(username) },
+      );
+      expect(definition).toMatchObject({ ok: true });
+      return { commit: true, value: undefined };
+    });
+  } else {
+    expect(activation.state).toBe('pre_activation');
+    h.sqlite.run('INSERT INTO organization(id,name,legacy,created_at) VALUES(?,?,1,1)', [
+      organizationId,
+      name,
+    ]);
+    projectId = 'command-legacy-project';
+    h.sqlite.run('INSERT INTO project(id,organization_id,name,created_at) VALUES(?,?,?,1)', [
+      projectId,
+      organizationId,
+      name,
+    ]);
+  }
+  const answer = await h.call(username, 'POST', '/api/work-packages', { name, projectId });
   if (answer.status !== 200) throw new Error(`create refused: ${JSON.stringify(answer)}`);
   const workPackageId = (answer.body as { workPackage: { id: string } }).workPackage.id;
-  if (
-    h.sqlite.query<{ state: string }, []>('SELECT state FROM organization_activation').get()
-      ?.state === 'activated'
-  )
-    h.grant(
-      username === 'grace' ? 'org-b' : 'org-a',
-      username,
-      'package-manager',
-      'work_package',
-      workPackageId,
-    );
   return workPackageId;
 }
 
@@ -150,7 +186,7 @@ function snapshot(): unknown {
 
 describe('before activation', () => {
   it('runs any batch deployment-wide, directory commands included', async () => {
-    h.close();
+    await h.closeComposed();
     h = OrganizationHarness.openComposed();
     for (const username of ['ada', 'grace']) await h.register(username);
     const theirs = await create('grace', 'Legacy plan');
@@ -177,7 +213,15 @@ describe('after activation', () => {
     h.grant('org-a', 'nell', 'package-manager', 'work_package', own);
     h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
     h.sqlite.run('DROP TABLE work_package_rank');
-    const tables = ['work_package', 'step', 'organization_audit', 'event_log', 'event_sequencer'];
+    const tables = [
+      'work_package',
+      'step_definition',
+      'step_binding',
+      'work_package_step',
+      'organization_audit',
+      'event_log',
+      'event_sequencer',
+    ];
     const before = tables.map((table) =>
       h.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all(),
     );
@@ -237,16 +281,26 @@ describe('after activation', () => {
         [h.userId('nell')],
       );
     };
-    const before = ['step', 'organization_audit', 'event_log', 'event_sequencer'].map((table) =>
-      h.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all(),
-    );
+    const before = [
+      'step_definition',
+      'step_binding',
+      'work_package_step',
+      'organization_audit',
+      'event_log',
+      'event_sequencer',
+    ].map((table) => h.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all());
     expect(
       await h.call('nell', 'DELETE', `/api/work-packages/${own}/steps/${ownStep}?cascade=true`),
     ).toMatchObject({ status: 403, body: { error: 'forbidden' } });
     expect(
-      ['step', 'organization_audit', 'event_log', 'event_sequencer'].map((table) =>
-        h.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all(),
-      ),
+      [
+        'step_definition',
+        'step_binding',
+        'work_package_step',
+        'organization_audit',
+        'event_log',
+        'event_sequencer',
+      ].map((table) => h.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all()),
     ).toEqual(before);
   });
 
@@ -293,6 +347,7 @@ describe('after activation', () => {
       h.sqlite
         .query<{ detail: string }, []>('SELECT detail FROM organization_audit ORDER BY rowid')
         .all();
+    const initialAudits = audits();
     const downstreamEvents = () =>
       h.sqlite
         .query<{ subscription: string; message: string }, []>(
@@ -302,21 +357,25 @@ describe('after activation', () => {
         .filter(({ subscription }) =>
           downstream.some((workPackageId) => subscription === `work-package:${workPackageId}`),
         );
-    expect(audits()).toEqual([]);
     expect(
       (await h.call('nell', 'PATCH', `/api/work-packages/${own}`, { startDate: '2026-10-06' }))
         .status,
     ).toBe(200);
-    expect(audits()).toEqual([]);
+    expect(audits()).toEqual(initialAudits);
     expect(downstreamEvents()).toHaveLength(2);
-    const before = [
-      'step',
+    const capturedTables = [
+      'step_definition',
+      'step_binding',
+      'work_package_step',
       'estimate',
       'assignment',
       'organization_audit',
       'event_log',
       'event_sequencer',
-    ].map((table) => h.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all());
+    ];
+    const readCapturedRows = () =>
+      capturedTables.map((table) => h.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all());
+    const before = readCapturedRows();
     h.sqlite.run(
       "UPDATE access_grant SET role_id = CASE scope_kind WHEN 'work_package' THEN 'package-viewer' ELSE 'project-viewer' END WHERE subject_id = ?",
       [h.userId('ada')],
@@ -362,17 +421,13 @@ describe('after activation', () => {
         },
       ),
     ).toMatchObject({ ok: false, reason: 'forbidden', permission: 'package.write' });
-    expect(
-      ['step', 'estimate', 'assignment', 'organization_audit', 'event_log', 'event_sequencer'].map(
-        (table) => h.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all(),
-      ),
-    ).toEqual(before);
+    expect(readCapturedRows()).toEqual(before);
     h.grant('org-a', 'ada', 'package-manager', 'work_package', own);
     h.grant('org-a', 'nell', 'package-manager', 'work_package', own);
     const second = [...downstream].sort().at(1);
     if (second === undefined) throw new Error('second recovery recipient is absent');
     h.sqlite.run(
-      `CREATE TRIGGER fail_recovery_fanout BEFORE INSERT ON event_log WHEN NEW.subscription = 'work_package:${second}' BEGIN SELECT RAISE(FAIL, 'injected recovery fan-out failure'); END`,
+      `CREATE TRIGGER fail_recovery_fanout BEFORE INSERT ON event_log WHEN NEW.subscription = 'work-package:${second}' BEGIN SELECT RAISE(FAIL, 'injected recovery fan-out failure'); END`,
     );
     let bareFailure: unknown;
     try {
@@ -392,20 +447,12 @@ describe('after activation', () => {
     }
     expect(bareFailure).toBeInstanceOf(Error);
     expect((bareFailure as Error).message).toContain('Failed query');
-    expect(
-      ['step', 'estimate', 'assignment', 'organization_audit', 'event_log', 'event_sequencer'].map(
-        (table) => h.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all(),
-      ),
-    ).toEqual(before);
+    expect(readCapturedRows()).toEqual(before);
     expect(
       (await h.call('nell', 'DELETE', `/api/work-packages/${own}/steps/${ownStep}?cascade=true`))
         .status,
     ).toBe(500);
-    expect(
-      ['step', 'estimate', 'assignment', 'organization_audit', 'event_log', 'event_sequencer'].map(
-        (table) => h.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all(),
-      ),
-    ).toEqual(before);
+    expect(readCapturedRows()).toEqual(before);
     h.sqlite.run('DROP TRIGGER fail_recovery_fanout');
     let enterPush!: () => void;
     let releasePush!: () => void;
@@ -434,7 +481,7 @@ describe('after activation', () => {
       releasePush();
     }
     expect((await removal).status).toBe(204);
-    expect(audits()).toEqual([]);
+    expect(audits()).toEqual(initialAudits);
     const [bridgeRecipient, lastRecipient] = downstream;
     const changed = (workPackageId: string, causeWorkPackageId: string) => ({
       type: 'elsewhere_changed',
@@ -488,17 +535,16 @@ describe('after activation', () => {
         'pe-a',
       ]);
     }
+    const readAudits = () =>
+      h.sqlite.query('SELECT * FROM organization_audit ORDER BY rowid').all();
+    const beforeAudits = readAudits();
     const removed = await h.call(
       'nell',
       'DELETE',
       `/api/work-packages/${own}/steps/${ownStep}?cascade=true`,
     );
     expect(removed.status).toBe(204);
-    expect(
-      h.sqlite
-        .query<{ detail: string }, []>('SELECT detail FROM organization_audit ORDER BY rowid')
-        .all(),
-    ).toEqual([]);
+    expect(readAudits()).toEqual(beforeAudits);
     const events = h.sqlite
       .query<{ message: string }, [string]>(
         'SELECT message FROM event_log WHERE subscription = ? ORDER BY seq',
@@ -556,7 +602,7 @@ describe('after activation', () => {
     const second = [...downstream].sort().at(1);
     if (second === undefined) throw new Error('second recipient is absent');
     h.sqlite.run(
-      `CREATE TRIGGER fail_second_fanout BEFORE INSERT ON event_log WHEN NEW.subscription = 'work_package:${second}' BEGIN SELECT RAISE(FAIL, 'injected second fan-out insert failure'); END`,
+      `CREATE TRIGGER fail_second_fanout BEFORE INSERT ON event_log WHEN NEW.subscription = 'work-package:${second}' BEGIN SELECT RAISE(FAIL, 'injected second fan-out insert failure'); END`,
     );
     expect(
       (
@@ -677,6 +723,7 @@ describe('after activation', () => {
         )
         .all();
 
+    let initialAudits: ReturnType<typeof audits>;
     beforeEach(async () => {
       // nell as the super-admin, vic promoted to admin: only a super-admin recovers.
       h.member('org-a', 'nell', 'super_admin', ['org-super-admin']);
@@ -687,6 +734,7 @@ describe('after activation', () => {
       expect(
         (await h.call('ada', 'PATCH', `/api/work-packages/${own}`, { restricted: true })).status,
       ).toBe(200);
+      initialAudits = audits();
     });
 
     it('refuses super-admin batch undo and redo recovery without a package write grant', async () => {
@@ -706,7 +754,7 @@ describe('after activation', () => {
         403,
       );
       expect(snapshot()).toEqual(before);
-      expect(audits()).toEqual([]);
+      expect(audits()).toEqual(initialAudits);
     });
 
     it('keeps no record of a refused batch, and none of an ordinary one', async () => {
@@ -726,7 +774,7 @@ describe('after activation', () => {
       // nell has nothing to undo: the walk fails and takes its record back.
       expect((await h.call('nell', 'POST', `/api/work-packages/${own}/undo`)).status).toBe(409);
       expect(snapshot()).toEqual(before);
-      expect(audits()).toEqual([]);
+      expect(audits()).toEqual(initialAudits);
       expect(
         (
           await batch('ada', own, [
@@ -734,7 +782,7 @@ describe('after activation', () => {
           ])
         ).status,
       ).toBe(200);
-      expect(audits()).toEqual([]);
+      expect(audits()).toEqual(initialAudits);
     });
 
     it('refuses a super-admin removed or demoted before the batch', async () => {
@@ -749,7 +797,7 @@ describe('after activation', () => {
         status: 403,
         body: { error: 'forbidden' },
       });
-      expect(audits()).toEqual([]);
+      expect(audits()).toEqual(initialAudits);
     });
   });
 
@@ -1006,12 +1054,12 @@ describe('after activation', () => {
     const theirs = rowOf(foreign).id;
     for (const [kind, statement, params] of [
       [
-        'incoming_step_row',
+        'foreign_step_fact',
         'INSERT INTO estimate (work_item_id, step_id, optimistic, realistic, pessimistic) VALUES (?, ?, 1, 2, 3)',
         [theirs, ownStep],
       ],
       [
-        'incoming_step_row',
+        'foreign_step_fact',
         "INSERT INTO measure_estimate (work_item_id, step_id, measure_key, optimistic, realistic, pessimistic) VALUES (?, ?, 'tokens', 1, 2, 3)",
         [theirs, ownStep],
       ],
@@ -1027,12 +1075,19 @@ describe('after activation', () => {
       ],
     ] as const) {
       h.sqlite.run(statement, [...params]);
+      // Step facts belong to their work item. Parent and dependency incidences also guard the referenced package.
+      const addressesStepFact = kind === 'foreign_step_fact';
+      const row = addressesStepFact ? theirs : mine;
       const before = snapshot();
       for (const command of [
-        { kind: 'patchWorkItem', workItemId: mine, patch: { name: 'Renamed' } },
-        { kind: 'deleteWorkItem', workItemId: mine },
+        { kind: 'patchWorkItem', workItemId: row, patch: { name: 'Renamed' } },
+        { kind: 'deleteWorkItem', workItemId: row },
       ]) {
-        const answer = await batch('ada', own, [command]);
+        const answer = await batch(
+          addressesStepFact ? 'grace' : 'ada',
+          addressesStepFact ? foreign : own,
+          [command],
+        );
         expect({ kind, command, status: answer.status }).toEqual({ kind, command, status: 500 });
       }
       expect(snapshot()).toEqual(before);

@@ -140,13 +140,14 @@ it('places the access audit widening immediately after access grants without sta
 });
 
 it('publishes the full current-vocabulary access audit catalogue', () => {
+  const [, ...retainedActions] = OLD_ACTIONS;
   expect([...ORGANIZATION_AUDIT_ACTIONS]).toEqual([
     'restricted_work_package_recovery',
     'project_created',
     'project_renamed',
     'project_deleted',
     'work_package_moved',
-    ...OLD_ACTIONS.slice(1),
+    ...retainedActions,
     ...NEW_ACTIONS,
   ]);
   expect([...ORGANIZATION_AUDIT_SUBJECT_KINDS]).toEqual([

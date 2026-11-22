@@ -7,18 +7,21 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { openDatabase } from './db';
 import { runMigrations } from './migrate';
 import { rollbackTo } from './migrate-down';
+import { copyRecoveryPrefix } from './testing/recovery-state';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
-const PREVIOUS = '20260928010000_add_work_package_solution';
+const PREFIX = '20261103110000_add_initial_access_offers';
+const PREVIOUS = '20260928010000_add_project_solution';
 
 /** The additive verification column starts false and cannot discard evidence. */
 describe('email verification migration', () => {
   let dir: string;
   let path: string;
+  let migrations: string;
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), 'wbs-email-verification-'));
     path = join(dir, 'test.db');
-    runMigrations(path, FOLDER);
+    migrations = copyRecoveryPrefix(dir, PREFIX);
+    runMigrations(path, migrations);
   });
   afterEach(() => {
     rmSync(dir, { recursive: true, force: true });
@@ -48,7 +51,7 @@ describe('email verification migration', () => {
   });
 
   it('rolls down before activation without evidence', () => {
-    expect(rollbackTo(path, FOLDER, PREVIOUS)).toEqual([
+    expect(rollbackTo(path, migrations, PREVIOUS)).toEqual([
       '20261103110000_add_initial_access_offers',
       '20261102130000_widen_organization_audit_access',
       '20261102120000_add_access_grants',
@@ -67,9 +70,9 @@ describe('email verification migration', () => {
       '20261023140000_add_measure',
       '20261023100000_add_claim_lease',
       '20261022213000_add_optimization_boundary_certificates',
-      '20261022212000_add_cross_work_package_dependency_activation',
+      '20261022212000_add_cross_project_dependency_activation',
       '20261022211000_add_external_dependencies',
-      '20261022210000_add_work_package_abbreviations',
+      '20261022210000_add_project_abbreviations',
       '20261022140100_widen_organization_audit_compute_providers',
       '20261022140000_add_resource_provider',
       '20261022130100_widen_organization_audit_organization_limits',
@@ -99,7 +102,7 @@ describe('email verification migration', () => {
       '20261011120000_add_browser_auth_lifecycle',
       '20261005110000_add_shared_people',
       '20261001010000_add_browser_credential_revocations',
-      '20260929180000_add_work_package_rank',
+      '20260929180000_add_project_rank',
       '20260929100000_add_spaces',
       '20260928200000_add_work_item_status_facts',
       '20260928040000_add_email_challenge',
@@ -119,7 +122,7 @@ describe('email verification migration', () => {
         "INSERT INTO users (id, username, email, email_verified, created_at) VALUES ('u', 'u', 'u@example.org', 1, 1)",
       ),
     );
-    expect(() => rollbackTo(path, FOLDER, PREVIOUS)).toThrow();
+    expect(() => rollbackTo(path, migrations, PREVIOUS)).toThrow();
     withDatabase((db) => {
       expect(db.query('SELECT email_verified FROM users').get()).toEqual({ email_verified: 1 });
     });
@@ -129,6 +132,6 @@ describe('email verification migration', () => {
     withDatabase((db) =>
       db.run("UPDATE organization_activation SET state = 'activated', activated_at = 1"),
     );
-    expect(() => rollbackTo(path, FOLDER, PREVIOUS)).toThrow();
+    expect(() => rollbackTo(path, migrations, PREVIOUS)).toThrow();
   });
 });
