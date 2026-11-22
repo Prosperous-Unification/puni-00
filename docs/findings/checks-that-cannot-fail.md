@@ -1108,6 +1108,93 @@ Options that remove the dependence:
 - larger runners, whose pool and host type differ;
 - running `tool-fleet`'s tests on the gate hosts and dropping the hosted leaf.
 
+### Amendment, 2026-11-22 (fourth): a longer requeue bound and a 10-minute delay
+
+The third amendment's requeue ran for the first time on main run 45012388967 (`709c7edf8`), and
+it ended red. This amendment records that exercise, corrects the "AWS always dies" reading with
+the day's full leaf table, and makes assumption **A-CI-LEAF-AWS-3**, for Dany to confirm: a bound
+of six attempts and a 10-minute pause before each rerun.
+
+**Structural options for Dany come first.** The requeue is still a workaround that depends on
+GitHub's host mix. These options remove the dependence, and any one of them retires it:
+
+- a runner label that avoids the AWS pool, if GitHub offers one;
+- larger runners, whose pool and host type differ;
+- running `tool-fleet`'s tests on the gate hosts and dropping the hosted leaf.
+
+**The first live exercise.** Attempt 1 drew AWS and refused at 10:26Z, 75 s into the job. The run
+completed at about 11:38Z, and `ci-requeue` reran its failed jobs. Attempts 2, 3 and 4 each drew
+AWS again and each refused within about 75 s, at 11:38, 11:40 and 11:41Z. Attempt 4 was the
+bound, so the chain stopped and main stayed red. The marker, the dispatch, the wait and the
+rerun all ran. What failed was the bound together with the timing: three back-to-back draws.
+
+**AWS does not always die.** The #963 recorder headers of the day, with the cloud and outcome of
+every `tool-fleet` leaf:
+
+| Cloud              | Leaves | Finished | Lost | Notes                                                    |
+| ------------------ | ------ | -------- | ---- | -------------------------------------------------------- |
+| Azure              | 7      | 7        | 0    | 25 to 40 minutes                                         |
+| AWS, `m8id.xlarge` | 6      | 1        | 5    | run 45004146162 finished, 08:44 to 09:13Z, `state=final` |
+
+The five lost AWS leaves went dark 1095 to 1339 s into the phase: runs 44982325124 and
+44985451809 on main, and 44988319045, 45000106372 and 45009725192 on pull requests (newer pushes
+later cancelled the PR runs). So the leaf died on 5 of 6 AWS hosts today, and one finished in 28
+minutes. Wherever these notes or the step comments say the leaf dies on AWS hosts, read "died on
+5 of 6 today". The refusal still pays: a loss holds the runner about 67 minutes, and one finish in
+six is too small a sample to plan on.
+
+**Draws are correlated over minutes, not frozen per hour.** The cloud alternated within minutes
+all day: 05:28 AWS and 05:42 Azure; 08:22 AWS, 08:25 Azure and 08:44 AWS. But the three reruns
+inside five minutes, 11:38 to 11:41Z, all drew AWS. A rerun seconds after a refusal seems to draw
+from the same pool state, so back-to-back reruns are weaker evidence than independent draws.
+
+**The change (A-CI-LEAF-AWS-3).**
+
+- **Bound.** The `requeue tool-fleet leaf` job runs when `github.run_attempt < 6`, so attempts 1
+  to 5 can requeue and a run reaches attempt 6, with five reruns at most. `ci-requeue` accepts a
+  refused attempt of 1 to 5 and treats a polled attempt outside 1 to 6 as malformed.
+- **Delay.** After the run completes with `failure`, `ci-requeue` prints
+  `A-CI-LEAF-AWS-1: waiting 600 s before the rerun so the next draw is less correlated with this host pool`
+  and sleeps `REQUEUE_DELAY_SECONDS`, which the step sets to 600 and the script validates as a
+  whole number. The job's timeout grows from 160 to 175 minutes to hold the delay.
+- **Read again.** After the delay it reads the run again, with the same three tolerated failed
+  polls. A different head, a different attempt (someone reran by hand) or anything but
+  `completed failure` (someone reran and cancelled) ends it with `no requeue`. Only then does it
+  run `gh run rerun --failed`.
+
+**Arithmetic.** It still assumes about two thirds of draws are AWS and, with the delay, that
+draws are independent; the 11:38 to 11:41Z chain says they were not without it.
+
+- Uncapped, the expected number of attempts is 1/(1 − 0.67) ≈ 3.
+- Capped at six, the expected number is 1 + 0.67 + 0.45 + 0.30 + 0.20 + 0.14 ≈ 2.76 attempts,
+  about 1.8 reruns. P(all six draw AWS) is 0.67^6 ≈ 0.09, so about 9% of all runs still end red
+  (0.67^5 ≈ 13% of runs whose first draw was AWS), against about 20% (30%) with four attempts.
+- Runner time: each refused attempt costs about 75 s plus the requeue job's well under a minute,
+  so a full chain of six refusals costs under 10 minutes of working runner time. Each waiter also
+  holds an idle runner through its 10-minute sleep, about 50 minutes over five reruns.
+- Wall clock per refusal: the run's length, then the 10-minute delay, then the next attempt. The
+  first refusal waits for the whole run, about 88 minutes. A rerun runs only the failed jobs, so
+  a further refused attempt completes in about 2 minutes and adds about 12 minutes. An Azure draw
+  then takes 25 to 40 minutes. One refusal means about 2 hours 15 minutes of red main; five
+  refusals before an Azure draw, about 3 hours.
+
+**Proof.** `gate-workflow.test.ts` pins `< 6` and runs `ci-requeue`'s script with a fake `gh` and
+a fake `sleep` that write one ordered trace. The trace shows the 600 s sleep after the completed
+poll and before the read again and the rerun. Attempt 5 reruns as attempt 6, and a polled attempt
+6 reads as moved. After the delay, a cancelled attempt, a new attempt and another head are each
+left alone, and the read again tolerates three failed polls. Each of these faults failed a test:
+
+- the bound put back to `< 4`;
+- the refused-attempt bound put back to 1 to 3, or the polled attempt back to 1 to 4;
+- the delay's validation dropped;
+- the delay's `sleep` replaced with `:` (the order check);
+- the read after the delay and its checks replaced with `if false` (the cancelled attempt was
+  rerun).
+
+**Proof plan.** On the next AWS-first main run, `ci-requeue` logs the waiting line and the rerun
+starts about 10 minutes after completion. If reruns 10 minutes apart keep drawing AWS, the delay
+does not decorrelate the draw, and only the structural options above remain.
+
 ## A race measured in one shape can lose in another
 
 **R5-33**, observed 2026-11-22 on h2puni (gate calibration e1b18304). Dash's container watch

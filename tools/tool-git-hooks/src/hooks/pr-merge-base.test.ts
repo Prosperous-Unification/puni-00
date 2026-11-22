@@ -1161,7 +1161,7 @@ test.each(headroomShards)("%s step's start record names the host's cloud", async
 });
 
 const awsRefusal =
-  'A-CI-LEAF-AWS-1: AWS-hosted runner refused for the tool-fleet leaf (the leaf dies about 20 minutes into its phase on AWS hosts, R5-32); requeue';
+  'A-CI-LEAF-AWS-1: AWS-hosted runner refused for the tool-fleet leaf (the leaf died about 20 minutes into its phase on 5 of 6 AWS hosts on 2026-11-22, R5-32); requeue';
 const awsHost = { sys_vendor: 'Amazon EC2', product_name: 'm7a.xlarge' };
 
 // A-CI-LEAF-AWS-1 (R5-32): on the start record's `cloud=aws` the tool-fleet leaf refuses with exit 78

@@ -197,7 +197,7 @@ Budgets: every `bun test` target passes `--timeout` on a 10/30/60 s ladder
   `gate_backend`, `gate_remote`,
   `gate_remote_model` and `gate_frontend` (90 min caps), `gate_checks` (secrets scan, migration
   lint, doc caps), `gate_docs`, `gate_twilight`, the `gate` reducer, `requeue_tool_fleet_leaf`
-  (dispatches `ci-requeue.yml` to rerun a refused attempt's failed jobs, up to attempt 4), `pixels`
+  (dispatches `ci-requeue.yml` to rerun a refused attempt's failed jobs 10 minutes after the run completes, up to attempt 6), `pixels`
   shards 1–4.
   `infra-check.yml` on infra paths; `twilight-burokrat-release.yml` on `twilight-burokrat-v*`
   tags; `trusted-wiki.yml` paused.
