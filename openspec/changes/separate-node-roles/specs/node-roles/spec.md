@@ -1041,33 +1041,86 @@ earlier copy SHALL stand in for it only when its digest equals that of the stopp
 - **WHEN** a copy taken before the writer stopped differs in digest from the stopped store
 - **THEN** it is refused as the final backup
 
-### Requirement: A staging render never moves backwards and carries no schema change
+### Requirement: A staging render never moves backwards
 
 The staging build SHALL refuse to commit a render whose source commit is not a descendant
 of the one the app's pins directory names. It SHALL refuse a source commit whose migration
-set for the app differs from that of the commit staging runs, until an automated schema
-path exists.
+set for the app is not a superset, by name and hash, of that of the commit staging runs.
 
 #### Scenario: Builds finishing in reverse order
 
 - **WHEN** a build of an older commit finishes after a build of a newer one
 - **THEN** its commit is refused and the pins directory keeps the newer render
 
-#### Scenario: A merge that adds a migration
+#### Scenario: A merge that removes or edits an applied migration
 
-- **WHEN** the source commit adds a migration for the app
+- **WHEN** the source commit lacks a migration staging has applied, or changes its bytes
 - **THEN** the render step refuses it and names the attended path
+
+### Requirement: A schema change reaches WBS staging through a hook
+
+A WBS staging render SHALL carry a Job, a hook of the staging Application that runs one
+wave before the backend, with the backend's image digest. The Job SHALL capture the
+applied migrations before it migrates and, on a failure, reverse exactly its additions
+and compare the complete ledger. No production or platform Application SHALL carry such
+a hook.
+
+#### Scenario: An additive migration
+
+- **WHEN** a merge adds a migration and its render is committed to the pins directory
+- **THEN** the hook applies it and the new backend serves, with no command
+
+#### Scenario: A migration that fails
+
+- **WHEN** the hook's forward migration fails
+- **THEN** the ledger equals the capture, the sync is failed and the old backend serves
+
+#### Scenario: Nothing pending
+
+- **WHEN** the candidate's migration set equals the applied one
+- **THEN** the hook exits 0 and writes no snapshot
+
+#### Scenario: A reversal that fails
+
+- **WHEN** the reversal leaves the ledger different from the capture
+- **THEN** the hook keeps its attempt record and prints the manual completion command
+
+#### Scenario: Another candidate's unfinished attempt
+
+- **WHEN** an attempt record of another image digest is on the claim
+- **THEN** the hook refuses to migrate
+
+#### Scenario: Hook in a production overlay
+
+- **WHEN** a production or platform Application's source holds a hook that runs a migration
+- **THEN** the delivery check fails and names the object
+
+#### Scenario: Hook after the backend
+
+- **WHEN** the hook's wave is not before the backend Deployment's
+- **THEN** the delivery check fails
 
 ### Requirement: MLflow is restored whole before its old host is deleted
 
-MLflow's backup SHALL hold its metadata store and its artifact store under one stamp, with
-a manifest of every artifact's SHA-256. The old host SHALL NOT be deleted before both have
-been restored together and one known artifact has been fetched through MLflow with its
+MLflow's backup SHALL hold its metadata store and its artifact root under one stamp, with
+the store's schema revision and a manifest of every artifact's SHA-256, empty when there
+is none. The old host SHALL NOT be deleted before both have been restored together, a
+known run has been read, and a known artifact, if one exists, has been fetched with its
 recorded SHA-256.
 
 #### Scenario: Metadata without artifacts
 
 - **WHEN** a stamp holds the metadata store and no artifact archive
+- **THEN** the verify job fails
+
+#### Scenario: An empty artifact root
+
+- **WHEN** the artifact root holds no file when the final copy is taken
+- **THEN** the stamp carries an empty manifest and the receipt records its SHA-256
+
+#### Scenario: A revision that differs
+
+- **WHEN** a restored copy's schema revision differs from its report
 - **THEN** the verify job fails
 
 #### Scenario: A known artifact after the move
