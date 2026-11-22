@@ -2,20 +2,18 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { Step, WorkItem, WorkPackage, WriteStamp } from '@wbs/core';
+import type { WorkItem, WriteStamp } from '@wbs/core';
 import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { openDrizzle } from './db';
 import { DirectoryRepository } from './directory';
 import { OPEN } from './gate';
-import { runMigrations } from './migrate';
+import { migrateEmptyCatalogueFixture } from './testing/catalogue-database';
 import { seedLegacyPackageParent } from './testing/legacy-package-parent';
 import { UserRepository } from './user';
 import { WorkItemRepository } from './work-item';
 import { WorkPackageRepository } from './work-package';
-
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 
 let dir: string;
 let ownerId: string;
@@ -64,7 +62,7 @@ const typed = (name: string) => repo.addWorkItemType({ id: crypto.randomUUID(), 
 beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-work-item-type-'));
   const path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
+  migrateEmptyCatalogueFixture({ path, directory: dir, reportedAt: 1 }, { hasUnknownOwner: false });
   seedLegacyPackageParent(path, 'fixture-legacy-org', 'fixture-project');
   const db = openDrizzle(path);
   repo = new DirectoryRepository(db, OPEN);
@@ -76,22 +74,11 @@ beforeEach(async () => {
     wrote(),
   );
   workPackageId = crypto.randomUUID();
-  const workPackage: WorkPackage = workPackageRow({
-    id: workPackageId,
-    projectId: 'fixture-project',
-  });
-  const steps: Step[] = [
-    {
-      id: crypto.randomUUID(),
-      workPackageId,
-      name: 'Dev',
-      position: 10,
-      code: 'dev',
-      allowancePercent: 0,
-      estimateUnit: 'workdays' as const,
-    },
-  ];
-  await new WorkPackageRepository(db, OPEN).create(workPackage, steps, wrote());
+  await new WorkPackageRepository(db, OPEN).create(
+    workPackageRow({ id: workPackageId, projectId: 'fixture-project' }),
+    [],
+    wrote(),
+  );
 
   itemId = crypto.randomUUID();
   childId = crypto.randomUUID();

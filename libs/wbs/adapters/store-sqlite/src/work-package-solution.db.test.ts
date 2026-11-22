@@ -10,20 +10,31 @@ import { openDatabase, openDrizzle } from './db';
 import { OPEN } from './gate';
 import { runMigrations } from './migrate';
 import { rollbackTo } from './migrate-down';
+import { migrateEmptyCatalogueFixture } from './testing/catalogue-database';
 import { seedPackageParent } from './testing/legacy-package-parent';
+import { copyRecoveryPrefix } from './testing/recovery-state';
 import { UserRepository } from './user';
 import { WorkPackageRepository } from './work-package';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const AUDIT = '20260927220000_add_organization_audit';
-const SOLUTION = '20260928010000_add_work_package_solution';
+const SOLUTION = '20260928010000_add_project_solution';
 const wrote: WriteStamp = { at: 1, by: 'ada' };
 /** Long enough that the racing edit starts while the holder still writes. */
 const HELD_FOR_MS = 300;
 const link = (slug: string) => ({ slug, url: `https://solutions.example/${slug}` });
 
+function withDatabase<T>(path: string, use: (db: ReturnType<typeof openDatabase>) => T): T {
+  const db = openDatabase(path);
+  try {
+    db.run('PRAGMA foreign_keys = ON');
+    return use(db);
+  } finally {
+    db.close();
+  }
+}
+
 /**
- * `20260928010000_add_work_package_solution` and the scoped solution link (task
+ * `20260928010000_add_project_solution` and the scoped solution link (task
  * 3.5 part 2): a slug is unique within its organization only, the link's
  * organization is its work package's owner, and a work package holds a legacy pair or a
  * scoped link, never both.
@@ -35,7 +46,10 @@ describe('scoped solution links', () => {
   beforeEach(async () => {
     dir = mkdtempSync(join(tmpdir(), 'wbs-work-package-solution-'));
     path = join(dir, 'test.db');
-    runMigrations(path, FOLDER);
+    migrateEmptyCatalogueFixture(
+      { path, directory: dir, reportedAt: 1 },
+      { hasUnknownOwner: false },
+    );
     raw((sqlite) => {
       sqlite.run("INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1)");
       sqlite.run("INSERT INTO organization (id, name, created_at) VALUES ('org-b', 'B', 1)");
@@ -73,13 +87,7 @@ describe('scoped solution links', () => {
   });
 
   function raw<T>(use: (db: ReturnType<typeof openDatabase>) => T): T {
-    const db = openDatabase(path);
-    try {
-      db.run('PRAGMA foreign_keys = ON');
-      return use(db);
-    } finally {
-      db.close();
-    }
+    return withDatabase(path, use);
   }
 
   const store = () => new WorkPackageRepository(openDrizzle(path), OPEN);
@@ -145,118 +153,6 @@ describe('scoped solution links', () => {
       insertLink('a1', 'org-a', 'gone');
       raw((db) => db.run("DELETE FROM work_package WHERE id = 'a1'"));
       expect(rows().links).toEqual([]);
-    });
-  });
-
-  describe('the rollback', () => {
-    it('rolls back while nothing is linked before activation', () => {
-      expect(rollbackTo(path, FOLDER, AUDIT)).toEqual([
-        '20261103110000_add_initial_access_offers',
-        '20261102130000_widen_organization_audit_access',
-        '20261102120000_add_access_grants',
-        '20261101120000_add_host_job_projection',
-        '20261101100100_add_resource_directory_capacity',
-        '20261101100000_widen_organization_audit_directory_capacity',
-        '20261028100100_widen_organization_audit_agent_pools',
-        '20261028100000_add_agent_pool',
-        '20261026130000_widen_organization_audit_machine_tokens',
-        '20261026120000_add_command_journal_person',
-        '20261025130000_add_resource_runtime',
-        '20261025120000_add_resource_use',
-        '20261023170000_add_work_item_budget',
-        '20261023160000_add_measure_estimate',
-        '20261023150000_key_step_measure',
-        '20261023140000_add_measure',
-        '20261023100000_add_claim_lease',
-        '20261022213000_add_optimization_boundary_certificates',
-        '20261022212000_add_cross_work_package_dependency_activation',
-        '20261022211000_add_external_dependencies',
-        '20261022210000_add_work_package_abbreviations',
-        '20261022140100_widen_organization_audit_compute_providers',
-        '20261022140000_add_resource_provider',
-        '20261022130100_widen_organization_audit_organization_limits',
-        '20261022130000_add_organization_limits',
-        '20261022121000_add_runtime_commands',
-        '20261022120000_scope_trusted_issuer_audience',
-        '20261022110100_check_machine_credential_id',
-        '20261022110000_widen_organization_audit_machine_credentials',
-        '20261022100000_add_machine_credential',
-        '20261020130000_add_claim_occupancy',
-        '20261020120000_add_resources',
-        '20261019130100_add_external_identity_person',
-        '20261019130000_add_person_account',
-        '20261019120000_add_claim',
-        '20261015110000_add_step_node_parallelism',
-        '20261015100000_add_step_blockage_activation_receipt',
-        '20261014140000_add_step_blockage_activation',
-        '20261014130000_add_shared_people_restore_receipts',
-        '20261014120000_add_shared_people_restore_approvals',
-        '20261013140000_add_step_node_blockages',
-        '20261012130000_add_step_estimate_unit',
-        '20261012120000_add_step_node_attempts',
-        '20261012090200_widen_organization_audit',
-        '20261012090100_add_browser_auth_times',
-        '20261012090000_add_enterprise_sso_records',
-        '20261011200000_add_shared_people_audit',
-        '20261011120000_add_browser_auth_lifecycle',
-        '20261005110000_add_shared_people',
-        '20261001010000_add_browser_credential_revocations',
-        '20260929180000_add_work_package_rank',
-        '20260929100000_add_spaces',
-        '20260928200000_add_work_item_status_facts',
-        '20260928040000_add_email_challenge',
-        '20260928030000_add_delegation_use',
-        '20260928020000_add_email_verification',
-        SOLUTION,
-      ]);
-    });
-
-    it('refuses while a link is recorded', () => {
-      insertLink('a1', 'org-a', 'kept');
-      expect(() => rollbackTo(path, FOLDER, AUDIT)).toThrow();
-      expect(rows().links).toEqual([{ work_package_id: 'a1', slug: 'kept' }]);
-    });
-
-    const applied = () =>
-      raw((db) =>
-        db
-          .query<{ name: string }, []>('SELECT name FROM __drizzle_migrations ORDER BY created_at')
-          .all()
-          .map((row) => row.name)
-          .at(-1),
-      );
-
-    const rollbackVerification = () => rollbackTo(path, FOLDER, SOLUTION);
-
-    it('refuses with a missing or malformed marker, keeping the table and the ledger', () => {
-      rollbackVerification();
-      raw((db) => {
-        db.run('PRAGMA ignore_check_constraints = ON');
-        db.run('UPDATE organization_activation SET activated_at = 5');
-      });
-      expect(() => rollbackTo(path, FOLDER, AUDIT)).toThrow();
-      expect(applied()).toBe(SOLUTION);
-      raw((db) => db.run('DELETE FROM organization_activation'));
-      expect(() => rollbackTo(path, FOLDER, AUDIT)).toThrow();
-      expect(applied()).toBe(SOLUTION);
-      expect(
-        raw((db) => db.query('SELECT COUNT(*) AS n FROM work_package_solution').get()),
-      ).toEqual({
-        n: 0,
-      });
-    });
-
-    it('refuses after activation even with no link', () => {
-      rollbackVerification();
-      raw((db) =>
-        db.run("UPDATE organization_activation SET state = 'activated', activated_at = 5"),
-      );
-      expect(() => rollbackTo(path, FOLDER, AUDIT)).toThrow();
-      expect(
-        raw((db) => db.query('SELECT COUNT(*) AS n FROM work_package_solution').get()),
-      ).toEqual({
-        n: 0,
-      });
     });
   });
 
@@ -433,6 +329,145 @@ describe('scoped solution links', () => {
         (await store().listForInOrganization('ada', 'org-a')).find((p) => p.id === 'a3')
           ?.solutionRef,
       ).toEqual(link('fresh'));
+    });
+  });
+});
+
+describe('the historical project solution rollback', () => {
+  let dir: string;
+  let path: string;
+  let history: string;
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'wbs-project-solution-rollback-'));
+    path = join(dir, 'test.db');
+    history = copyRecoveryPrefix(dir, '20261103110000_add_initial_access_offers');
+    runMigrations(path, history);
+    raw((db) => {
+      db.run("INSERT INTO users (id,username,password_hash,created_at) VALUES ('ada','ada','x',1)");
+      db.run("INSERT INTO organization (id,name,created_at) VALUES ('org-a','A',1)");
+      db.run("INSERT INTO project (id,name,owner_id,created_at) VALUES ('a1','A1','ada',1)");
+      db.run(
+        "INSERT INTO project_organization (resource_id,organization_id) VALUES ('a1','org-a')",
+      );
+    });
+  });
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  function raw<T>(use: (db: ReturnType<typeof openDatabase>) => T): T {
+    return withDatabase(path, use);
+  }
+
+  it('rolls back while nothing is linked before activation', () => {
+    expect(rollbackTo(path, history, AUDIT)).toEqual([
+      '20261103110000_add_initial_access_offers',
+      '20261102130000_widen_organization_audit_access',
+      '20261102120000_add_access_grants',
+      '20261101120000_add_host_job_projection',
+      '20261101100100_add_resource_directory_capacity',
+      '20261101100000_widen_organization_audit_directory_capacity',
+      '20261028100100_widen_organization_audit_agent_pools',
+      '20261028100000_add_agent_pool',
+      '20261026130000_widen_organization_audit_machine_tokens',
+      '20261026120000_add_command_journal_person',
+      '20261025130000_add_resource_runtime',
+      '20261025120000_add_resource_use',
+      '20261023170000_add_work_item_budget',
+      '20261023160000_add_measure_estimate',
+      '20261023150000_key_step_measure',
+      '20261023140000_add_measure',
+      '20261023100000_add_claim_lease',
+      '20261022213000_add_optimization_boundary_certificates',
+      '20261022212000_add_cross_project_dependency_activation',
+      '20261022211000_add_external_dependencies',
+      '20261022210000_add_project_abbreviations',
+      '20261022140100_widen_organization_audit_compute_providers',
+      '20261022140000_add_resource_provider',
+      '20261022130100_widen_organization_audit_organization_limits',
+      '20261022130000_add_organization_limits',
+      '20261022121000_add_runtime_commands',
+      '20261022120000_scope_trusted_issuer_audience',
+      '20261022110100_check_machine_credential_id',
+      '20261022110000_widen_organization_audit_machine_credentials',
+      '20261022100000_add_machine_credential',
+      '20261020130000_add_claim_occupancy',
+      '20261020120000_add_resources',
+      '20261019130100_add_external_identity_person',
+      '20261019130000_add_person_account',
+      '20261019120000_add_claim',
+      '20261015110000_add_step_node_parallelism',
+      '20261015100000_add_step_blockage_activation_receipt',
+      '20261014140000_add_step_blockage_activation',
+      '20261014130000_add_shared_people_restore_receipts',
+      '20261014120000_add_shared_people_restore_approvals',
+      '20261013140000_add_step_node_blockages',
+      '20261012130000_add_step_estimate_unit',
+      '20261012120000_add_step_node_attempts',
+      '20261012090200_widen_organization_audit',
+      '20261012090100_add_browser_auth_times',
+      '20261012090000_add_enterprise_sso_records',
+      '20261011200000_add_shared_people_audit',
+      '20261011120000_add_browser_auth_lifecycle',
+      '20261005110000_add_shared_people',
+      '20261001010000_add_browser_credential_revocations',
+      '20260929180000_add_project_rank',
+      '20260929100000_add_spaces',
+      '20260928200000_add_work_item_status_facts',
+      '20260928040000_add_email_challenge',
+      '20260928030000_add_delegation_use',
+      '20260928020000_add_email_verification',
+      SOLUTION,
+    ]);
+  });
+
+  it('refuses while a link is recorded', () => {
+    raw((db) =>
+      db.run(
+        "INSERT INTO project_solution (project_id,organization_id,slug,url) VALUES ('a1','org-a','kept','https://solutions.example/kept')",
+      ),
+    );
+    expect(() => rollbackTo(path, history, AUDIT)).toThrow();
+    expect(raw((db) => db.query('SELECT project_id,slug FROM project_solution').all())).toEqual([
+      { project_id: 'a1', slug: 'kept' },
+    ]);
+  });
+
+  const applied = () =>
+    raw((db) =>
+      db
+        .query<{ name: string }, []>('SELECT name FROM __drizzle_migrations ORDER BY created_at')
+        .all()
+        .map((row) => row.name)
+        .at(-1),
+    );
+
+  const rollbackVerification = () => rollbackTo(path, history, SOLUTION);
+
+  it('refuses with a missing or malformed marker, keeping the table and the ledger', () => {
+    rollbackVerification();
+    raw((db) => {
+      db.run('PRAGMA ignore_check_constraints = ON');
+      db.run('UPDATE organization_activation SET activated_at = 5');
+    });
+    expect(() => rollbackTo(path, history, AUDIT)).toThrow();
+    expect(applied()).toBe(SOLUTION);
+    raw((db) => db.run('DELETE FROM organization_activation'));
+    expect(() => rollbackTo(path, history, AUDIT)).toThrow();
+    expect(applied()).toBe(SOLUTION);
+    expect(raw((db) => db.query('SELECT COUNT(*) AS n FROM project_solution').get())).toEqual({
+      n: 0,
+    });
+  });
+
+  it('refuses after activation even with no link', () => {
+    rollbackVerification();
+    raw((db) => db.run("UPDATE organization_activation SET state = 'activated', activated_at = 5"));
+    expect(() => rollbackTo(path, history, AUDIT)).toThrow();
+    expect(raw((db) => db.query('SELECT COUNT(*) AS n FROM project_solution').get())).toEqual({
+      n: 0,
     });
   });
 });

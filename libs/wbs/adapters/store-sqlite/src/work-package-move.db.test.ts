@@ -13,12 +13,12 @@ import { WriteCoordinator } from './gate';
 import { runMigrations } from './migrate';
 import { ProjectRepository } from './project';
 import { isSqliteCleanupUnknown } from './sqlite-cleanup';
+import { migrateEmptyCatalogueFixture } from './testing/catalogue-database';
 import { seedDependencyAuthority } from './testing/dependency-activation';
 import { TypedDependencyRepository } from './typed-dependency';
 import { WorkItemRepository } from './work-item';
 import { WorkPackageRepository } from './work-package';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 let directory: string,
   sqlite: ReturnType<typeof openDatabase>,
   connection: Connection,
@@ -90,17 +90,7 @@ const act = (id = 'move'): ProjectAct => ({
 async function packageAt(id: string, parent: string, org = 'org') {
   const created = await new WorkPackageRepository(connection.db, gate).createInOrganization(
     workPackageRow({ id, projectId: parent, name: id, createdAt: 42 }),
-    [
-      {
-        id: id + '-dev',
-        workPackageId: id,
-        name: 'Dev',
-        code: 'dev',
-        position: 10,
-        allowancePercent: 0,
-        estimateUnit: 'workdays',
-      },
-    ],
+    [],
     { at: 42, by: 'creator' },
     org,
     { id: id + '-grant', auditId: id + '-granted' },
@@ -118,7 +108,7 @@ beforeEach(async () => {
     directory = mkdtempSync(join(tmpdir(), 'work-package-move-'));
     acquired.directory = directory;
     const path = join(directory, 'store.db');
-    runMigrations(path, FOLDER);
+    migrateEmptyCatalogueFixture({ path, directory, reportedAt: 1 }, { hasUnknownOwner: false });
     // Synthetic storage authority only; no runtime compatibility or operational activation claim.
     acquired.uncertain = true;
     seedDependencyAuthority(path);
@@ -157,6 +147,19 @@ beforeEach(async () => {
       );
       if (typeof created === 'string' || created.kind !== 'created')
         throw Error('fixture project birth refused');
+    }
+    for (const [step, org] of [
+      ['w-dev', 'org'],
+      ['foreign-w-dev', 'foreign'],
+    ]) {
+      sqlite.run(
+        "INSERT INTO step_definition (id,organization_id,code,name,estimate_unit,default_allowance_bps,position,defined_at_scope_kind,defined_at_scope_id,origin) VALUES (?,?,'dev','Dev','workdays',0,10,'organization',?,'authored')",
+        [step, org, org],
+      );
+      sqlite.run(
+        "INSERT INTO step_binding (id,organization_id,scope_kind,scope_id,step_id,position,origin) VALUES (?,?,'organization',?,?,10,'authored')",
+        ['binding-' + step, org, org, step],
+      );
     }
     await packageAt('w', 'source');
     await packageAt('source-neighbor', 'source');
@@ -244,7 +247,7 @@ it('moves the actual package and both project revisions with one exact destinati
     .get();
   if (before === null) throw new Error('fixture selected package row is absent');
   const grants = sqlite.query('SELECT * FROM access_grant ORDER BY id').all(),
-    steps = sqlite.query('SELECT * FROM step ORDER BY id').all(),
+    steps = sqlite.query('SELECT * FROM work_package_step ORDER BY work_package_id,step_id').all(),
     addresses = sqlite
       .query('SELECT * FROM work_package_abbreviation ORDER BY work_package_id')
       .all();
@@ -295,7 +298,10 @@ it('moves the actual package and both project revisions with one exact destinati
     created_at: 75,
   });
   expect(sqlite.query('SELECT * FROM access_grant ORDER BY id').all()).toEqual(grants);
-  expect(sqlite.query('SELECT * FROM step ORDER BY id').all()).toEqual(steps);
+  expect(steps).toHaveLength(5);
+  expect(
+    sqlite.query('SELECT * FROM work_package_step ORDER BY work_package_id,step_id').all(),
+  ).toEqual(steps);
   expect(
     sqlite.query('SELECT * FROM work_package_abbreviation ORDER BY work_package_id').all(),
   ).toEqual(addresses);
@@ -760,7 +766,9 @@ it('refuses current incident missing step evidence after constraints restore', a
     },
     { at: 42, by: 'creator' },
   );
-  corruptCurrentIncident([], false, () => sqlite.run("DELETE FROM step WHERE id='w-dev'"));
+  corruptCurrentIncident([], false, () =>
+    sqlite.run("DELETE FROM step_definition WHERE id='w-dev'"),
+  );
   const before = snapshot();
   await expectExactIncidentFailure(
     store.moveWorkPackage('org', 'w', 'target', act()),

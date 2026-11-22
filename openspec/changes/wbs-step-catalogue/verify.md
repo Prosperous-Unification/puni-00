@@ -2157,3 +2157,12 @@ constraints, migration 116 for legacy removal and the original migration
 prefix for rollback ledger checks. Admitted move fixtures run through the
 catalogue and verify that a missing or foreign source parent is rejected
 before writes, with the original snapshot preserved.
+
+Focused Nx SQLite runs passed 77 direct move, saved-plan persistence and
+solution-link tests, and all 16 work-item type tests. The direct move keeps
+materialized organization step values and refuses after a referenced current
+step definition is removed. The saved-plan split controls still assert the
+exact partial header and body state, with current catalogue identity evidence.
+Solution-link rollback uses the original project table and pinned historical
+migration names and ledger. The work-item type fixture uses the legacy birth
+path on the migrated schema so its real ownership bridge runs once.

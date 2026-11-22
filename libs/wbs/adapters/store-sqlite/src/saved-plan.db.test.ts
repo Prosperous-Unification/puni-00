@@ -10,9 +10,9 @@ import type { Connection } from './db';
 import { drizzleOuterTransaction, openConnection } from './db';
 import { OPEN } from './gate';
 import { SavedPlanRepository as PublicSavedPlanRepository } from './index';
-import { runMigrations } from './migrate';
 import type { SavedPlanWrite } from './saved-plan';
 import { bodyByteLength, SavedPlanRepository } from './saved-plan';
+import { migrateEmptyCatalogueFixture } from './testing/catalogue-database';
 import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
 import {
   openSqliteSourceWithNonAtomicSavedPlanFault,
@@ -21,8 +21,6 @@ import {
 import { seedLegacyPackageParent } from './testing/legacy-package-parent';
 import { UserRepository } from './user';
 import { WorkPackageRepository } from './work-package';
-
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 
 const wrote: WriteStamp = { at: 1, by: 'owner' };
 
@@ -53,7 +51,10 @@ describe('SavedPlanRepository', () => {
   beforeEach(async () => {
     dir = mkdtempSync(join(tmpdir(), 'wbs-saved-plan-write-'));
     path = join(dir, 'test.db');
-    runMigrations(path, FOLDER);
+    migrateEmptyCatalogueFixture(
+      { path, directory: dir, reportedAt: 1 },
+      { hasUnknownOwner: false },
+    );
     seedLegacyPackageParent(path, 'fixture-legacy-org', 'fixture-project');
     const seed = openConnection(path);
     await new UserRepository(seed.db, OPEN).create(
@@ -62,17 +63,7 @@ describe('SavedPlanRepository', () => {
     );
     await new WorkPackageRepository(seed.db, OPEN).create(
       workPackageRow({ id: 'p1', name: 'Rewire the shed', projectId: 'fixture-project' }),
-      [
-        {
-          id: 'st-1',
-          workPackageId: 'p1',
-          name: 'Build',
-          position: 10,
-          code: 'build',
-          allowancePercent: 0,
-          estimateUnit: 'workdays' as const,
-        },
-      ],
+      [],
       wrote,
     );
     seed.close();
@@ -247,7 +238,7 @@ describe('SavedPlanRepository', () => {
         scheduleAbsentReason: null,
       },
       bodies: { input: '{"input":true}', schedule: null },
-      stepIdentity: { kind: 'pre_catalogue' },
+      stepIdentity: { kind: 'catalogue', aliases: [] },
     });
     expect(await plans.listOf('p1')).toEqual([partial.header]);
     expect(await plans.principalsOf('late-target')).toEqual({
@@ -337,7 +328,7 @@ describe('SavedPlanRepository', () => {
         scheduleAbsentReason: null,
       },
       bodies: { input: '{"input":true}', schedule: null },
-      stepIdentity: { kind: 'pre_catalogue' },
+      stepIdentity: { kind: 'catalogue', aliases: [] },
     });
   });
 
