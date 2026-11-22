@@ -1795,7 +1795,9 @@ service CIDR or to a NodePort is dropped, except the two named exceptions, the
 Then all the bastion can reach on a server is `sshd`, and a host that is not a node reaches
 no pod and no Service. The chain is stateful. It sits at priority −150, after connection
 tracking (−200) and before destination NAT (−100), accepts `ct state established,related`
-first, and its drops match new connections only, the public drop of slice 1.8 included:
+first, drops `ct state invalid` next, and its other drops match new connections only, the
+public drop of slice 1.8 included; they are not widened to all traffic, because IPv6
+neighbour discovery on the public interface is not tracked:
 otherwise the replies to a server's own outbound connections, which arrive on the public
 interface, and the replies from the bastion to a connection a server opened, would be
 dropped as well. Tailscale's own UDP port
@@ -1808,8 +1810,9 @@ out. That address admits more than the prober: traffic that a pod on that node s
 the cluster is masqueraded to it, and in the minimal profile staging and dev run there. So
 the planning session's choice, recorded for the owner to overrule: every non-production
 namespace's default-deny NetworkPolicy of slice 2.10 covers egress, and no egress allow
-of the `policy` unit or of an overlay may cover 10.10.1.12, which the `delivery` check
-holds (rule 2.4(k)); a NetworkPolicy from the pins repository is bounded only as the
+of the `policy` unit or of an overlay may cover 10.10.1.12, the address in the inventory's
+`bastion` group, which the `delivery` check holds (rule 2.4(k): an egress rule with no
+`to`, or an `ipBlock` that contains the address without excepting it, covers it); a NetworkPolicy from the pins repository is bounded only as the
 Risks entry on it says; a host-network prober was the alternative and would not help, since
 the masqueraded pods share its address. What a pod would still reach there is a TCP
 handshake with `sshd`, which wants the jump key. In front of every server the provider's panel firewall refuses, once
@@ -2118,8 +2121,10 @@ taint is (slice 1.2, before A3, so that it needs no restart later). k3s sets
 plain `kube-apiserver-arg` for the same flag replaces that default, and the form
 `enable-admission-plugins+=PodNodeSelector` appends to it (`pkg/util/args.go`, read at
 the k3s source the reviewer fetched), so the template writes the `+=` form and the API
-server receives the flag twice, which its list flag accumulates (believed; A27 reads the
-running arguments). Each namespace in which Rancher runs pods,
+server receives the flag twice, which accumulates: `--enable-admission-plugins` is a string
+slice (`k8s_apiserver_opts.go`), and `PodNodeSelector` is still registered among the
+plugins in v1.36.0 (`k8s_plugins.go`), both read in the Kubernetes source the reviewer
+fetched; A27 reads the running arguments. Each namespace in which Rancher runs pods,
 `cattle-system`, `cattle-fleet-system` and `cattle-fleet-local-system`, is created by the
 `namespaces` unit with the annotation `scheduler.alpha.kubernetes.io/node-selector` set to
 the `platform-services` capability. The plugin merges that selector into every pod of the
@@ -2563,7 +2568,6 @@ users.
   182 GiB in bytes, or the 169 GiB exit of decision 2 applies.
 - That `useBundledSystemChart` covers the webhook and Fleet charts on 2.15; that the
   Tailscale Ingress carries Rancher's interface, websockets included, to its port 80; that
-  the API server accumulates the repeated `enable-admission-plugins` flag that the `+=`
-  form emits; that a PriorityClass may have a negative value; and Rancher's memory. Slice 2.11's rehearsal and A27 and A28 show each.
+  a PriorityClass may have a negative value; and Rancher's memory. Slice 2.11's rehearsal and A27 and A28 show each.
 - That k3s v1.36.4+k3s1 itself, and not only its minor, runs Rancher v2.15.3; the matrix
   names minors only.

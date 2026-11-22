@@ -635,3 +635,16 @@ Also applied: the shell denial matches `metadata.generateName`; the controller m
 reviewer's figure, for the owner to overrule. A finding of this pass's own: the public
 drop of slice 1.8 sat in the prerouting hook without a state match, which would have
 dropped the replies to a server's outbound traffic; it now matches new connections only.
+
+**A fourth review** (2026-11-22, of `adc0c7793`) gave the verdict "ready as a plan", with
+four S3 wording fixes, all applied: slice 1.2's old-inventory negative now asks for no
+`kube-apiserver-arg` entry, since every server gains `etcd-expose-metrics`; rule 2.4(k)
+defines the non-production egress clause in slices 2.4 and 2.10, with "covers" defined and
+the bastion's address read from the inventory, and a spec scenario; the prerouting chain
+drops `ct state invalid` after accepting established and related traffic, and its other
+drops stay on new connections because IPv6 neighbour discovery on the public interface is
+not tracked; the spec says "new connections" from the bastion's address. The reviewer also
+confirmed, in the Kubernetes and k3s sources it fetched, that `PodNodeSelector` is still
+registered in v1.36.0 (`k8s_plugins.go`), that `--enable-admission-plugins` is a string
+slice, so the repeated flags accumulate (`k8s_apiserver_opts.go`), and the k3s paths
+`pkg/daemons/control/server.go:264` and `pkg/util/args.go:27`; the plan says so.

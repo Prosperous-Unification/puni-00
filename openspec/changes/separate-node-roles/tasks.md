@@ -127,7 +127,7 @@ and the step reads back that the name answers (design decision 12).
       `etcd-expose-metrics` fails it (fault: drop the line); a `platform-services` server
       config without the `+=` entry, or with the plain `=` form that would drop
       `NodeRestriction`, fails it (fault: write `=`); the old inventories' rendered server
-      configs are byte-equal to today's (fault: write the entry for every server); a play whose CoreDNS
+      configs hold no `kube-apiserver-arg` entry (fault: write the entry for every server); a play whose CoreDNS
       step replaces the toleration list fails the contract test (fault: restore the strategic
       patch). The existing two-node path keeps passing its tests unchanged. Stop: validation
       cannot pass on one node with both taints. Then the cause is reported and the owner
@@ -229,7 +229,8 @@ and the step reads back that the name answers (design decision 12).
       from the set of enrolled node addresses alone, which never holds the bastion; and for
       the new inventories two rules in a stateful prerouting chain at priority −150, after
       connection tracking and before destination NAT, which accepts
-      `ct state established,related` first and drops new connections only, as the public
+      `ct state established,related` first, then drops `ct state invalid`, and drops new
+      connections only, as the public
       drop does: from
       the bastion's address on the private interface everything is dropped but TCP 22 to
       the host's own address, and from a private address that is not an enrolled node,
@@ -415,7 +416,10 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       `production` Application that does not select `product`; a rendered object of a
       staging or production Application (an environment value, a ConfigMap value, a
       NetworkPolicy peer, an ExternalName) that names a namespace of the other or a
-      Service in one. (l) Anything in the root's source path
+      Service in one; and an egress allow in a non-production namespace, from the `policy`
+      unit or an overlay, that covers the bastion's address, read from the inventory's
+      `bastion` group: an egress rule with no `to`, or an `ipBlock` whose CIDR contains
+      that address and whose `except` does not exclude it. (l) Anything in the root's source path
       that is not an Application or an AppProject; a `root` project that admits another kind
       or a destination other than the `argocd` namespace; an Application file with an
       `operation` block; an Application in the `root` project other than the root; an
@@ -620,8 +624,9 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       which the policy's binding names as its parameter; an admission policy that denies a Service of type
       LoadBalancer or NodePort in every staging, dev and production namespace, because
       a pins commit is not read by `gate`; a ResourceQuota and a
-      default-deny NetworkPolicy in every non-production namespace, the three dev ones
-      included, the quotas summing to no more than the non-production rows of design
+      default-deny NetworkPolicy, ingress and egress, in every non-production namespace,
+      the three dev ones included, whose egress allows never cover the bastion's address
+      (rule 2.4(k)), the quotas summing to no more than the non-production rows of design
       decision 2; an admission policy that denies a pod in a `staging` or `dev` namespace
       that names a `priorityClassName`, so that none can take the class slice 2.8 gives
       the observability units, with which they share a node in the minimal profile; in every app namespace an allow, by `ipBlock`, for Traefik, which runs on

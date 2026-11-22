@@ -985,8 +985,8 @@ firewall SHALL NOT change.
 A server of the new inventories SHALL admit the cluster's own ports on its private
 interface from enrolled node addresses alone, of which the bastion is never one. Before
 destination NAT it SHALL drop traffic from a non-enrolled private address to the cluster
-CIDR, the service CIDR or a NodePort, except named exceptions, and everything from the
-bastion's address but TCP 22 to the host itself.
+CIDR, the service CIDR or a NodePort, except named exceptions, and every new connection
+from the bastion's address but TCP 22 to the host itself.
 
 #### Scenario: The bastion reaches a cluster port
 
@@ -998,6 +998,12 @@ bastion's address but TCP 22 to the host itself.
 
 - **WHEN** the rendered firewall admits from the bastion's address any port but TCP 22
 - **THEN** the role's test fails
+
+#### Scenario: Non-production egress reaches the bastion
+
+- **WHEN** a non-production namespace holds an egress allow with no `to`, or with an
+  `ipBlock` that contains the bastion's address and does not except it
+- **THEN** the `delivery` check fails and names the policy
 
 #### Scenario: A routed host reaches a pod
 
