@@ -319,12 +319,20 @@ minutes (run 44973329598). No budget explains the losses
 ## AWS refusal and requeue, 2026-11-22
 
 A-CI-LEAF-AWS-1 changes no budget. On an AWS host the `tool-fleet` leaf now refuses right after
-its start record. It spends about 1 to 2 minutes of runner time on checkout, provisioning and
-install, against the 67 or 68 minutes a lost leaf held. The `requeue tool-fleet leaf` job runs
-after `gate`, at the end of the run, for well under a minute. The `ci-requeue` workflow waits for
-the run to complete, polling once a minute within a 150-minute bound, then reruns the failed
-jobs. Red main in wall-clock time is not shorter: the rerun starts when the run completes, about
-88 minutes in, and the Azure leaf then takes 31 to 40 minutes, so a refusal still costs about 2
-hours of red main. With about two thirds of hosts on AWS, a run needs about 2.42 attempts of the
-leaf, about 1.4 reruns, and about 80% reach Azure within the four-attempt bound
-([R5-32](checks-that-cannot-fail.md#amendment-2026-11-22-third-refuse-aws-hosts-for-the-tool-fleet-leaf-and-requeue)).
+its start record. It spends about 75 s of runner time on checkout, provisioning and install,
+against the 67 or 68 minutes a lost leaf held. On 2026-11-22 the leaf was lost on 5 of 6 AWS
+hosts, 1095 to 1339 s into its phase, and finished once in 28 minutes; it finished on 7 of 7 Azure
+hosts in 25 to 40 minutes. The `requeue tool-fleet leaf` job runs after `gate`, at the end of the
+run, for well under a minute. The `ci-requeue` workflow waits for the run to complete, polling
+once a minute within a 150-minute bound, waits 10 more minutes (A-CI-LEAF-AWS-3), reads the run
+again and reruns the failed jobs. Its job timeout is 175 minutes.
+
+Red main in wall-clock time is not shorter. The first rerun starts about 10 minutes after the run
+completes, about 98 minutes in; each further refused attempt adds about 2 minutes plus the
+10-minute delay; the Azure leaf then takes 25 to 40 minutes. So one refusal costs about 2 hours 15
+minutes of red main, and five about 3 hours. The first live exercise, main run 45012388967, drew
+AWS on attempts 1 to 4, the last three inside 11:38 to 11:41Z, and ended red at the old bound of
+four. With about two thirds of draws on AWS, the bound of six gives about 2.76 expected attempts
+and about 9% of runs end red, against 20% at four. A full chain costs under 10 minutes of working
+runner time, plus about 10 idle minutes per waiter
+([R5-32](checks-that-cannot-fail.md#amendment-2026-11-22-fourth-a-longer-requeue-bound-and-a-10-minute-delay)).
