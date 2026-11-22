@@ -1599,6 +1599,8 @@ body:has(.night-shell) {
 }
 /* The recorded-request confirmation, as a reply in the conversation thread. */
 .submission-receipt {
+  align-self: flex-start;
+  width: min(100%, 520px);
   align-items: flex-start;
   padding: var(--space-4);
   border: 1px solid rgb(160 242 192 / 0.22);
