@@ -136,40 +136,38 @@ function bootstrap(
   sources.push(source);
   dirs.push(dir);
   const db = source.db;
-  if (afterOptimizerTurn !== undefined) {
-    const originalEnter = source.gate.enter.bind(source.gate);
-    source.gate.enter = async <T>(work: () => Promise<T>): Promise<T> => {
-      const answer = await originalEnter(work);
-      const observed =
-        typeof answer === 'object' && answer !== null && 'decision' in answer
-          ? answer.decision
-          : answer;
-      afterOptimizerTurn(observed, db);
-      return answer;
-    };
-  }
-  const installedSource = omitFanoutCapture
-    ? {
-        ...source,
-        bindLivePlans(options: Parameters<typeof source.bindLivePlans>[0]) {
-          const bound = source.bindLivePlans(options);
-          return {
-            ...bound,
-            uow: {
-              run: <T>(act: Parameters<typeof bound.uow.run<T>>[0]) =>
-                bound.uow.run((scope) =>
-                  act(
-                    omitFanoutCapture === true ||
-                      (typeof omitFanoutCapture === 'function' && omitFanoutCapture())
-                      ? { ...scope, fanoutCapture: undefined }
-                      : scope,
-                  ),
-                ),
-            },
-          };
-        },
-      }
-    : source;
+  const installedSource =
+    omitFanoutCapture || afterOptimizerTurn !== undefined
+      ? {
+          ...source,
+          bindLivePlans(options: Parameters<typeof source.bindLivePlans>[0]) {
+            const bound = source.bindLivePlans(options);
+            return {
+              ...bound,
+              uow: {
+                run: async <T>(act: Parameters<typeof bound.uow.run<T>>[0]) => {
+                  const answer = await bound.uow.run((scope) =>
+                    act(
+                      omitFanoutCapture === true ||
+                        (typeof omitFanoutCapture === 'function' && omitFanoutCapture())
+                        ? { ...scope, fanoutCapture: undefined }
+                        : scope,
+                    ),
+                  );
+                  if (afterOptimizerTurn !== undefined) {
+                    const observed =
+                      typeof answer === 'object' && answer !== null && 'decision' in answer
+                        ? answer.decision
+                        : answer;
+                    afterOptimizerTurn(observed, db);
+                  }
+                  return answer;
+                },
+              },
+            };
+          },
+        }
+      : source;
   const packageObservationFactory: {
     calls: number;
     configured?: Pick<SqliteSource, 'createWorkPackageObservation'>;
@@ -360,6 +358,73 @@ async function seedCurrentSharedLifecycle(source: SqliteSource): Promise<void> {
   });
 }
 
+function seedLifecycleProject(
+  seed: ReturnType<typeof openDatabase>,
+  organizationId: string,
+  workPackageId: string,
+): string {
+  const projectId = 'lifecycle-' + workPackageId + '-parent';
+  seed.run('INSERT INTO project(id,organization_id,name,created_at) VALUES(?,?,?,1)', [
+    projectId,
+    organizationId,
+    projectId,
+  ]);
+  return projectId;
+}
+
+function seedLifecycleStep(
+  seed: ReturnType<typeof openDatabase>,
+  organizationId: string,
+  workPackageId: string,
+  stepId = workPackageId + '-step',
+  position = 10,
+  ownsPackage = true,
+): void {
+  const projectId = 'lifecycle-' + workPackageId + '-parent';
+  seed.run(
+    "INSERT INTO step_definition(id,organization_id,code,name,estimate_unit,default_allowance_bps,position,defined_at_scope_kind,defined_at_scope_id,origin) VALUES(?,?,?,?,'workdays',0,?,'project',?,'authored')",
+    [stepId, organizationId, stepId.toLowerCase(), stepId, position, projectId],
+  );
+  seed.run(
+    "INSERT INTO step_binding(id,organization_id,scope_kind,scope_id,step_id,position,origin) VALUES(?,?,'project',?,?,?,'authored')",
+    [stepId + ':services', organizationId, projectId, stepId, position],
+  );
+  if (ownsPackage)
+    seed.run(
+      "INSERT INTO work_package_step(work_package_id,step_id,estimate_unit,allowance_bps,allowance_revision) VALUES(?,?,'workdays',0,0)",
+      [workPackageId, stepId],
+    );
+}
+
+function seedRequestingPackage(path: string): { workPackageId: string } {
+  const seed = openDatabase(path);
+  try {
+    const workPackageId = crypto.randomUUID();
+    const ownerId = crypto.randomUUID();
+    seed.transaction(() => {
+      seed.run("INSERT INTO users(id,username,password_hash,created_at) VALUES(?,'owner','x',1)", [
+        ownerId,
+      ]);
+      seed.run(
+        "INSERT INTO organization(id,name,created_at,shared_people) VALUES('org-x','X',1,1)",
+      );
+      const projectId = seedLifecycleProject(seed, 'org-x', workPackageId);
+      seed.run(
+        "INSERT INTO work_package(id,name,project_id,created_by,restricted,revision,created_at) VALUES(?,'Rewire the shed',?,?,0,0,1)",
+        [workPackageId, projectId, ownerId],
+      );
+      seed.run(
+        "INSERT INTO work_package_organization(resource_id,organization_id) VALUES(?,'org-x')",
+        [workPackageId],
+      );
+      seedLifecycleStep(seed, 'org-x', workPackageId);
+    })();
+    return { workPackageId };
+  } finally {
+    seed.close();
+  }
+}
+
 function seedSharedLifecycle(
   path: string,
   activate = true,
@@ -373,9 +438,6 @@ function seedSharedLifecycle(
     );
     seed.run(
       "INSERT INTO organization (id, name, created_at, shared_people) VALUES ('org-a', 'A', 1, 1)",
-    );
-    seed.run(
-      "INSERT INTO project(id,organization_id,name,created_at) VALUES('lifecycle-parent','org-a','Lifecycle parent',1)",
     );
     if (activate)
       seed.run("UPDATE organization_activation SET state = 'activated', activated_at = 1");
@@ -396,8 +458,8 @@ function seedSharedLifecycle(
     ].entries()) {
       seed.run(
         `INSERT INTO work_package (id, name, project_id, created_by, restricted, revision, created_at, start_date, estimate_rounding)
-         VALUES (?, ?, 'lifecycle-parent', 'ada', 0, 0, 1, '2026-10-05', 'exact')`,
-        [workPackageId, workPackageId],
+         VALUES (?, ?, ?, 'ada', 0, 0, 1, '2026-10-05', 'exact')`,
+        [workPackageId, workPackageId, seedLifecycleProject(seed, 'org-a', workPackageId)],
       );
       if (workPackageId !== omitOwnershipFor) {
         seed.run(
@@ -409,11 +471,14 @@ function seedSharedLifecycle(
           [workPackageId, index * 10],
         );
       }
-      seed.run('INSERT INTO step (id, work_package_id, name, position) VALUES (?, ?, ?, 10)', [
-        `${workPackageId}-step`,
+      seedLifecycleStep(
+        seed,
+        'org-a',
         workPackageId,
-        `${workPackageId}-step`,
-      ]);
+        workPackageId + '-step',
+        10,
+        workPackageId !== omitOwnershipFor,
+      );
       seed.run('INSERT INTO work_item (id, work_package_id, position, name) VALUES (?, ?, 10, ?)', [
         workPackageId,
         workPackageId,
@@ -446,12 +511,6 @@ function seedAnotherSharedPair(
       organizationId,
       organizationId,
     ]);
-    const projectId = organizationId + '-fixture-parent';
-    seed.run('INSERT INTO project(id,organization_id,name,created_at) VALUES(?,?,?,1)', [
-      projectId,
-      organizationId,
-      projectId,
-    ]);
     seed.run('INSERT INTO person (id, name) VALUES (?, ?)', [personId, personId]);
     seed.run(
       'INSERT INTO person_organization (resource_id, organization_id, name) VALUES (?, ?, ?)',
@@ -461,7 +520,7 @@ function seedAnotherSharedPair(
       seed.run(
         `INSERT INTO work_package (id, name, project_id, created_by, restricted, revision, created_at, start_date, estimate_rounding)
          VALUES (?, ?, ?, 'ada', 0, 0, 1, '2026-10-05', 'exact')`,
-        [workPackageId, workPackageId, projectId],
+        [workPackageId, workPackageId, seedLifecycleProject(seed, organizationId, workPackageId)],
       );
       seed.run(
         'INSERT INTO work_package_organization (resource_id, organization_id) VALUES (?, ?)',
@@ -471,11 +530,7 @@ function seedAnotherSharedPair(
         "INSERT INTO work_package_rank (work_package_id, organization_id, position, created_at, created_by) VALUES (?, ?, ?, 1, 'ada')",
         [workPackageId, organizationId, index * 10],
       );
-      seed.run('INSERT INTO step (id, work_package_id, name, position) VALUES (?, ?, ?, 10)', [
-        `${workPackageId}-step`,
-        workPackageId,
-        `${workPackageId}-step`,
-      ]);
+      seedLifecycleStep(seed, organizationId, workPackageId);
       seed.run('INSERT INTO work_item (id, work_package_id, position, name) VALUES (?, ?, 10, ?)', [
         workPackageId,
         workPackageId,
@@ -508,7 +563,10 @@ function lifecycleTables(
     'work_package_organization',
     'work_package_rank',
     'work_package_access',
-    'step',
+    'project',
+    'step_definition',
+    'step_binding',
+    'work_package_step',
     'work_item',
     'estimate',
     'assignment',
@@ -867,7 +925,7 @@ describe('buildServices', () => {
         delivered.push(url);
         const payload = request?.body;
         if (typeof payload !== 'string') throw new Error('outcome push body must be JSON text');
-        if (!payload.includes('"subscription":"workPackage:B"'))
+        if (!payload.includes('"subscription":"work-package:B"'))
           return Promise.resolve(Response.json({ delivered_to_sockets: 0 }));
         deliveryEntered.resolve();
         return releaseDelivery.promise.then(() => new Response('gateway refused', { status: 400 }));
@@ -1598,7 +1656,7 @@ describe('buildServices', () => {
     const before = lifecycleTables(db);
     db.run(
       sql.raw(`CREATE TRIGGER reject_second_observation_recipient
-      BEFORE INSERT ON event_log WHEN NEW.subscription = 'work_package:C'
+      BEFORE INSERT ON event_log WHEN NEW.subscription = 'work-package:C'
       BEGIN SELECT RAISE(ABORT, 'injected second observation recipient event'); END`),
     );
     const optimizer = services.optimizer;
@@ -1793,7 +1851,7 @@ describe('buildServices', () => {
         const payload = request?.body;
         if (typeof payload !== 'string') throw new Error('observation push body is not JSON');
         pushed.push(payload);
-        if (!payload.includes('"subscription":"workPackage:B"'))
+        if (!payload.includes('"subscription":"work-package:B"'))
           return Promise.resolve(Response.json({ delivered_to_sockets: 0 }));
         deliveryEntered.resolve();
         return releaseDelivery.promise.then(() => new Response('gateway refused', { status: 400 }));
@@ -1840,7 +1898,7 @@ describe('buildServices', () => {
       await stopping;
       expect(await events.rangeSince('work-package:B', -1)).toEqual(original);
       expect(
-        pushed.filter((payload) => payload.includes('"subscription":"workPackage:B"')),
+        pushed.filter((payload) => payload.includes('"subscription":"work-package:B"')),
       ).toHaveLength(1);
     } finally {
       releaseDelivery.resolve();
@@ -2137,7 +2195,7 @@ describe('buildServices', () => {
     const before = lifecycleTables(db);
     db.run(
       sql.raw(`CREATE TRIGGER reject_second_eviction_recipient
-      BEFORE INSERT ON event_log WHEN NEW.subscription = 'work_package:C'
+      BEFORE INSERT ON event_log WHEN NEW.subscription = 'work-package:C'
       BEGIN SELECT RAISE(ABORT, 'injected second eviction recipient event'); END`),
     );
     const optimizer = services.optimizer;
@@ -2342,7 +2400,7 @@ describe('buildServices', () => {
       .run();
     db.run(
       sql.raw(`CREATE TRIGGER reject_retry_replacement_recipient
-      BEFORE INSERT ON event_log WHEN NEW.subscription = 'work_package:B'
+      BEFORE INSERT ON event_log WHEN NEW.subscription = 'work-package:B'
       BEGIN SELECT RAISE(ABORT, 'injected Retry replacement recipient event'); END`),
     );
     const optimizer = services.optimizer;
@@ -2556,13 +2614,13 @@ describe('buildServices', () => {
     const before = lifecycleTables(db);
     db.run(
       sql.raw(`CREATE TRIGGER reject_second_outcome_recipient
-      BEFORE INSERT ON event_log WHEN NEW.subscription = 'work_package:C'
+      BEFORE INSERT ON event_log WHEN NEW.subscription = 'work-package:C'
       BEGIN SELECT RAISE(ABORT, 'injected second outcome recipient event'); END`),
     );
     const optimizer = services.optimizer;
     if (optimizer === undefined) throw new Error('optimizer was not installed');
     expect(await rejectedMessage(installedOutcomeStore(optimizer).storeOutcome(write))).toContain(
-      'params: work package:C,0',
+      'params: work-package:C,0',
     );
     expect(lifecycleTables(db)).toEqual(before);
     expect(pushUrls).toEqual([]);
@@ -3057,13 +3115,7 @@ describe('buildServices', () => {
     seedSharedLifecycle(path);
     const expired = seedLifecycleSlot(db);
     expect(await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' })).toBe(1);
-    const requester = await seedWorkPackage(db);
-    db.run(
-      sql`INSERT INTO organization (id, name, created_at, shared_people) VALUES ('org-x', 'X', 1, 1)`,
-    );
-    db.run(
-      sql`INSERT INTO work_package_organization (resource_id, organization_id) VALUES (${requester.workPackageId}, 'org-x')`,
-    );
+    const requester = seedRequestingPackage(path);
     db.run(
       sql`INSERT OR IGNORE INTO organization_membership(organization_id,user_id,role,created_at) VALUES('org-x','ada','member',1)`,
     );
@@ -3124,13 +3176,7 @@ describe('buildServices', () => {
     seedSharedLifecycle(path);
     seedLifecycleSlot(db);
     expect(beginOptimizationDrain(db, 'A', { at: 2, by: 'ada' })).toBe(1);
-    const requester = await seedWorkPackage(db);
-    db.run(
-      sql`INSERT INTO organization (id, name, created_at, shared_people) VALUES ('org-x', 'X', 1, 1)`,
-    );
-    db.run(
-      sql`INSERT INTO work_package_organization (resource_id, organization_id) VALUES (${requester.workPackageId}, 'org-x')`,
-    );
+    const requester = seedRequestingPackage(path);
     db.run(
       sql`INSERT OR IGNORE INTO organization_membership(organization_id,user_id,role,created_at) VALUES('org-x','ada','member',1)`,
     );
@@ -3182,13 +3228,7 @@ describe('buildServices', () => {
     expect(await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' })).toBe(1);
     expect(await services.optimizationLifecycle.beginDrain('C', { at: 2, by: 'ada' })).toBe(1);
     expect(await services.optimizationLifecycle.beginDrain('E', { at: 2, by: 'ada' })).toBe(1);
-    const requester = await seedWorkPackage(db);
-    db.run(
-      sql`INSERT INTO organization (id, name, created_at, shared_people) VALUES ('org-x', 'X', 1, 1)`,
-    );
-    db.run(
-      sql`INSERT INTO work_package_organization (resource_id, organization_id) VALUES (${requester.workPackageId}, 'org-x')`,
-    );
+    const requester = seedRequestingPackage(path);
     db.run(
       sql`INSERT OR IGNORE INTO organization_membership(organization_id,user_id,role,created_at) VALUES('org-x','ada','member',1)`,
     );
@@ -3265,13 +3305,7 @@ describe('buildServices', () => {
     expect(
       await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' }, contractVersion),
     ).toBe(1);
-    const requester = await seedWorkPackage(db);
-    db.run(
-      sql`INSERT INTO organization (id, name, created_at, shared_people) VALUES ('org-x', 'X', 1, 1)`,
-    );
-    db.run(
-      sql`INSERT INTO work_package_organization (resource_id, organization_id) VALUES (${requester.workPackageId}, 'org-x')`,
-    );
+    const requester = seedRequestingPackage(path);
     db.run(
       sql`INSERT OR IGNORE INTO organization_membership(organization_id,user_id,role,created_at) VALUES('org-x','ada','member',1)`,
     );
@@ -3336,14 +3370,8 @@ describe('buildServices', () => {
     seedSharedLifecycle(path);
     seedLifecycleSlot(db);
     expect(await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' })).toBe(1);
-    const requester = await seedWorkPackage(db);
+    const requester = seedRequestingPackage(path);
     requesterRef.workPackageId = requester.workPackageId;
-    db.run(
-      sql`INSERT INTO organization (id, name, created_at, shared_people) VALUES ('org-x', 'X', 1, 1)`,
-    );
-    db.run(
-      sql`INSERT INTO work_package_organization (resource_id, organization_id) VALUES (${requesterRef.workPackageId}, 'org-x')`,
-    );
     db.run(
       sql`UPDATE work_package SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ${requesterRef.workPackageId}`,
     );
@@ -3409,7 +3437,7 @@ describe('buildServices', () => {
             if (fault === 'event-insert')
               sourceDb.run(
                 sql.raw(
-                  "CREATE TRIGGER fail_initial_event BEFORE INSERT ON event_log WHEN NEW.subscription = 'work_package:D' AND (SELECT count(*) FROM event_log WHERE subscription = 'work_package:B') = 1 BEGIN SELECT RAISE(ABORT, 'initial event-insert fault after first victim'); END",
+                  "CREATE TRIGGER fail_initial_event BEFORE INSERT ON event_log WHEN NEW.subscription = 'work-package:D' AND (SELECT count(*) FROM event_log WHERE subscription = 'work-package:B') = 1 BEGIN SELECT RAISE(ABORT, 'initial event-insert fault after first victim'); END",
                 ),
               );
             armed = true;
@@ -3424,14 +3452,8 @@ describe('buildServices', () => {
         seedOtherLifecycleSlot(db, 'C', 1001);
         expect(await services.optimizationLifecycle.beginDrain('C', { at: 2, by: 'ada' })).toBe(1);
       }
-      const requester = await seedWorkPackage(db);
+      const requester = seedRequestingPackage(path);
       requesterRef.workPackageId = requester.workPackageId;
-      db.run(
-        sql`INSERT INTO organization (id, name, created_at, shared_people) VALUES ('org-x', 'X', 1, 1)`,
-      );
-      db.run(
-        sql`INSERT INTO work_package_organization (resource_id, organization_id) VALUES (${requesterRef.workPackageId}, 'org-x')`,
-      );
       db.run(
         sql`UPDATE work_package SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ${requesterRef.workPackageId}`,
       );
@@ -3519,13 +3541,7 @@ describe('buildServices', () => {
     seedSharedLifecycle(path);
     seedLifecycleSlot(db);
     expect(await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' })).toBe(1);
-    const requester = await seedWorkPackage(db);
-    db.run(
-      sql`INSERT INTO organization (id, name, created_at, shared_people) VALUES ('org-x', 'X', 1, 1)`,
-    );
-    db.run(
-      sql`INSERT INTO work_package_organization (resource_id, organization_id) VALUES (${requester.workPackageId}, 'org-x')`,
-    );
+    const requester = seedRequestingPackage(path);
     db.run(
       sql`INSERT OR IGNORE INTO organization_membership(organization_id,user_id,role,created_at) VALUES('org-x','ada','member',1)`,
     );
@@ -3609,13 +3625,7 @@ describe('buildServices', () => {
     seedSharedLifecycle(path);
     seedLifecycleSlot(db);
     expect(await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' })).toBe(1);
-    const requester = await seedWorkPackage(db);
-    db.run(
-      sql`INSERT INTO organization (id, name, created_at, shared_people) VALUES ('org-x', 'X', 1, 1)`,
-    );
-    db.run(
-      sql`INSERT INTO work_package_organization (resource_id, organization_id) VALUES (${requester.workPackageId}, 'org-x')`,
-    );
+    const requester = seedRequestingPackage(path);
     db.run(
       sql`INSERT OR IGNORE INTO organization_membership(organization_id,user_id,role,created_at) VALUES('org-x','ada','member',1)`,
     );
@@ -3697,13 +3707,7 @@ describe('buildServices', () => {
         selected.contractVersion,
       ),
     ).toBe(1);
-    const requester = await seedWorkPackage(db);
-    db.run(
-      sql`INSERT INTO organization (id, name, created_at, shared_people) VALUES ('org-x', 'X', 1, 1)`,
-    );
-    db.run(
-      sql`INSERT INTO work_package_organization (resource_id, organization_id) VALUES (${requester.workPackageId}, 'org-x')`,
-    );
+    const requester = seedRequestingPackage(path);
     db.run(
       sql`INSERT OR IGNORE INTO organization_membership(organization_id,user_id,role,created_at) VALUES('org-x','ada','member',1)`,
     );
@@ -3785,13 +3789,7 @@ describe('buildServices', () => {
       expect(
         await services.optimizationLifecycle.beginDrain(workPackageId, { at: 2, by: 'ada' }),
       ).toBe(1);
-    const requester = await seedWorkPackage(db);
-    db.run(
-      sql`INSERT INTO organization (id, name, created_at, shared_people) VALUES ('org-x', 'X', 1, 1)`,
-    );
-    db.run(
-      sql`INSERT INTO work_package_organization (resource_id, organization_id) VALUES (${requester.workPackageId}, 'org-x')`,
-    );
+    const requester = seedRequestingPackage(path);
     db.run(
       sql`INSERT OR IGNORE INTO organization_membership(organization_id,user_id,role,created_at) VALUES('org-x','ada','member',1)`,
     );
@@ -3887,15 +3885,9 @@ describe('buildServices', () => {
     seedSharedLifecycle(path);
     seedLifecycleSlot(db);
     expect(await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' })).toBe(1);
-    const requester = await seedWorkPackage(db);
-    db.run(
-      sql`INSERT INTO organization (id, name, created_at, shared_people) VALUES ('org-x', 'X', 1, 1)`,
-    );
+    const requester = seedRequestingPackage(path);
     db.run(
       sql`INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-x', 'ada', 'super_admin', 1)`,
-    );
-    db.run(
-      sql`INSERT INTO work_package_organization (resource_id, organization_id) VALUES (${requester.workPackageId}, 'org-x')`,
     );
     db.run(
       sql`INSERT OR IGNORE INTO organization_membership(organization_id,user_id,role,created_at) VALUES('org-x','ada','member',1)`,
@@ -3965,15 +3957,9 @@ describe('buildServices', () => {
     seedSharedLifecycle(path);
     seedLifecycleSlot(db);
     expect(await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' })).toBe(1);
-    const requester = await seedWorkPackage(db);
-    db.run(
-      sql`INSERT INTO organization (id, name, created_at, shared_people) VALUES ('org-x', 'X', 1, 1)`,
-    );
+    const requester = seedRequestingPackage(path);
     db.run(
       sql`INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-x', 'ada', 'super_admin', 1)`,
-    );
-    db.run(
-      sql`INSERT INTO work_package_organization (resource_id, organization_id) VALUES (${requester.workPackageId}, 'org-x')`,
     );
     db.run(
       sql`INSERT OR IGNORE INTO organization_membership(organization_id,user_id,role,created_at) VALUES('org-x','ada','member',1)`,
@@ -4092,15 +4078,9 @@ describe('buildServices', () => {
         seedOtherLifecycleSlot(db, 'C', 1001);
         expect(await services.optimizationLifecycle.beginDrain('C', { at: 2, by: 'ada' })).toBe(1);
       }
-      const requester = await seedWorkPackage(db);
-      db.run(
-        sql`INSERT INTO organization (id, name, created_at, shared_people) VALUES ('org-x', 'X', 1, 1)`,
-      );
+      const requester = seedRequestingPackage(path);
       db.run(
         sql`INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-x', 'ada', 'super_admin', 1)`,
-      );
-      db.run(
-        sql`INSERT INTO work_package_organization (resource_id, organization_id) VALUES (${requester.workPackageId}, 'org-x')`,
       );
       db.run(
         sql`INSERT OR IGNORE INTO organization_membership(organization_id,user_id,role,created_at) VALUES('org-x','ada','member',1)`,
@@ -4159,7 +4139,7 @@ describe('buildServices', () => {
       if (fault !== 'after-capture')
         db.run(
           sql.raw(
-            "CREATE TRIGGER fail_retry_second_event BEFORE INSERT ON event_log WHEN NEW.subscription = 'work_package:D' AND (SELECT count(*) FROM event_log WHERE subscription = 'work_package:B') = 1 BEGIN SELECT RAISE(ABORT, 'Retry second-event fault'); END",
+            "CREATE TRIGGER fail_retry_second_event BEFORE INSERT ON event_log WHEN NEW.subscription = 'work-package:D' AND (SELECT count(*) FROM event_log WHERE subscription = 'work-package:B') = 1 BEGIN SELECT RAISE(ABORT, 'Retry second-event fault'); END",
           ),
         );
       const before = lifecycleTables(db);
@@ -4265,16 +4245,10 @@ describe('buildServices', () => {
       seedSharedLifecycle(path);
       seedLifecycleSlot(db);
       expect(await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' })).toBe(1);
-      const requester = await seedWorkPackage(db);
+      const requester = seedRequestingPackage(path);
       closure.requesterId = requester.workPackageId;
       db.run(
-        sql`INSERT INTO organization (id, name, created_at, shared_people) VALUES ('org-x', 'X', 1, 1)`,
-      );
-      db.run(
         sql`INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-x', 'ada', 'super_admin', 1)`,
-      );
-      db.run(
-        sql`INSERT INTO work_package_organization (resource_id, organization_id) VALUES (${requester.workPackageId}, 'org-x')`,
       );
       db.run(
         sql`INSERT OR IGNORE INTO organization_membership(organization_id,user_id,role,created_at) VALUES('org-x','ada','member',1)`,
@@ -4406,15 +4380,9 @@ describe('buildServices', () => {
     seedSharedLifecycle(path);
     seedLifecycleSlot(db);
     expect(await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' })).toBe(1);
-    const requester = await seedWorkPackage(db);
-    db.run(
-      sql`INSERT INTO organization (id, name, created_at, shared_people) VALUES ('org-x', 'X', 1, 1)`,
-    );
+    const requester = seedRequestingPackage(path);
     db.run(
       sql`INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-x', 'ada', 'super_admin', 1)`,
-    );
-    db.run(
-      sql`INSERT INTO work_package_organization (resource_id, organization_id) VALUES (${requester.workPackageId}, 'org-x')`,
     );
     db.run(
       sql`INSERT OR IGNORE INTO organization_membership(organization_id,user_id,role,created_at) VALUES('org-x','ada','member',1)`,
@@ -4532,13 +4500,7 @@ describe('buildServices', () => {
     seedSharedLifecycle(path);
     seedLifecycleSlot(db);
     expect(await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' })).toBe(1);
-    const requester = await seedWorkPackage(db);
-    db.run(
-      sql`INSERT INTO organization (id, name, created_at, shared_people) VALUES ('org-x', 'X', 1, 1)`,
-    );
-    db.run(
-      sql`INSERT INTO work_package_organization (resource_id, organization_id) VALUES (${requester.workPackageId}, 'org-x')`,
-    );
+    const requester = seedRequestingPackage(path);
     db.run(
       sql`INSERT OR IGNORE INTO organization_membership(organization_id,user_id,role,created_at) VALUES('org-x','ada','member',1)`,
     );
@@ -4717,13 +4679,7 @@ describe('buildServices', () => {
     seedSharedLifecycle(path);
     seedLifecycleSlot(db);
     expect(beginOptimizationDrain(db, 'A', { at: 2, by: 'ada' })).toBe(1);
-    const requester = await seedWorkPackage(db);
-    db.run(
-      sql`INSERT INTO organization (id, name, created_at, shared_people) VALUES ('org-x', 'X', 1, 1)`,
-    );
-    db.run(
-      sql`INSERT INTO work_package_organization (resource_id, organization_id) VALUES (${requester.workPackageId}, 'org-x')`,
-    );
+    const requester = seedRequestingPackage(path);
     db.run(
       sql`INSERT OR IGNORE INTO organization_membership(organization_id,user_id,role,created_at) VALUES('org-x','ada','member',1)`,
     );
@@ -4977,7 +4933,7 @@ describe('buildServices', () => {
     try {
       failure.run(
         `CREATE TRIGGER fail_release_event BEFORE INSERT ON event_log
-         WHEN NEW.subscription = 'work_package:B'
+         WHEN NEW.subscription = 'work-package:B'
          BEGIN SELECT RAISE(ABORT, 'last-slot event failed'); END`,
       );
     } finally {
@@ -5423,7 +5379,7 @@ describe('buildServices', () => {
         const cPresent =
           active.all(sql.raw("SELECT id FROM work_package WHERE id = 'C'")).length === 1;
         const bRecorded =
-          active.all(sql.raw("SELECT id FROM event_log WHERE subscription = 'work_package:B'"))
+          active.all(sql.raw("SELECT id FROM event_log WHERE subscription = 'work-package:B'"))
             .length === 1;
         if (aGone && cPresent && bRecorded)
           mounted.beforeWorkPackageSweep = lifecycleTables(active);
@@ -5440,7 +5396,7 @@ describe('buildServices', () => {
       ).toBe(1);
     db.run(
       sql.raw(
-        "CREATE TRIGGER fail_reconcile_second_event BEFORE INSERT ON event_log WHEN NEW.subscription = 'work_package:D' AND (SELECT count(*) FROM event_log WHERE subscription = 'work_package:B') = 1 BEGIN SELECT RAISE(ABORT, 'reconcile second-event fault'); END",
+        "CREATE TRIGGER fail_reconcile_second_event BEFORE INSERT ON event_log WHEN NEW.subscription = 'work-package:D' AND (SELECT count(*) FROM event_log WHERE subscription = 'work-package:B') = 1 BEGIN SELECT RAISE(ABORT, 'reconcile second-event fault'); END",
       ),
     );
     const optimizer = services.optimizer;
@@ -6081,6 +6037,7 @@ describe('buildServices', () => {
     const corrupt = openDatabase(path);
     try {
       corrupt.run('PRAGMA foreign_keys = OFF');
+      corrupt.run("UPDATE project SET organization_id='missing-org' WHERE id='lifecycle-A-parent'");
       corrupt.run(
         "INSERT INTO work_package_organization (resource_id, organization_id) VALUES ('A', 'missing-org')",
       );
@@ -6336,7 +6293,7 @@ describe('buildServices', () => {
       .run();
     db.run(
       sql.raw(
-        "CREATE TRIGGER fail_fifo_second_event BEFORE INSERT ON event_log WHEN NEW.subscription = 'work_package:D' AND (SELECT count(*) FROM event_log WHERE subscription = 'work_package:B') = 1 BEGIN SELECT RAISE(ABORT, 'FIFO second-event fault'); END",
+        "CREATE TRIGGER fail_fifo_second_event BEFORE INSERT ON event_log WHEN NEW.subscription = 'work-package:D' AND (SELECT count(*) FROM event_log WHERE subscription = 'work-package:B') = 1 BEGIN SELECT RAISE(ABORT, 'FIFO second-event fault'); END",
       ),
     );
     const before = lifecycleTables(db);
@@ -6417,7 +6374,7 @@ describe('buildServices', () => {
         pushUrls.push(url);
         const payload = request?.body;
         if (typeof payload !== 'string') throw new Error('FIFO push body must be JSON text');
-        if (!payload.includes('"subscription":"workPackage:B"'))
+        if (!payload.includes('"subscription":"work-package:B"'))
           return Promise.resolve(Response.json({ delivered_to_sockets: 0 }));
         deliveryEntered.resolve();
         return releaseDelivery.promise.then(() => new Response('gateway refused', { status: 400 }));
@@ -6549,7 +6506,11 @@ describe('buildServices', () => {
     const seeded = openDatabase(path);
     try {
       seeded.run(
-        "INSERT INTO work_item (id, work_package_id, parent_id, position, name) VALUES ('A-child', 'A', 'A', 10, 'child')",
+        "INSERT INTO work_item(id,work_package_id,position,name) VALUES('A-parent','A',20,'Parent')",
+      );
+      seeded.run("UPDATE work_item SET parent_id='A-parent' WHERE id='A'");
+      seeded.run(
+        "INSERT INTO work_item (id, work_package_id, parent_id, position, name) VALUES ('A-child', 'A', 'A-parent', 20, 'child')",
       );
       seeded.run(
         "INSERT INTO estimate (work_item_id, step_id, optimistic, realistic, pessimistic) VALUES ('A-child', 'A-step', 2, 2, 2)",
@@ -6591,7 +6552,7 @@ describe('buildServices', () => {
         "INSERT INTO saved_plan_body (saved_plan_id, kind, bytes) VALUES ('A-saved', 'input', '{}')",
       );
       seeded.run(
-        "INSERT INTO calendar_marker (id, work_package_id, date, name, created_at) VALUES ('A-marker', 'A', '2026-10-05', 'marker', 2)",
+        "INSERT INTO calendar_marker (id, scope_kind, scope_id, date, name, created_at) VALUES ('A-marker','work_package', 'A', '2026-10-05', 'marker', 2)",
       );
       seeded.run(
         "INSERT INTO work_package_priority_band (work_package_id, rank, starts_at, label, default_value) VALUES ('A', 0, 1, 'Critical', 1)",
@@ -6600,7 +6561,7 @@ describe('buildServices', () => {
         "INSERT INTO space (id, organization_id, name, revision, created_at, created_by) VALUES ('space-a', 'org-a', 'Space', 0, 2, 'ada')",
       );
       seeded.run(
-        "INSERT INTO space_work_package (space_id, work_package_id, organization_id, position, created_at, created_by) VALUES ('space-a', 'A', 'org-a', 10, 2, 'ada')",
+        "UPDATE project SET space_id='space-a',space_position=10 WHERE id='lifecycle-A-parent'",
       );
       seeded.run("INSERT INTO service_team (id, name) VALUES ('team-a', 'Team A')");
       seeded.run("INSERT INTO service (id, name) VALUES ('service-a', 'Service A')");
@@ -6648,6 +6609,9 @@ describe('buildServices', () => {
       'person',
       'person_organization',
       'space',
+      'project',
+      'step_binding',
+      'step_definition',
       'service_team',
       'service',
       'tag',
@@ -6667,7 +6631,7 @@ describe('buildServices', () => {
     const bystander = [
       'work_package',
       'work_package_access',
-      'step',
+      'work_package_step',
       'work_item',
       'estimate',
       'assignment',
@@ -6675,7 +6639,7 @@ describe('buildServices', () => {
       table,
       db.all(
         sql.raw(
-          `SELECT * FROM "${table}" WHERE ${table === 'work_package' ? 'id' : table === 'step' || table === 'work_item' || table === 'work_package_access' ? 'work_package_id' : 'work_item_id'} = 'B'`,
+          `SELECT * FROM "${table}" WHERE ${table === 'work_package' ? 'id' : table === 'work_package_step' || table === 'work_item' || table === 'work_package_access' ? 'work_package_id' : 'work_item_id'} = 'B'`,
         ),
       ),
     ]);
@@ -6684,7 +6648,7 @@ describe('buildServices', () => {
     for (const table of [
       'work_package',
       'work_package_access',
-      'step',
+      'work_package_step',
       'work_item',
       'estimate',
       'assignment',
@@ -6699,7 +6663,6 @@ describe('buildServices', () => {
       'saved_plan_body',
       'calendar_marker',
       'work_package_priority_band',
-      'space_work_package',
       'work_item_team',
       'work_item_service',
       'work_item_tag',
@@ -6711,23 +6674,25 @@ describe('buildServices', () => {
       const column =
         table === 'work_package'
           ? 'id'
-          : table === 'saved_plan_body'
-            ? 'saved_plan_id'
-            : table === 'estimate' ||
-                table === 'assignment' ||
-                table === 'actual' ||
-                table === 'step_progress' ||
-                table === 'step_measure' ||
-                table === 'work_item_team' ||
-                table === 'work_item_service' ||
-                table === 'work_item_tag' ||
-                table === 'work_item_work_item_type' ||
-                table === 'work_item_external_ref'
-              ? 'work_item_id'
-              : 'work_package_id';
+          : table === 'calendar_marker'
+            ? 'scope_id'
+            : table === 'saved_plan_body'
+              ? 'saved_plan_id'
+              : table === 'estimate' ||
+                  table === 'assignment' ||
+                  table === 'actual' ||
+                  table === 'step_progress' ||
+                  table === 'step_measure' ||
+                  table === 'work_item_team' ||
+                  table === 'work_item_service' ||
+                  table === 'work_item_tag' ||
+                  table === 'work_item_work_item_type' ||
+                  table === 'work_item_external_ref'
+                ? 'work_item_id'
+                : 'work_package_id';
       const scope =
         column === 'work_item_id'
-          ? "IN ('A', 'A-child')"
+          ? "IN ('A', 'A-child', 'A-parent')"
           : table === 'saved_plan_body'
             ? "= 'A-saved'"
             : "= 'A'";
@@ -6737,16 +6702,21 @@ describe('buildServices', () => {
       retainedTables.map((table) => [table, db.all(sql.raw(`SELECT * FROM "${table}"`))]),
     ).toEqual(retained);
     expect(
-      ['work_package', 'work_package_access', 'step', 'work_item', 'estimate', 'assignment'].map(
-        (table) => [
-          table,
-          db.all(
-            sql.raw(
-              `SELECT * FROM "${table}" WHERE ${table === 'work_package' ? 'id' : table === 'step' || table === 'work_item' || table === 'work_package_access' ? 'work_package_id' : 'work_item_id'} = 'B'`,
-            ),
+      [
+        'work_package',
+        'work_package_access',
+        'work_package_step',
+        'work_item',
+        'estimate',
+        'assignment',
+      ].map((table) => [
+        table,
+        db.all(
+          sql.raw(
+            `SELECT * FROM "${table}" WHERE ${table === 'work_package' ? 'id' : table === 'work_package_step' || table === 'work_item' || table === 'work_package_access' ? 'work_package_id' : 'work_item_id'} = 'B'`,
           ),
-        ],
-      ),
+        ),
+      ]),
     ).toEqual(bystander);
     expect(db.all(sql.raw('PRAGMA foreign_key_check'))).toEqual([]);
   });
@@ -6759,7 +6729,7 @@ describe('buildServices', () => {
     const failure = openDatabase(path);
     try {
       failure.run(
-        `CREATE TRIGGER fail_after_work_items BEFORE DELETE ON step
+        `CREATE TRIGGER fail_after_work_items BEFORE DELETE ON work_package_step
          WHEN OLD.work_package_id = 'A'
            AND NOT EXISTS (SELECT 1 FROM work_item WHERE work_package_id = 'A')
          BEGIN SELECT RAISE(ABORT, 'step cleanup after work items failed'); END`,
@@ -6768,7 +6738,7 @@ describe('buildServices', () => {
       failure.close();
     }
     expect(await rejectedMessage(services.optimizationLifecycle.finishDrain('A'))).toContain(
-      'delete from "step"',
+      'delete from "work_package_step"',
     );
     expect(lifecycleTables(db)).toEqual(before);
     expect(pushUrls).toEqual([]);
@@ -6788,7 +6758,13 @@ describe('buildServices', () => {
     expect(await services.optimizationLifecycle.finishDrain('A')).toBe('finished');
     expect(db.all(sql.raw("SELECT id FROM work_package WHERE id = 'B'"))).toHaveLength(1);
     expect(db.all(sql.raw("SELECT id FROM work_item WHERE id = 'B'"))).toHaveLength(1);
-    expect(db.all(sql.raw("SELECT id FROM step WHERE id = 'B-step'"))).toHaveLength(1);
+    expect(
+      db.all(
+        sql.raw(
+          "SELECT step_id FROM work_package_step WHERE work_package_id='B' AND step_id='B-step'",
+        ),
+      ),
+    ).toHaveLength(1);
     expect(db.all(sql.raw('PRAGMA foreign_key_check'))).toEqual([]);
   });
 
@@ -6801,7 +6777,7 @@ describe('buildServices', () => {
     try {
       failure.run(
         `CREATE TRIGGER fail_later_populated_event BEFORE INSERT ON event_log
-         WHEN NEW.subscription = 'work_package:C'
+         WHEN NEW.subscription = 'work-package:C'
          BEGIN SELECT RAISE(ABORT, 'later populated event failed'); END`,
       );
     } finally {
@@ -6971,6 +6947,7 @@ describe('buildServices', () => {
     const corrupt = openDatabase(path);
     try {
       corrupt.run('PRAGMA foreign_keys = OFF');
+      corrupt.run("UPDATE project SET organization_id='missing-org' WHERE id='lifecycle-A-parent'");
       corrupt.run(
         "INSERT INTO work_package_organization (resource_id, organization_id) VALUES ('A', 'missing-org')",
       );
@@ -7118,7 +7095,7 @@ describe('buildServices', () => {
     try {
       failure.run(
         `CREATE TRIGGER fail_later_lifecycle_event BEFORE INSERT ON event_log
-         WHEN NEW.subscription = 'work_package:C'
+         WHEN NEW.subscription = 'work-package:C'
          BEGIN SELECT RAISE(ABORT, 'later lifecycle event failed'); END`,
       );
     } finally {
@@ -7278,9 +7255,6 @@ describe('buildServices', () => {
       raw.run(
         "INSERT INTO organization (id, name, created_at, shared_people) VALUES ('grant-org', 'Grant', 1, 1)",
       );
-      raw.run(
-        "INSERT INTO project(id,organization_id,name,created_at) VALUES('grant-fixture-project','grant-org','Grant parent',1)",
-      );
       raw.run("UPDATE organization_activation SET state = 'activated', activated_at = 1");
       raw.run(
         "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('grant-org', ?, 'member', 1)",
@@ -7294,24 +7268,15 @@ describe('buildServices', () => {
         await workPackages.createInOrganization(
           workPackageRow({
             id: workPackageId,
-            projectId: 'grant-fixture-project',
+            projectId: seedLifecycleProject(raw, 'grant-org', workPackageId),
             name: workPackageId,
           }),
-          [
-            {
-              id: `${stepId}-${workPackageId}`,
-              workPackageId,
-              name: 'Step',
-              position: 10,
-              code: 'step',
-              allowancePercent: 0,
-              estimateUnit: 'workdays' as const,
-            },
-          ],
+          [],
           { at: 1, by: ownerId },
           'grant-org',
           { id: crypto.randomUUID(), auditId: crypto.randomUUID() },
         );
+        seedLifecycleStep(raw, 'grant-org', workPackageId, `${stepId}-${workPackageId}`);
         raw.run(
           'INSERT INTO work_package_rank (work_package_id, organization_id, position, created_at, created_by) VALUES (?, ?, ?, 1, ?)',
           [workPackageId, 'grant-org', position * 10, ownerId],
@@ -8187,9 +8152,7 @@ describe('installed work package drain sparse policy rollback', () => {
         seedSharedLifecycle(path, true, undefined, true);
         const seed = openDatabase(path);
         try {
-          seed.run(
-            "INSERT INTO step (id,work_package_id,name,position) VALUES ('A-policy-step','A','Second target policy',20)",
-          );
+          seedLifecycleStep(seed, 'org-a', 'A', 'A-policy-step', 20);
           seed.run(
             "INSERT INTO step_parallel (work_item_id,step_id,max_parallel) VALUES ('A','A-step',1),('A','A-policy-step',4),('B','B-step',4)",
           );
@@ -8212,7 +8175,7 @@ describe('installed work package drain sparse policy rollback', () => {
         try {
           if (fault === 'event-insert')
             failure.run(
-              "CREATE TRIGGER fail_sparse_drain_event BEFORE INSERT ON event_log WHEN NEW.subscription = 'work_package:C' BEGIN SELECT RAISE(ABORT, 'sparse drain event fault'); END",
+              "CREATE TRIGGER fail_sparse_drain_event BEFORE INSERT ON event_log WHEN NEW.subscription = 'work-package:C' BEGIN SELECT RAISE(ABORT, 'sparse drain event fault'); END",
             );
         } finally {
           failure.close();
@@ -8417,11 +8380,11 @@ describe('installed external work package deletion safety', () => {
     const predecessor = db.all(sql.raw("SELECT * FROM work_item WHERE id = 'A'"));
     db.run(
       sql.raw(
-        "CREATE TRIGGER fail_external_cleanup BEFORE DELETE ON step WHEN OLD.work_package_id = 'B' BEGIN SELECT RAISE(ABORT, 'late cleanup fault'); END",
+        "CREATE TRIGGER fail_external_cleanup BEFORE DELETE ON work_package_step WHEN OLD.work_package_id = 'B' BEGIN SELECT RAISE(ABORT, 'late cleanup fault'); END",
       ),
     );
     expect(await rejectedMessage(services.optimizationLifecycle.finishDrain('B'))).toContain(
-      'delete from "step"',
+      'delete from "work_package_step"',
     );
     expect(lifecycleTables(db)).toEqual(before);
     db.run(sql.raw('DROP TRIGGER fail_external_cleanup'));

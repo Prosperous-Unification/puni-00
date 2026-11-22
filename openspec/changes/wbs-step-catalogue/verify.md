@@ -2353,3 +2353,13 @@ Nx typecheck passed.
   exact ID before adding rows. All 14 Chromium runs passed across two
   repetitions of `name-markdown.spec.ts` using the normal three-server
   configuration. The rendering and interaction assertions are unchanged.
+
+### Backend service lifecycle fixtures
+
+- The scoped native service suite passed all 149 tests with 1,002 assertions
+  and the original 10-second per-test deadline. The fixture uses separate
+  project-scoped catalogue steps for each package, retains the deliberately
+  missing and malformed ownership cases, and asserts current step values
+  and organization metadata in the rollback snapshots. The exact outbox
+  subscription and postcommit hold still prove delivery and rollback through
+  the production writer. Scoped lint and formatting passed.
