@@ -286,10 +286,6 @@
           },
           {
             "kind": "path",
-            "path": "libs/wbs/application/core/src/http/history.routes.ts"
-          },
-          {
-            "kind": "path",
             "path": "libs/wbs/application/core/src/index.ts"
           }
         ]
@@ -481,10 +477,6 @@
           {
             "kind": "path",
             "path": "libs/wbs/application/core/src/compose.ts"
-          },
-          {
-            "kind": "path",
-            "path": "libs/wbs/application/core/src/http/step.routes.ts"
           },
           {
             "kind": "path",

@@ -2323,7 +2323,11 @@ jobs:
       - name: Compose files
         run: |
           set -euo pipefail
-          docker compose -f deploy/dev-src/compose.yml config -q
+          # Render-only fixture selectors; no installation or container is provisioned.
+          # Proof: removing :? made the empty-runner-temp refusal test accept the command.
+          PUNI_INSTALLATION_DIRECTORY="${RUNNER_TEMP:?}/puni-compose-config-only" \
+            PUNI_CONTAINER_EXECUTABLE=/opt/puni-dev/node_modules/puni/dist/puni.mjs \
+            docker compose --env-file /dev/null -f deploy/dev-src/compose.yml config -q
           docker compose -f deploy/compose/base.yml config -q
           docker compose -f deploy/compose/base.yml config --format json |
             jq -e '.networks["aivn-dev-net"].external == true and (.services.caddy.networks | has("aivn-dev-net"))'
@@ -2331,7 +2335,15 @@ jobs:
       - name: Migration lint
         run: |
           set -euo pipefail
-          files="$(git ls-files '*.sql')"
+          # These five frozen SQL-shape specimens are tested by migration-lint.test.ts.
+          # Future SQL remains selected until its role is reviewed explicitly.
+          # Proof: the old all-SQL selector reached five workspace refusals; the exact exclusions retain every migration/down pair.
+          files="$(git ls-files -- '*.sql' \
+            ':(top,exclude,literal)tools/tool-git-hooks/src/hooks/fixtures/window-migrations/add-project.sql' \
+            ':(top,exclude,literal)tools/tool-git-hooks/src/hooks/fixtures/window-migrations/add-setting-value.sql' \
+            ':(top,exclude,literal)tools/tool-git-hooks/src/hooks/fixtures/window-migrations/rename-project-to-work-package.sql' \
+            ':(top,exclude,literal)tools/tool-git-hooks/src/hooks/fixtures/window-migrations/space-holds-projects-people-teams.sql' \
+            ':(top,exclude,literal)tools/tool-git-hooks/src/hooks/fixtures/window-migrations/widen-organization-audit-projects.sql')"
           if [ -z "$files" ]; then
             echo "no .sql files tracked — nothing to lint"
             exit 0

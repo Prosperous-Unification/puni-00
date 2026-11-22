@@ -2007,8 +2007,11 @@ or permission to run the stopped-service migration on a live installation.
   PR delta. Fixture and capture bytes remain unchanged; unknown binaries and
   overlapping neighboring inputs still refuse. Actual CLI negatives preceded each
   declaration/exclusion repair. Lint, format and scoped types passed. The existing
-  broader pilot advanced through those fixtures and now refuses a `plan-history`
-  consumer/index mismatch; that separate mismatch remains outside this batch.
+  broader pilot then exposed two stale consumer declarations from this PR's route
+  changes: history uses `WorkPackageObservation` and the old step route was removed.
+  Removing only those two mapping entries matches the existing module indexes;
+  the unchanged complete production CLI pilot now passes 24 cases, 432 assertions,
+  with no skips. No runtime or validation guard changed for this metadata correction.
 - Current `optimization-drain.db.test.ts` and
   `optimization-drain-step-parallel.db.test.ts` passed 131 cases. Terminal reads
   use actual work-item ownership, explicit package values and real organization
@@ -2022,6 +2025,18 @@ or permission to run the stopped-service migration on a live installation.
   they do not simulate a leaked descriptor. Every source mutation was restored
   before its healthy control; the corrected private broad-selection diagnostic
   mismatch is retained separately from product test results.
+- CI's Compose render now supplies command-local configuration fixtures for its two
+  required PUNI selectors and excludes automatic candidate `.env` loading. It
+  provisions no installation or container. Actual render and absent/empty runner
+  controls pass; omitting `:?` makes the empty-runner refusal assertion fail, then
+  restoration passes. The next CI migration caller now excludes only the five
+  inventoried immutable SQL-shape fixtures through literal Git pathspecs. Its old
+  299-file selection produced five workspace refusals; its actual corrected step
+  lints all 147 forward migrations and all 147 rollback scripts. The production
+  migration guard and fixture bytes remain unchanged. The complete migration-lint
+  and CI-capacity owners passed 64 cases; corpus-version lint passed both fixtures
+  against main `4142dcdc06c90c7329b92892e27c2b88bea87405`. These are local caller
+  checks, not a passing hosted pipeline or installed runtime proof.
 
 These are scoped observations recorded in protected command receipts, including
 the original failures and guard omission. Full backend/SQLite/Twilight closure,
