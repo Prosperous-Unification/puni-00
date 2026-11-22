@@ -14,14 +14,12 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { openDrizzle } from '../repository/db';
 import { OPEN, WriteCoordinator } from '../repository/gate';
-import { runMigrations } from '../repository/migrate';
 import { sqliteUnitOfWork } from '../repository/sqlite-unit-of-work';
 import { buildStores, servicesOver } from '../services';
 import { testClock } from '../testing/clock-fixture';
+import { migrateOrganizationCatalogueFixture } from '../testing/organization-catalogue-fixture';
 import { seedLegacyProject } from '../testing/project-fixture';
 import { optimizerWiring } from './optimizer-wiring';
-
-const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 
 /** What leaves the process, in order. */
 function recordingBroadcasterWithLog(): Broadcaster & {
@@ -86,7 +84,7 @@ const REFUSED_BATCH: PlanCommand[] = [
 beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-announce-'));
   const path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
+  migrateOrganizationCatalogueFixture(path);
   seedLegacyProject(path, 'service-legacy', 'service-parent');
   const db = openDrizzle(path);
   const coordinator = new WriteCoordinator();
@@ -173,7 +171,9 @@ describe('who owns an announcement', () => {
     // The window D24 names: a route finishes its store write, lets go of its
     // turn, and is **publishing** when the next batch opens. Serialising the
     // store methods does not serialise what happens after them.
-    const routeWrite = routes.steps.add(workPackageId, ownerId, 'Wiring', 0);
+    const routeWrite = routes.workPackages.update(workPackageId, ownerId, {
+      scheduleObjective: 'time',
+    });
     // The store write is done and its turn is released; the announcement has
     // not been offered to anybody yet.
     await beforeRoutePublish.reached;
@@ -202,8 +202,10 @@ describe('who owns an announcement', () => {
     // failed on `Expected length: 1 · Received length: 0` — the route's
     // committed event joined the refused batch and was dropped with it.
     // Watched 2026-09-08.
-    const added = broadcast.sent.filter((each) => each.event.type === 'step_added');
-    expect(added).toHaveLength(1);
+    const changed = broadcast.sent.filter(
+      (each) => each.event.type === 'work_package_settings_changed',
+    );
+    expect(changed).toHaveLength(1);
   });
 
   it('(f) holds a batch’s own events until it has committed', async () => {

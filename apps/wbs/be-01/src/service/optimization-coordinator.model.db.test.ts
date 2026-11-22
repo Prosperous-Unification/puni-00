@@ -23,10 +23,9 @@ import type {
 } from '../module/optimization/contract';
 import { OptimizationCoordinator } from '../module/optimization/optimization.feature';
 import { runSolverChildLifecycle } from '../module/optimization/solver-child-lifecycle';
-import { openDatabase, openDrizzle } from '../repository/db';
+import { openConnection, openDatabase, openDrizzle } from '../repository/db';
 import { DrizzleEventLogStore } from '../repository/event-log';
 import { OPEN } from '../repository/gate';
-import { runMigrations } from '../repository/migrate';
 import { createOptimizationRepository } from '../repository/optimization';
 import { beginOptimizationDrain } from '../repository/optimization-drain';
 import { scheduleInputHash } from '../repository/schedule-input-hash';
@@ -37,9 +36,12 @@ import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { sqliteDependencyContext } from '../testing/dependency-graph-fixture';
 import { seedLegacyProject } from '../testing/project-fixture';
 import { refusingProjectRead } from '../testing/project-fixture';
+import { prepareOptimizationDatabase } from './fixtures/optimization-database';
+import { bindProjectFixtureSteps } from './fixtures/project-steps';
 import { optimizerWiring } from './optimizer-wiring';
 
-const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
+const copyOptimizationDatabase = prepareOptimizationDatabase();
+
 const CONTRACT = '18+0.4.0';
 const BUDGET = 60_000;
 function sampledScheduler() {
@@ -210,7 +212,7 @@ function rows(world: World, table: string): Row[] {
 function createWorld(scheduler: ReturnType<typeof sampledScheduler>): World {
   const dir = mkdtempSync(join(tmpdir(), 'wbs-optimization-model-'));
   const path = join(dir, 'model.db');
-  runMigrations(path, FOLDER);
+  copyOptimizationDatabase(path);
   seedLegacyProject(path, 'http-fixture-legacy', PROJECT_ID);
   const sql = openDatabase(path);
   try {
@@ -1442,7 +1444,7 @@ async function within<T>(work: Promise<T>, label: string, ms = 1500): Promise<T>
   }
 }
 
-function seedSharedOrganization(path: string): void {
+async function seedSharedOrganization(path: string): Promise<void> {
   const seed = openDatabase(path);
   try {
     seed.run(
@@ -1450,9 +1452,6 @@ function seedSharedOrganization(path: string): void {
     );
     seed.run(
       "INSERT INTO organization (id, name, created_at, shared_people) VALUES ('org-a', 'A', 1, 1)",
-    );
-    seed.run(
-      "INSERT INTO project(id,organization_id,name,created_at) VALUES('scoped-model-parent','org-a','Model parent',1)",
     );
     seed.run("UPDATE organization_activation SET state = 'activated', activated_at = 1");
     seed.run(
@@ -1472,10 +1471,15 @@ function seedSharedOrganization(path: string): void {
       "INSERT INTO person_organization (resource_id, organization_id, name) VALUES ('ana', 'org-a', 'Ana')",
     );
     for (const [index, workPackageId] of ['A', 'B'].entries()) {
+      const projectId = 'scoped-model-' + workPackageId;
+      seed.run("INSERT INTO project(id,organization_id,name,created_at) VALUES(?,'org-a',?,1)", [
+        projectId,
+        projectId,
+      ]);
       seed.run(
         `INSERT INTO work_package (id, name, project_id, created_by, restricted, revision, created_at, start_date, estimate_rounding)
-         VALUES (?, ?, 'scoped-model-parent', 'ada', 0, 0, 1, '2026-10-05', 'exact')`,
-        [workPackageId, workPackageId],
+         VALUES (?, ?, ?, 'ada', 0, 0, 1, '2026-10-05', 'exact')`,
+        [workPackageId, workPackageId, projectId],
       );
       seed.run(
         "INSERT INTO work_package_organization (resource_id, organization_id) VALUES (?, 'org-a')",
@@ -1485,11 +1489,25 @@ function seedSharedOrganization(path: string): void {
         "INSERT INTO work_package_rank (work_package_id, organization_id, position, created_at, created_by) VALUES (?, 'org-a', ?, 1, 'ada')",
         [workPackageId, index * 10],
       );
-      seed.run('INSERT INTO step (id, work_package_id, name, position) VALUES (?, ?, ?, 10)', [
-        `${workPackageId}-step`,
-        workPackageId,
-        `${workPackageId}-step`,
-      ]);
+      const catalogue = openConnection(path);
+      try {
+        await bindProjectFixtureSteps(
+          catalogue.db,
+          'org-a',
+          projectId,
+          [
+            [
+              workPackageId + '-step',
+              workPackageId.toLowerCase() + '-step',
+              workPackageId + '-step',
+              10,
+            ],
+          ],
+          { at: 1, by: 'ada' },
+        );
+      } finally {
+        catalogue.close();
+      }
       seed.run('INSERT INTO work_item (id, work_package_id, position, name) VALUES (?, ?, 10, ?)', [
         workPackageId,
         workPackageId,
@@ -1516,8 +1534,8 @@ function seedSharedOrganization(path: string): void {
 async function createSharedWorld(): Promise<SharedWorld> {
   const dir = mkdtempSync(join(tmpdir(), 'wbs-shared-owner-model-'));
   const path = join(dir, 'model.db');
-  runMigrations(path, FOLDER);
-  seedSharedOrganization(path);
+  copyOptimizationDatabase(path);
+  await seedSharedOrganization(path);
   const source = openSqliteSource({
     dependencyCapability: BACKEND_DEPENDENCY_CAPABILITY,
     dbPath: path,
@@ -2034,7 +2052,7 @@ class FailSwitchEvent implements SharedCommand {
     const before = await captureDisplay(world);
     const pushed = world.pushes.length;
     clientOf(world).run(
-      "CREATE TRIGGER fail_switch_event BEFORE INSERT ON event_log WHEN NEW.subscription = 'work_package:B' BEGIN SELECT RAISE(ABORT, 'injected switch event failure'); END",
+      "CREATE TRIGGER fail_switch_event BEFORE INSERT ON event_log WHEN NEW.subscription = 'work-package:B' BEGIN SELECT RAISE(ABORT, 'injected switch event failure'); END",
     );
     let refusal: unknown;
     try {

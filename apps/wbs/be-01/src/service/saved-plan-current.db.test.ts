@@ -20,7 +20,6 @@ import { DependencyRepository } from '../repository/dependency';
 import { DirectoryRepository } from '../repository/directory';
 import { OPEN } from '../repository/gate';
 import type { WriteStamp } from '../repository/index';
-import { runMigrations } from '../repository/migrate';
 import { SavedPlanRepository } from '../repository/saved-plan';
 import { SavedPlanCaptureRepository } from '../repository/saved-plan-capture';
 import { savedPlan } from '../repository/schema';
@@ -29,11 +28,11 @@ import { WorkItemRepository } from '../repository/work-item';
 import { WorkPackageRepository } from '../repository/work-package';
 import { nodeDigest } from '../runtime/bun-runtime';
 import { capturedSchedulerFixture } from '../testing/captured-scheduler-fixture';
+import { migrateOrganizationCatalogueFixture } from '../testing/organization-catalogue-fixture';
 import { seedLegacyProject } from '../testing/project-fixture';
 import { workPackageRow } from '../testing/work-package-fixture';
+import { bindProjectFixtureSteps } from './fixtures/project-steps';
 import { fastScheduler } from './optimizer-wiring';
-
-const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 
 const wrote: WriteStamp = { at: 1, by: 'owner' };
 const OPENED_AT = 1_756_000_123;
@@ -98,12 +97,19 @@ describe('projecting the live plan as a comparison side', () => {
     live = 0;
     dir = mkdtempSync(join(tmpdir(), 'wbs-saved-plan-current-'));
     path = join(dir, 'test.db');
-    runMigrations(path, FOLDER);
+    migrateOrganizationCatalogueFixture(path);
     seedLegacyProject(path, 'saved-current-legacy', 'saved-current-parent');
     const seed = openConnection(path);
     const db = seed.db;
     await new UserRepository(db, OPEN).create(
       { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
+      wrote,
+    );
+    await bindProjectFixtureSteps(
+      db,
+      'saved-current-legacy',
+      'saved-current-parent',
+      [['st-1', 'dev', 'Dev', 10]],
       wrote,
     );
     await new WorkPackageRepository(db, OPEN).create(
@@ -114,17 +120,7 @@ describe('projecting the live plan as a comparison side', () => {
         estimateMethod: 'realistic',
         startDate: '2026-03-02',
       }),
-      [
-        {
-          id: 'st-1',
-          workPackageId: 'p1',
-          name: 'Dev',
-          position: 10,
-          code: 'dev',
-          allowancePercent: 0,
-          estimateUnit: 'workdays' as const,
-        },
-      ],
+      [],
       wrote,
     );
     const directory = new DirectoryRepository(db, OPEN);
@@ -189,8 +185,7 @@ describe('projecting the live plan as a comparison side', () => {
 
   /**
    * Save and current comparison must project the same complete captured facts and evidence.
-   * The original saved input12 bytes remain independently readable; comparison separates its
-   * parent/version envelope rather than pretending that the view is a serialized body.
+   * The current saved input includes catalogue binding evidence and the recorded parent.
    * Equality is over complete values, including registry and junction rows, not an enumerated list.
    */
   it('projects the same captured input facts and evidence the save path stores', async () => {
@@ -206,7 +201,7 @@ describe('projecting the live plan as a comparison side', () => {
 
     if (side === null || saved.outcome !== 'saved')
       throw new Error('current and saved fixtures must exist');
-    expect(saved.record.input.schemaVersion).toBe(12);
+    expect(saved.record.input.schemaVersion).toBe(13);
     const captured = readSavedPlanInput(
       JSON.parse(saved.record.input.bytes),
       saved.record.input.schemaVersion,
@@ -214,7 +209,7 @@ describe('projecting the live plan as a comparison side', () => {
     expect(captured.workPackage).toHaveProperty('projectId', 'saved-current-parent');
     expect(captured.workPackage).not.toHaveProperty('ownerId');
     expect({ input: side.input, inputEvidence: side.inputEvidence }).toEqual(
-      projectSavedPlanInput(captured, 12),
+      projectSavedPlanInput(captured, saved.record.input.schemaVersion),
     );
     expect(side.inputEvidence.parent).toEqual({
       kind: 'recorded',

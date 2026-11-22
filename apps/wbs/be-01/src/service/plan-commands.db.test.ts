@@ -39,6 +39,7 @@ import {
 import { DemandRepository, ResourceCapacityRepository } from '@wbs/store-sqlite';
 import { MeasureEstimateRepository } from '@wbs/store-sqlite/measure-estimate';
 import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
+import { StepCatalogueRepository } from '@wbs/store-sqlite/step-catalogue';
 import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
 import { StepParallelRepository } from '@wbs/store-sqlite/step-parallel';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
@@ -56,7 +57,6 @@ import { DependencyRepository } from '../repository/dependency';
 import { DirectoryRepository } from '../repository/directory';
 import { EstimateRepository } from '../repository/estimate';
 import { OPEN, WriteCoordinator } from '../repository/gate';
-import { runMigrations } from '../repository/migrate';
 import { PlanEventRepository } from '../repository/plan-event';
 import { PriorityBandRepository } from '../repository/priority-band';
 import { person, personTeam, service, serviceTeam, tag, workItemType } from '../repository/schema';
@@ -72,9 +72,9 @@ import { buildStores } from '../services';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testClock } from '../testing/clock-fixture';
 import { sqliteDependencyContext } from '../testing/dependency-graph-fixture';
+import { bindDevQaFixture } from '../testing/dev-qa-fixture';
+import { migrateOrganizationCatalogueFixture } from '../testing/organization-catalogue-fixture';
 import { fastScheduler } from './optimizer-wiring';
-
-const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 
 let dir: string;
 /** The raw handle, for the claims that are about a column rather than a row. */
@@ -112,7 +112,7 @@ const DAYS = { optimistic: 1, realistic: 2, pessimistic: 3 };
 beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-batch-'));
   const path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
+  migrateOrganizationCatalogueFixture(path);
   seedLegacyProject(path, 'service-fixture-legacy', PARENT_PROJECT_ID);
   db = openDrizzle(path);
   workPackageStore = new WorkPackageRepository(db, OPEN);
@@ -136,6 +136,13 @@ beforeEach(async () => {
       passwordHash: 'x',
       createdAt: 1,
     },
+    { at: 1, by: ownerId },
+  );
+
+  await bindDevQaFixture(
+    new StepCatalogueRepository(db, OPEN, 'owned'),
+    'service-fixture-legacy',
+    PARENT_PROJECT_ID,
     { at: 1, by: ownerId },
   );
 

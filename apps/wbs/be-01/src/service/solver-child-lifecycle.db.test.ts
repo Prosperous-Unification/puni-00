@@ -12,13 +12,13 @@ import type { SpawnedSolverLauncher } from '../module/solver-launcher/solver-lau
 import { openDatabase, openDrizzle } from '../repository/db';
 import { DrizzleEventLogStore } from '../repository/event-log';
 import { OPEN } from '../repository/gate';
-import { runMigrations } from '../repository/migrate';
 import { createOptimizationRepository } from '../repository/optimization';
 import { bindSolverSlot, reserveSolverSlot } from '../repository/optimization-admission';
 import { allocateGeneration } from '../repository/optimization-generation';
 import { solverSlot } from '../repository/schema';
+import { migrateOrganizationCatalogueFixture } from '../testing/organization-catalogue-fixture';
+import { seedLegacyProject } from '../testing/project-fixture';
 
-const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 const CONTRACT = '7+0.1.0';
 const BUDGET = 60_000;
 const dirs: string[] = [];
@@ -31,7 +31,8 @@ function database(): { path: string; db: ReturnType<typeof openDrizzle> } {
   const dir = mkdtempSync(join(tmpdir(), 'wbs-solver-child-lifecycle-'));
   dirs.push(dir);
   const path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
+  migrateOrganizationCatalogueFixture(path);
+  seedLegacyProject(path, 'optimization-org', 'optimization-project');
   const raw = openDatabase(path);
   try {
     raw.run(
@@ -39,9 +40,9 @@ function database(): { path: string; db: ReturnType<typeof openDrizzle> } {
        VALUES ('u-1', 'owner', 'hash', 1)`,
     );
     raw.run(
-      `INSERT INTO work_package (id, name, owner_id, restricted, revision, created_at,
+      `INSERT INTO work_package (id, name, created_by, project_id, restricted, revision, created_at,
                             optimization_enabled, schedule_engine, schedule_objective)
-       VALUES ('p-1', 'Plan', 'u-1', 0, 0, 1, 1, 'optimized', 'pri')`,
+       VALUES ('p-1', 'Plan', 'u-1', 'optimization-project', 0, 0, 1, 1, 'optimized', 'pri')`,
     );
   } finally {
     raw.close();

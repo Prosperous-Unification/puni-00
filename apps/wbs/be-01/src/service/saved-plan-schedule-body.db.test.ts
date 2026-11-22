@@ -23,15 +23,14 @@ import { DirectoryRepository } from '../repository/directory';
 import { EstimateRepository } from '../repository/estimate';
 import { OPEN } from '../repository/gate';
 import type { WriteStamp } from '../repository/index';
-import { runMigrations } from '../repository/migrate';
 import { SavedPlanCaptureRepository } from '../repository/saved-plan-capture';
 import { UserRepository } from '../repository/user';
 import { WorkItemRepository } from '../repository/work-item';
 import { WorkPackageRepository } from '../repository/work-package';
+import { migrateOrganizationCatalogueFixture } from '../testing/organization-catalogue-fixture';
 import { seedLegacyProject } from '../testing/project-fixture';
 import { workPackageRow } from '../testing/work-package-fixture';
-
-const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
+import { bindProjectFixtureSteps } from './fixtures/project-steps';
 
 const wrote: WriteStamp = { at: 1, by: 'owner' };
 
@@ -64,6 +63,13 @@ describe('the stored schedule body', () => {
       { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
       wrote,
     );
+    await bindProjectFixtureSteps(
+      db,
+      'saved-plan-legacy',
+      'saved-plan-parent',
+      [['st-1', 'dev', 'Dev', 10]],
+      wrote,
+    );
     await new WorkPackageRepository(db, OPEN).create(
       workPackageRow({
         id: 'p1',
@@ -72,17 +78,7 @@ describe('the stored schedule body', () => {
         estimateMethod: 'realistic',
         startDate,
       }),
-      [
-        {
-          id: 'st-1',
-          workPackageId: 'p1',
-          name: 'Dev',
-          position: 10,
-          code: 'dev',
-          allowancePercent: 0,
-          estimateUnit: 'workdays' as const,
-        },
-      ],
+      [],
       wrote,
     );
     const directory = new DirectoryRepository(db, OPEN);
@@ -144,7 +140,7 @@ describe('the stored schedule body', () => {
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), 'wbs-saved-plan-body-'));
     path = join(dir, 'test.db');
-    runMigrations(path, FOLDER);
+    migrateOrganizationCatalogueFixture(path);
     seedLegacyProject(path, 'saved-plan-legacy', 'saved-plan-parent');
   });
 

@@ -12,6 +12,7 @@ import { expectCreated } from '@wbs/core/testing/expect-created';
 import { MeasureEstimateRepository } from '@wbs/store-sqlite/measure-estimate';
 import { DemandRepository, ResourceCapacityRepository } from '@wbs/store-sqlite/resource';
 import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
+import { StepCatalogueRepository } from '@wbs/store-sqlite/step-catalogue';
 import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
 import { StepParallelRepository } from '@wbs/store-sqlite/step-parallel';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
@@ -27,7 +28,6 @@ import { DependencyRepository } from '../repository/dependency';
 import { DirectoryRepository } from '../repository/directory';
 import { EstimateRepository } from '../repository/estimate';
 import { OPEN } from '../repository/gate';
-import { runMigrations } from '../repository/migrate';
 import { StepMeasureRepository } from '../repository/step-measure';
 import { StepProgressRepository } from '../repository/step-progress';
 import { UserRepository } from '../repository/user';
@@ -37,6 +37,8 @@ import { AvailableWorkItemService as WorkItemService } from '../testing/availabl
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testClock } from '../testing/clock-fixture';
 import { sqliteDependencyContext } from '../testing/dependency-graph-fixture';
+import { bindDevQaFixture } from '../testing/dev-qa-fixture';
+import { migrateOrganizationCatalogueFixture } from '../testing/organization-catalogue-fixture';
 import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
 import { fastScheduler } from './optimizer-wiring';
 
@@ -85,7 +87,6 @@ import { fastScheduler } from './optimizer-wiring';
  * typecheck and a green suite alike. The only defence is asserting the fact is
  * present rather than trusting the write, which is what the guards below do.
  */
-const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 
 let dir: string;
 let workItems: WorkItemService;
@@ -135,7 +136,7 @@ async function datesNow(): Promise<unknown> {
 beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-service-empty-diff-'));
   const path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
+  migrateOrganizationCatalogueFixture(path);
   seedLegacyProject(path, 'service-fixture-legacy', PARENT_PROJECT_ID);
   const db = openDrizzle(path);
 
@@ -153,6 +154,13 @@ beforeEach(async () => {
       createdAt: 1,
     },
     wrote(),
+  );
+
+  await bindDevQaFixture(
+    new StepCatalogueRepository(db, OPEN, 'owned'),
+    'service-fixture-legacy',
+    PARENT_PROJECT_ID,
+    { at: 1, by: ownerId },
   );
 
   workPackages = new WorkPackageService({

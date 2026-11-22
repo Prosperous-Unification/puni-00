@@ -13,10 +13,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { drizzleOuterTransaction, openDrizzle } from '../repository/db';
 import { DrizzleEventLogStore } from '../repository/event-log';
 import { WriteCoordinator } from '../repository/gate';
-import { runMigrations } from '../repository/migrate';
 import { testClock } from '../testing/clock-fixture';
-
-const FOLDER = join(import.meta.dir, '..', '..', 'drizzle');
+import { migrateOrganizationCatalogueFixture } from '../testing/organization-catalogue-fixture';
 
 /**
  * The event log survives an unrelated batch's rollback.
@@ -44,7 +42,7 @@ describe('the durable record of a work package event', () => {
     const dir = mkdtempSync(join(tmpdir(), 'wbs-broadcast-durability-'));
     dirs.push(dir);
     const path = join(dir, 'test.db');
-    runMigrations(path, FOLDER);
+    migrateOrganizationCatalogueFixture(path);
     db = openDrizzle(path);
   });
 

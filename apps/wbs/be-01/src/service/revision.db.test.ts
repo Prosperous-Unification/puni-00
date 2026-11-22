@@ -5,7 +5,6 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { LEGACY_EDIT_ADMISSION } from '@wbs/core';
-import { StepService } from '@wbs/core/module/step/step.resource';
 import { WorkPackageService } from '@wbs/core/module/work-package/work-package.resource';
 import { INACTIVE_EXTERNAL_DEPENDENCIES } from '@wbs/core/ports/external-dependency-authoring';
 import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
@@ -13,6 +12,7 @@ import { expectCreated } from '@wbs/core/testing/expect-created';
 import { MeasureEstimateRepository } from '@wbs/store-sqlite/measure-estimate';
 import { DemandRepository, ResourceCapacityRepository } from '@wbs/store-sqlite/resource';
 import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
+import { StepCatalogueRepository } from '@wbs/store-sqlite/step-catalogue';
 import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
 import { StepParallelRepository } from '@wbs/store-sqlite/step-parallel';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
@@ -26,8 +26,6 @@ import { DependencyRepository } from '../repository/dependency';
 import { DirectoryRepository } from '../repository/directory';
 import { EstimateRepository } from '../repository/estimate';
 import { OPEN } from '../repository/gate';
-import { runMigrations } from '../repository/migrate';
-import { StepRepository } from '../repository/step';
 import { StepMeasureRepository } from '../repository/step-measure';
 import { StepProgressRepository } from '../repository/step-progress';
 import { UserRepository } from '../repository/user';
@@ -39,7 +37,9 @@ import { inMemoryCapacity } from '../testing/capacity-fixture';
 import { testClock } from '../testing/clock-fixture';
 import { inMemoryCommandJournal } from '../testing/command-journal-fixture';
 import { sqliteDependencyContext } from '../testing/dependency-graph-fixture';
+import { bindDevQaFixture } from '../testing/dev-qa-fixture';
 import { personAdded } from '../testing/directory-fixture';
+import { migrateOrganizationCatalogueFixture } from '../testing/organization-catalogue-fixture';
 import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
 import { workItemRow } from '../testing/work-item-fixture';
 import { fastScheduler } from './optimizer-wiring';
@@ -59,13 +59,12 @@ import { fastScheduler } from './optimizer-wiring';
  * on: opening a work package, respacing a sibling, or copying a branch would each
  * defeat a write that had nothing to do with them.
  */
-const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 
 let dir: string;
 let path: string;
 let workItems: WorkItemService;
 let workPackages: WorkPackageService;
-let stepService: StepService;
+let stepCatalogue: StepCatalogueRepository;
 let workPackageStore: WorkPackageRepository;
 let workItemStore: WorkItemRepository;
 let estimateStore: EstimateRepository;
@@ -96,7 +95,7 @@ const wrote = (): WriteStamp => ({ at: 1, by: ownerId });
 beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-revision-'));
   path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
+  migrateOrganizationCatalogueFixture(path);
   seedLegacyProject(path, 'service-fixture-legacy', PARENT_PROJECT_ID);
   const db = openDrizzle(path);
 
@@ -120,17 +119,16 @@ beforeEach(async () => {
     wrote(),
   );
 
+  stepCatalogue = new StepCatalogueRepository(db, OPEN, 'owned');
+  await bindDevQaFixture(stepCatalogue, 'service-fixture-legacy', PARENT_PROJECT_ID, {
+    at: 1,
+    by: ownerId,
+  });
+
   workPackages = new WorkPackageService({
     dependencyContext: sqliteDependencyContext(db, workPackageStore),
     clock: testClock,
     workPackages: workPackageStore,
-    broadcast: recordingBroadcaster(),
-  });
-  stepService = new StepService({
-    dependencyContext: sqliteDependencyContext(db, workPackageStore),
-    clock: testClock,
-    workPackages: workPackageStore,
-    steps: new StepRepository(db, OPEN),
     broadcast: recordingBroadcaster(),
   });
   workItems = new WorkItemService({
@@ -587,12 +585,34 @@ describe('what a step write moves', () => {
     await workItems.setEstimate(strip, ownerId, dev(), DAYS);
     const estimated = await revisionOf(strip);
 
-    const added = await stepService.add(workPackageId, ownerId, 'Design', 0);
-    if (!added.ok) throw new Error(`add refused: ${added.reason}`);
+    const added = await stepCatalogue.defineAndBindStep(
+      'service-fixture-legacy',
+      {
+        id: 'design',
+        name: 'Design',
+        code: 'design',
+        position: 30,
+        defaultEstimateUnit: 'workdays',
+        defaultAllowancePercent: 0,
+      },
+      {
+        bindingId: 'design-binding',
+        scopeKind: 'project',
+        scopeId: PARENT_PROJECT_ID,
+        workItemTypeId: null,
+        position: 30,
+      },
+      wrote(),
+    );
+    expect(added).toMatchObject({ ok: true, workPackageIds: [workPackageId] });
     expect(await workPackageRevision()).toBe(1);
-
-    const renamed = await stepService.rename(workPackageId, added.value.id, ownerId, 'Drawing');
-    if (!renamed.ok) throw new Error(`rename refused: ${renamed.reason}`);
+    const renamed = await stepCatalogue.patchStepDefinition(
+      'service-fixture-legacy',
+      'design',
+      { name: 'Drawing' },
+      wrote(),
+    );
+    expect(renamed).toMatchObject({ ok: true, workPackageIds: [workPackageId] });
     expect(await workPackageRevision()).toBe(2);
 
     // A step arriving or being renamed writes nothing of any work item's: no
@@ -601,7 +621,7 @@ describe('what a step write moves', () => {
     expect(await revisionOf(strip)).toBe(estimated);
   });
 
-  it('moves the work package and only the work items a removal emptied', async () => {
+  it('refuses unbinding an estimated step without moving revisions, then moves only the package after clearing the estimate', async () => {
     const strip = await root('Strip');
     const sand = await root('Sand');
     await workItems.setEstimate(strip, ownerId, dev(), DAYS);
@@ -609,12 +629,26 @@ describe('what a step write moves', () => {
     const sandBefore = await revisionOf(sand);
     const workPackageBefore = await workPackageRevision();
 
-    const removed = await stepService.remove(workPackageId, dev(), ownerId, true);
-    expect(removed).toEqual({ ok: true });
-
+    const catalogue = await stepCatalogue.readCatalogue('service-fixture-legacy');
+    const binding = catalogue?.bindings.find((entry) => entry.stepId === dev());
+    if (binding === undefined) throw new Error('fixture Dev binding is missing');
+    const unbind = () =>
+      stepCatalogue.unbindStep(
+        'service-fixture-legacy',
+        binding.bindingId,
+        { dryRun: false },
+        wrote(),
+      );
+    expect(await unbind()).toMatchObject({ kind: 'step_nodes_in_use' });
+    expect(await workPackageRevision()).toBe(workPackageBefore);
+    expect(await revisionOf(strip)).toBe(stripBefore);
+    expect(await revisionOf(sand)).toBe(sandBefore);
+    expect(await workItems.clearEstimate(strip, ownerId, dev())).toMatchObject({ ok: true });
+    const cleared = await revisionOf(strip);
+    expect(cleared).toBe(stripBefore + 1);
+    expect(await unbind()).toMatchObject({ kind: 'unbound', workPackageIds: [workPackageId] });
     expect(await workPackageRevision()).toBe(workPackageBefore + 1);
-    expect(await revisionOf(strip)).toBe(stripBefore + 1);
-    // Held nothing of that step's, so nobody's reading of it changed.
+    expect(await revisionOf(strip)).toBe(cleared);
     expect(await revisionOf(sand)).toBe(sandBefore);
   });
 });

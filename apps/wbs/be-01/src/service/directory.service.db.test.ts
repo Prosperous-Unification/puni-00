@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import { DirectoryService } from '@wbs/core/module/directory/directory.resource';
 import { WorkPackageService } from '@wbs/core/module/work-package/work-package.resource';
+import { StepCatalogueRepository } from '@wbs/store-sqlite/step-catalogue';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import type { DirectoryStore, Person, Step, WorkItem, WriteStamp } from '../repository';
@@ -11,7 +12,6 @@ import { CapacityRepository } from '../repository/capacity';
 import { openDrizzle } from '../repository/db';
 import { DirectoryRepository } from '../repository/directory';
 import { OPEN } from '../repository/gate';
-import { runMigrations } from '../repository/migrate';
 import { teamService } from '../repository/schema';
 import { StepRepository } from '../repository/step';
 import { UserRepository } from '../repository/user';
@@ -20,7 +20,9 @@ import { WorkPackageRepository } from '../repository/work-package';
 import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testClock } from '../testing/clock-fixture';
 import { sqliteDependencyContext } from '../testing/dependency-graph-fixture';
+import { bindDevQaFixture } from '../testing/dev-qa-fixture';
 import { directoryWith } from '../testing/directory-fixture';
+import { migrateOrganizationCatalogueFixture } from '../testing/organization-catalogue-fixture';
 import { seedLegacyProject } from '../testing/project-fixture';
 import { workItemRow } from '../testing/work-item-fixture';
 
@@ -33,7 +35,6 @@ import { workItemRow } from '../testing/work-item-fixture';
  * `unknown_team` — and an in-memory store answering them would be a second
  * implementation of the rules under test.
  */
-const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 
 let dir: string;
 let db: ReturnType<typeof openDrizzle>;
@@ -113,7 +114,7 @@ const personNamed = async (name: string): Promise<string> => {
 beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-directory-service-'));
   const path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
+  migrateOrganizationCatalogueFixture(path);
   seedLegacyProject(path, 'service-legacy', 'service-parent');
   db = openDrizzle(path);
 
@@ -136,6 +137,13 @@ beforeEach(async () => {
       createdAt: 1,
     },
     { at: 1, by: ownerId },
+  );
+
+  await bindDevQaFixture(
+    new StepCatalogueRepository(db, OPEN, 'owned'),
+    'service-legacy',
+    'service-parent',
+    wrote(),
   );
 
   const created = await new WorkPackageService({

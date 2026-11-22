@@ -12,14 +12,14 @@ import { expect, it } from 'bun:test';
 import { openDrizzle } from '../repository/db';
 import { DrizzleEventLogStore } from '../repository/event-log';
 import { OPEN } from '../repository/gate';
-import { runMigrations } from '../repository/migrate';
 import { testClock } from '../testing/clock-fixture';
+import { migrateOrganizationCatalogueFixture } from '../testing/organization-catalogue-fixture';
 
 /** A transport barrier exposes the production publisher's record/push ordering. */
 it('allows C to overtake recorded B while its push is held', async () => {
   const folder = mkdtempSync(join(tmpdir(), 'wbs-broadcast-order-'));
   const path = join(folder, 'test.db');
-  runMigrations(path, join(import.meta.dir, '..', '..', 'drizzle'));
+  migrateOrganizationCatalogueFixture(path);
   const eventLog = new DrizzleEventLogStore(openDrizzle(path), OPEN);
   let releaseB!: () => void;
   let startedB!: () => void;

@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { SavedPlanService } from '@wbs/core/service/saved-plan.service';
+import { StepCatalogueRepository } from '@wbs/store-sqlite/step-catalogue';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { CapacityRepository } from '../repository/capacity';
@@ -12,20 +13,18 @@ import { openConnection } from '../repository/db';
 import { DirectoryRepository } from '../repository/directory';
 import { OPEN } from '../repository/gate';
 import type { WriteStamp } from '../repository/index';
-import { runMigrations } from '../repository/migrate';
 import { SavedPlanRepository } from '../repository/saved-plan';
 import { SavedPlanCaptureRepository } from '../repository/saved-plan-capture';
 import { savedPlan, savedPlanBody } from '../repository/schema';
-import { StepRepository } from '../repository/step';
 import { UserRepository } from '../repository/user';
 import { WorkItemRepository } from '../repository/work-item';
 import { WorkPackageRepository } from '../repository/work-package';
 import { nodeDigest } from '../runtime/bun-runtime';
+import { migrateOrganizationCatalogueFixture } from '../testing/organization-catalogue-fixture';
 import { seedLegacyProject } from '../testing/project-fixture';
 import { workPackageRow } from '../testing/work-package-fixture';
+import { bindProjectFixtureSteps } from './fixtures/project-steps';
 import { fastScheduler } from './optimizer-wiring';
-
-const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 
 const wrote: WriteStamp = { at: 1, by: 'owner' };
 const OPENED_AT = 1_756_000_123;
@@ -72,12 +71,22 @@ describe('a saved plan does not move when the live plan does', () => {
   beforeEach(async () => {
     dir = mkdtempSync(join(tmpdir(), 'wbs-saved-plan-immutable-'));
     path = join(dir, 'test.db');
-    runMigrations(path, FOLDER);
+    migrateOrganizationCatalogueFixture(path);
     seedLegacyProject(path, 'saved-plan-legacy', 'saved-plan-parent');
     const seed = openConnection(path);
     const db = seed.db;
     await new UserRepository(db, OPEN).create(
       { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
+      wrote,
+    );
+    await bindProjectFixtureSteps(
+      db,
+      'saved-plan-legacy',
+      'saved-plan-parent',
+      [
+        ['st-1', 'dev', 'Dev', 10],
+        ['st-2', 'review', 'Review', 20],
+      ],
       wrote,
     );
     await new WorkPackageRepository(db, OPEN).create(
@@ -88,26 +97,7 @@ describe('a saved plan does not move when the live plan does', () => {
         estimateMethod: 'realistic',
         startDate: '2026-03-02',
       }),
-      [
-        {
-          id: 'st-1',
-          workPackageId: 'p1',
-          name: 'Dev',
-          position: 10,
-          code: 'dev',
-          allowancePercent: 0,
-          estimateUnit: 'workdays' as const,
-        },
-        {
-          id: 'st-2',
-          workPackageId: 'p1',
-          name: 'Review',
-          position: 20,
-          code: 'review',
-          allowancePercent: 0,
-          estimateUnit: 'workdays' as const,
-        },
-      ],
+      [],
       wrote,
     );
     const directory = new DirectoryRepository(db, OPEN);
@@ -147,7 +137,14 @@ describe('a saved plan does not move when the live plan does', () => {
     const items = new WorkItemRepository(live.db, OPEN);
     await items.patch('wi-1', { name: 'renamed after the save' }, wrote);
     await items.remove(['wi-2'], [], wrote);
-    await new StepRepository(live.db, OPEN).remove('p1', 'st-2', true, wrote);
+    expect(
+      await new StepCatalogueRepository(live.db, OPEN, 'owned').unbindStep(
+        'saved-plan-legacy',
+        'st-2-binding',
+        { dryRun: false },
+        wrote,
+      ),
+    ).toMatchObject({ kind: 'unbound' });
     await new WorkPackageRepository(live.db, OPEN).update(
       'p1',
       { estimateMethod: 'optimistic', startDate: '2027-01-04' },

@@ -8,18 +8,17 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { openConnection, openDatabase } from '../repository/db';
 import { OPEN } from '../repository/gate';
 import type { WriteStamp } from '../repository/index';
-import { runMigrations } from '../repository/migrate';
 import { SavedPlanRepository } from '../repository/saved-plan';
 import { SavedPlanCaptureRepository } from '../repository/saved-plan-capture';
 import { UserRepository } from '../repository/user';
 import { WorkItemRepository } from '../repository/work-item';
 import { WorkPackageRepository } from '../repository/work-package';
 import { nodeDigest } from '../runtime/bun-runtime';
+import { migrateOrganizationCatalogueFixture } from '../testing/organization-catalogue-fixture';
 import { seedLegacyProject } from '../testing/project-fixture';
 import { workPackageRow } from '../testing/work-package-fixture';
+import { bindProjectFixtureSteps } from './fixtures/project-steps';
 import { fastScheduler } from './optimizer-wiring';
-
-const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 
 const wrote: WriteStamp = { at: 1, by: 'owner' };
 
@@ -77,7 +76,7 @@ describe('renaming and deleting a saved plan', () => {
   beforeEach(async () => {
     dir = mkdtempSync(join(tmpdir(), 'wbs-saved-plan-touch-'));
     path = join(dir, 'test.db');
-    runMigrations(path, FOLDER);
+    migrateOrganizationCatalogueFixture(path);
     seedLegacyProject(path, 'saved-plan-legacy', 'saved-plan-parent');
     const seed = openConnection(path);
     const db = seed.db;
@@ -85,19 +84,16 @@ describe('renaming and deleting a saved plan', () => {
     for (const id of ['owner', 'ada', 'mallory']) {
       await users.create({ id, username: id, passwordHash: 'x', createdAt: 1 }, wrote);
     }
+    await bindProjectFixtureSteps(
+      db,
+      'saved-plan-legacy',
+      'saved-plan-parent',
+      [['st-1', 'dev', 'Dev', 10]],
+      wrote,
+    );
     await new WorkPackageRepository(db, OPEN).create(
       workPackageRow({ id: 'p1', name: 'Rewire the shed', projectId: 'saved-plan-parent' }),
-      [
-        {
-          id: 'st-1',
-          workPackageId: 'p1',
-          name: 'Dev',
-          position: 10,
-          code: 'dev',
-          allowancePercent: 0,
-          estimateUnit: 'workdays' as const,
-        },
-      ],
+      [],
       wrote,
     );
     await new WorkItemRepository(db, OPEN).insert(item('wi-1', 10), [], wrote);

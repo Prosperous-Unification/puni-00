@@ -7,13 +7,12 @@ import { afterEach, describe, expect, it } from 'bun:test';
 import { sql } from 'drizzle-orm';
 
 import type { CommittedDecision } from '../module/optimization/contract';
+import { migrateOrganizationCatalogueFixture } from '../testing/organization-catalogue-fixture';
 import { openDatabase, openDrizzle } from './db';
 import { DrizzleEventLogStore, type EventLogTransactionalWrite } from './event-log';
 import { type Gate, OPEN, WriteCoordinator } from './gate';
-import { runMigrations } from './migrate';
 import { createOptimizationRepository } from './optimization';
 
-const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 const CONTRACT = '7+0.1.0';
 const BUDGET = 60_000;
 const dirs: string[] = [];
@@ -31,14 +30,18 @@ function fixture() {
   const dir = mkdtempSync(join(tmpdir(), 'wbs-optimization-adapter-'));
   dirs.push(dir);
   const path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
+  migrateOrganizationCatalogueFixture(path);
   const sql = openDatabase(path);
   try {
+    sql.run("INSERT INTO organization(id,name,created_at) VALUES('org-a','A',1)");
+    sql.run(
+      "INSERT INTO project(id,organization_id,name,created_at) VALUES('optimization-project','org-a','Optimization',1)",
+    );
     sql.run(
       "INSERT INTO users (id, username, password_hash, created_at) VALUES ('u-1', 'owner', 'hash', 1)",
     );
     sql.run(
-      "INSERT INTO work_package (id, name, owner_id, restricted, revision, created_at, optimization_enabled, schedule_engine, schedule_objective) VALUES ('p-1', 'plan', 'u-1', 0, 0, 1, 1, 'optimized', 'pri')",
+      "INSERT INTO work_package (id, name, created_by, project_id, restricted, revision, created_at, optimization_enabled, schedule_engine, schedule_objective) VALUES ('p-1', 'plan', 'u-1', 'optimization-project', 0, 0, 1, 1, 'optimized', 'pri')",
     );
   } finally {
     sql.close();
@@ -616,7 +619,6 @@ describe('Optimization SQLite adapter', () => {
         "INSERT INTO users (id, username, password_hash, created_at) VALUES ('sam', 'sam', 'hash', 1)",
       ),
     );
-    db.run(sql.raw("INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1)"));
     db.run(
       sql.raw(
         "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'sam', 'super_admin', 1)",
@@ -664,7 +666,6 @@ describe('Optimization SQLite adapter', () => {
         "INSERT INTO users (id, username, password_hash, created_at) VALUES ('sam', 'sam', 'hash', 1)",
       ),
     );
-    db.run(sql.raw("INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1)"));
     db.run(
       sql.raw(
         "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'sam', 'super_admin', 1)",

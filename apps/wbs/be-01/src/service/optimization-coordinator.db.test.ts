@@ -21,7 +21,6 @@ import { runSolverChildLifecycle } from '../module/optimization/solver-child-lif
 import { openDatabase, openDrizzle } from '../repository/db';
 import { DrizzleEventLogStore } from '../repository/event-log';
 import { OPEN, WriteCoordinator } from '../repository/gate';
-import { runMigrations } from '../repository/migrate';
 import { createOptimizationRepository } from '../repository/optimization';
 import { reserveSolverSlot } from '../repository/optimization-admission';
 import {
@@ -34,8 +33,11 @@ import { enqueueSolverRequest } from '../repository/optimization-queue';
 import { readOptimizedPair, storeOptimizedOutcome } from '../repository/optimized-schedule-cache';
 import { scheduleInputHash } from '../repository/schedule-input-hash';
 import { eventLog, optimizedScheduleCache, solverQueue, solverSlot } from '../repository/schema';
+import { seedLegacyProject } from '../testing/project-fixture';
+import { prepareOptimizationDatabase } from './fixtures/optimization-database';
 
-const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
+const copyOptimizationDatabase = prepareOptimizationDatabase();
+
 const CONTRACT = '18+0.4.0';
 const BUDGET = 60_000;
 
@@ -120,7 +122,8 @@ function database(): { path: string; db: ReturnType<typeof openDrizzle> } {
   const dir = mkdtempSync(join(tmpdir(), 'wbs-optimization-coordinator-'));
   dirs.push(dir);
   const path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
+  copyOptimizationDatabase(path);
+  seedLegacyProject(path, 'optimization-org', 'optimization-project');
   return { path, db: openDrizzle(path) };
 }
 
@@ -132,9 +135,9 @@ function seedWorkPackage(path: string, workPackageId = 'p-1'): void {
        VALUES ('u-1', 'owner', 'hash', 1)`,
     );
     db.run(
-      `INSERT INTO work_package (id, name, owner_id, restricted, revision, created_at,
+      `INSERT INTO work_package (id, name, created_by, project_id, restricted, revision, created_at,
                             optimization_enabled, schedule_engine, schedule_objective)
-       VALUES (?, ?, 'u-1', 0, 0, 1, 1, 'optimized', 'pri')`,
+       VALUES (?, ?, 'u-1', 'optimization-project', 0, 0, 1, 1, 'optimized', 'pri')`,
       [workPackageId, `Plan ${workPackageId}`],
     );
   } finally {

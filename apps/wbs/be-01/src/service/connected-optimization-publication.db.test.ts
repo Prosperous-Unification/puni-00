@@ -23,7 +23,6 @@ import {
 import { openDatabase } from '../repository/db';
 import { DrizzleEventLogStore } from '../repository/event-log';
 import { OPEN } from '../repository/gate';
-import { runMigrations } from '../repository/migrate';
 import { createOptimizationRepository } from '../repository/optimization';
 import { allocateGeneration } from '../repository/optimization-generation';
 import { readGeneration } from '../repository/optimization-generation';
@@ -38,6 +37,7 @@ import {
 import { eventLog, optimizationBoundaryCertificate, solverSlot } from '../repository/schema';
 import { BACKEND_DEPENDENCY_CAPABILITY } from '../runtime/dependency-support';
 import { capturedSchedulerFixture } from '../testing/captured-scheduler-fixture';
+import { migrateOrganizationCatalogueFixture } from '../testing/organization-catalogue-fixture';
 import { createDequeueReservationOwner } from './optimization-dequeue-reservation';
 import { createInitialReservationOwner } from './optimization-initial-reservation';
 import { createOptimizationObservationOwner } from './optimization-observation';
@@ -66,11 +66,15 @@ function fixture(
   const directory = mkdtempSync(join(tmpdir(), 'connected-publication-'));
   directories.push(directory);
   const path = join(directory, 'store.db');
-  runMigrations(path, new URL('../../drizzle', import.meta.url).pathname);
+  migrateOrganizationCatalogueFixture(path);
   const sqlite = openDatabase(path);
+  sqlite.run("INSERT INTO organization(id,name,created_at) VALUES('org','Org',1)");
+  sqlite.run(
+    "INSERT INTO project(id,organization_id,name,created_at) VALUES('publication-project','org','Publication',1)",
+  );
   sqlite.run("INSERT INTO users(id,username,password_hash,created_at) VALUES('u','u','x',1)");
   sqlite.run(
-    "INSERT INTO work_package(id,name,owner_id,created_at,optimization_enabled) VALUES('B','B','u',1,1)",
+    "INSERT INTO work_package(id,name,created_by,project_id,created_at,optimization_enabled) VALUES('B','B','u','publication-project',1,1)",
   );
   sqlite.close();
   const source = openSqliteSource({
@@ -496,12 +500,11 @@ it('refuses a connected Retry whose target differs from the captured work packag
 function scopedFixture() {
   const f = fixture(false);
   const sqlite = openDatabase(f.path);
-  sqlite.run("INSERT INTO organization(id,name,created_at) VALUES('org','Org',1)");
   for (const workPackageId of ['A', 'C'])
-    sqlite.run("INSERT INTO work_package(id,name,owner_id,created_at) VALUES(?,?,'u',1)", [
-      workPackageId,
-      workPackageId,
-    ]);
+    sqlite.run(
+      "INSERT INTO work_package(id,name,created_by,project_id,created_at) VALUES(?,?,'u','publication-project',1)",
+      [workPackageId, workPackageId],
+    );
   for (const workPackageId of ['A', 'B', 'C']) {
     sqlite.run(
       "INSERT INTO work_package_organization(resource_id,organization_id) VALUES(?,'org')",
@@ -564,7 +567,7 @@ function changedQuestion(f: ReturnType<typeof scopedFixture>) {
 function rejectConnectedRecipient(f: ReturnType<typeof scopedFixture>) {
   const sqlite = openDatabase(f.path);
   sqlite.run(
-    "CREATE TRIGGER reject_connected_recipient BEFORE INSERT ON event_log WHEN NEW.subscription='work_package:C' AND json_extract(NEW.message,'$.type')='elsewhere_changed' BEGIN SELECT RAISE(ABORT,'connected recipient fault'); END",
+    "CREATE TRIGGER reject_connected_recipient BEFORE INSERT ON event_log WHEN NEW.subscription='work-package:C' AND json_extract(NEW.message,'$.type')='elsewhere_changed' BEGIN SELECT RAISE(ABORT,'connected recipient fault'); END",
   );
   sqlite.close();
 }
