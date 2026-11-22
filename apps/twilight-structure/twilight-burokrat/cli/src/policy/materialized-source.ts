@@ -3,9 +3,9 @@ import { mkdir, open, symlink } from 'node:fs/promises';
 import { isAbsolute, join, relative, sep } from 'node:path';
 
 import type { LintInterrupt, SubscribeLintInterrupts } from '../lint-interrupts';
-import type { SourceFiles } from './source-files';
 import { reserveProtectedDirectory, selectPreparationPaths } from './preparation-directory';
 import type { PreparationSource } from './preparation-source';
+import type { SourceFiles } from './source-files';
 
 export interface MaterializationContext {
   readonly callerDirectory: string;

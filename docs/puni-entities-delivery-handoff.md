@@ -8,10 +8,15 @@ Live migration and deployment remain outside delivery.
 
 ## Current checkpoint
 
-- Published head `46a9b35fd56c90541ca7f6a71fc4c0cb9ef0c6c2` on
-  `feat/puni-entities-cli`. Verify the live PR head if it has advanced.
-- Current hosted CI run
+- The verified previous head is `46a9b35fd56c90541ca7f6a71fc4c0cb9ef0c6c2`
+  on `feat/puni-entities-cli`. Use the live PR for the latest head.
+- Previous hosted CI run
   [45027102609](https://github.com/Prosperous-Unification/puni-00/actions/runs/45027102609).
+  It recorded 162 SQLite failures across 55 suites. This checkpoint repairs
+  suites responsible for 61 of those results in focused runs, leaving 101
+  recorded failures across 43 untouched suites to triage against the new head.
+  The browser trace was a stale editor fixture race and Workspace found two
+  Burokrat ordering lint errors. Both fixes passed focused local checks.
 - Authoritative working checkout
   `/tmp/puni-combined-proposal-v1/fixture-check-09a`
   on branch `proposal/puni-fixture-repairs-09a`. The checkout under
@@ -27,6 +32,7 @@ Live migration and deployment remain outside delivery.
   untouched suites as a triage list. The partial backend and Twilight
   artifacts also recorded failures before the push superseded those jobs.
 - The exact previous failure lists are in
+  `/tmp/puni-46a9-sqlite-failure-owners.json`,
   `/tmp/puni-33ed-sqlite-failure-owners.json`,
   `/tmp/puni-33ed-backend-failure-owners.json`, and
   `/tmp/puni-33ed-twilight-failure-owners.json`. Matching readable logs are
@@ -34,6 +40,13 @@ Live migration and deployment remain outside delivery.
   watchdog covered both child cases. The unchanged wrapper passed locally
   in 254 seconds. Preserve the per-case native evidence when verifying any
   wrapper repair.
+- Current replay uses version 2 to compare exact first-child blockage
+  evidence on the writer. Both adapters retain version 1 replay semantics.
+  Affected core and adapter suites and the four mounted first-child cases
+  passed. The step-attempt controller still has 31 historical cases to
+  resolve. The organization-command controller retains five old step
+  DELETE assertions. The [verification record](../openspec/changes/wbs-step-catalogue/verify.md)
+  gives the exact local owner results and the remaining assertions.
 - Use Nx affected selection and focused owner tests for local iterations.
   The hosted PR checks validate the exact source that will merge. Keep the
   normal hooks enabled and publish only reviewed and locally verified fixes.

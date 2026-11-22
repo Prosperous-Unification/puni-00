@@ -2475,3 +2475,10 @@ Nx typecheck passed.
 - The focused uncached SQLite Nx target passed all 12 saved-plan creator,
   identity and email-verification migration cases. They retain the exact
   original schema and migration sequences.
+
+### Hosted Burokrat source lint
+
+- The published workspace job passed the 58-project lint phase, then
+  `twilight-burokrat:lint:source` reported one import and one export
+  ordering error. The two declarations were sorted. The exact uncached
+  Burokrat source lint target passed locally.
