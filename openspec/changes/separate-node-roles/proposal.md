@@ -7,8 +7,7 @@ delivered by Argo CD, with OpenBao first, `main` deploying to staging, productio
 command, and an unsafe switch while there are no users. On 2026-11-22 he asked
 for the smallest setup that can grow, with every old server retired.
 
-This is the first of four changes of the new setup plan. The
-others are [`host-postgres`](../host-postgres/proposal.md) (PostgreSQL hosting),
+This is the first of four changes of the setup plan. The others are [`host-postgres`](../host-postgres/proposal.md) (PostgreSQL hosting),
 [`add-agent-hosts`](../add-agent-hosts/proposal.md) (agent hosts)
 and [`run-ci-on-argo-workflows`](../run-ci-on-argo-workflows/proposal.md) (CI).
 
@@ -16,7 +15,8 @@ and [`run-ci-on-argo-workflows`](../run-ci-on-argo-workflows/proposal.md) (CI).
 
 - A new cluster is built on new servers. A host holds one trust class; workloads are
   placed by capability under two profiles, and the minimal one is built first.
-- The platform node is the k3s server, with Argo CD, OpenBao, Harbor.
+- The platform node is the k3s server, with Argo CD, OpenBao, Harbor and Rancher, an
+  interface that deploys nothing.
 - The production apps node hosts Traefik, `puni-website`, `puni-request-app` and
   `puni-user-platform` (the WBS app).
 - The observability node hosts Elasticsearch, Prometheus and MLflow, and at first
@@ -25,15 +25,14 @@ and [`run-ci-on-argo-workflows`](../run-ci-on-argo-workflows/proposal.md) (CI).
 - Argo CD delivers the cluster from its own tree, `infra/argocd`. A merge to `main`
   reaches staging through a build that commits rendered manifests to a pins repository.
   Production and platform units change only when a person syncs them.
-- Platform services are reached over Tailscale only and are built per tenant, for the
-  `puni-user-platform` to drive.
+- Platform services are reached over Tailscale only, SSH through one bastion, and are
+  built per tenant for the `puni-user-platform` to drive.
 - Each app is stopped, backed up, restored and re-pointed; irreplaceable data is
-  verified before its old host goes.
+  verified first.
 
 ## Non-Goals
 
-No rename of WBS resources. No design of Harbor, OpenBao, the WBS overlays or the apps'
-build tools. No delivery of dev: a follow-up. No PostgreSQL, agents host or CI orchestration: the other
+No rename of WBS resources. No design of Harbor, OpenBao, the WBS overlays or build tools. No delivery of dev: a follow-up. No PostgreSQL, agents host or CI orchestration: the other
 three changes. Workers clusters and labs stay on Flux. No SQLite replication, no high
 availability. No tenant onboarding, no adapter. No host or cluster changes.
 
@@ -72,6 +71,6 @@ tenancy, stay in
 
 `infra/fleet/desired.yaml`, a new production inventory, a new tree `infra/argocd`, a new
 bootstrap playbook and a sync playbook, `infra/versions/toolchain.json`, the `k3s_server` template, the `base` and `network` roles, an access policy file, `tools/tool-fleet` (contracts, a `delivery` check, a promotion check, health, recovery, the observability source,
-a lab profile), the controller image, the solver supervisor's caller list, rule decoder and
+a lab profile), a Rancher unit and a bastion role, the controller image, the solver supervisor's caller list, rule decoder and
 role, admission policies for placement and names, Pod Security labels, the ACME issuers' solvers, a render step for staging builds, the SQLite backup tooling, and the infrastructure runbooks. Follow-ups in the Harbor change, the OpenBao design, the fleet repository, the gate
 pool, the WBS overlays and the release tooling are listed, not made.
