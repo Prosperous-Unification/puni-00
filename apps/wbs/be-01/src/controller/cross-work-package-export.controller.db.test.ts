@@ -5,6 +5,7 @@ import { afterEach, expect, spyOn, test } from 'bun:test';
 
 import { connectedTransferFixture } from '../testing/connected-transfer-fixture';
 import { type ComposedHarnessOptions, OrganizationHarness } from '../testing/organization-harness';
+import { createFixturePackage, readFixturePackage } from '../testing/space-rollup';
 
 const stringMatcher: unknown = expect.any(String);
 const numberMatcher: unknown = expect.any(Number);
@@ -30,12 +31,8 @@ async function open(options: ComposedHarnessOptions = {}) {
     ['Remote', '2026-10-19'],
     ['Target', '2026-10-20'],
   ]) {
-    const created = await harness.call('ada', 'POST', '/api/work-packages', { name });
-    expect(created.status).toBe(200);
-    const workPackage = harness.sqlite
-      .query<{ id: string }, [string]>('SELECT id FROM work_package WHERE name=?')
-      .get(name);
-    if (workPackage === null) throw new Error('missing fixture work package');
+    const id = await createFixturePackage(harness, 'ada', name);
+    const { workPackage, steps } = await readFixturePackage(harness, 'ada', id);
     const added = await harness.call(
       'ada',
       'POST',
@@ -48,12 +45,8 @@ async function open(options: ComposedHarnessOptions = {}) {
     const row = harness.sqlite
       .query<{ id: string }, [string]>('SELECT id FROM work_item WHERE work_package_id=?')
       .get(workPackage.id);
-    const step = harness.sqlite
-      .query<{ id: string }, [string]>(
-        'SELECT id FROM step WHERE work_package_id=? ORDER BY position LIMIT 1',
-      )
-      .get(workPackage.id);
-    if (row === null || step === null) throw new Error('missing fixture endpoint');
+    const step = steps.at(0);
+    if (row === null || step === undefined) throw new Error('missing fixture endpoint');
     harness.sqlite
       .query(
         "UPDATE work_package SET start_date=?,estimate_method='realistic',estimate_rounding='exact' WHERE id=?",
@@ -89,7 +82,7 @@ function persistentState() {
     harness.sqlite.query(`SELECT * FROM "${name.replaceAll('"', '""')}" ORDER BY rowid`).all(),
   ]);
 }
-test('mounted JSON exports v14 required evidence and stable incoming UUIDs without durable admission', async () => {
+test('mounted JSON exports v16 required evidence and stable incoming UUIDs without durable admission', async () => {
   const { remote, target } = await open();
   const before = persistentState();
   const response = await harness.call(
@@ -99,7 +92,7 @@ test('mounted JSON exports v14 required evidence and stable incoming UUIDs witho
   );
   expect(response.status).toBe(200);
   expect(response.body).toMatchObject({
-    document: { version: 14 },
+    document: { version: 16 },
     workItems: [{ id: target.workItemId, schedule: { earliestStart: 1.5, earliestFinish: 4 } }],
     typedDependencies: [
       {
@@ -164,7 +157,7 @@ test('mounted JSON exports v14 required evidence and stable incoming UUIDs witho
   );
   expect(outgoing.status).toBe(200);
   expect(outgoing.body).toMatchObject({
-    document: { version: 14 },
+    document: { version: 16 },
     typedDependencies: [],
     connected: { relationships: [{ id: 'remote-fs' }] },
   });
@@ -189,7 +182,7 @@ test('mounted JSON preserves explicit unavailable outcomes and null dates', asyn
   );
   expect(calendar.status).toBe(200);
   expect(calendar.body).toMatchObject({
-    document: { version: 14 },
+    document: { version: 16 },
     workItems: [{ dates: null, schedule: null }],
     connected: {
       placement: {
@@ -212,7 +205,7 @@ test('mounted JSON preserves explicit unavailable outcomes and null dates', asyn
   );
   expect(optimizer.status).toBe(200);
   expect(optimizer.body).toMatchObject({
-    document: { version: 14 },
+    document: { version: 16 },
     workItems: [{ dates: null }],
     connected: {
       placement: {
@@ -225,7 +218,7 @@ test('mounted JSON preserves explicit unavailable outcomes and null dates', asyn
   });
 });
 
-test('mounted response rejects absent and malformed required v14 history independently', async () => {
+test('mounted response rejects absent and malformed required v16 history independently', async () => {
   const { target } = await open();
   const serialize = Reflect.get(PlanDocumentService.prototype, 'exportConnectedCaptured');
   for (const fault of ['missing', 'malformed'] as const) {
@@ -255,7 +248,7 @@ test('mounted export serializes captured labels settings and markers after obser
   const { remote, target } = await open();
   harness.sqlite
     .query(
-      "INSERT INTO calendar_marker(id,work_package_id,date,name,created_at) VALUES('marker',?,'2026-10-22','Old marker',1)",
+      "INSERT INTO calendar_marker(id,scope_kind,scope_id,date,name,created_at) VALUES('marker','work_package',?,'2026-10-22','Old marker',1)",
     )
     .run(target.workPackageId);
   const exportWithin = Reflect.get(WorkItemService.prototype, 'exportWithin');
@@ -335,18 +328,39 @@ test('mounted connected JSON preserves sparse refusal and uncoded-step precedenc
   );
   expect(sparse.status).toBe(409);
   expect(sparse.body).toEqual({ error: 'unsupported_step_parallelism' });
-  harness.sqlite.query('UPDATE step SET code=NULL WHERE id=?').run(target.stepId);
-  const uncoded = await harness.call(
-    'ada',
-    'GET',
-    `/api/work-packages/${target.workPackageId}/export?format=json`,
+  // Legacy captures could contain a nullable code before catalogue definitions required one.
+  // eslint-disable-next-line @typescript-eslint/unbound-method -- forward the original method with its actual receiver.
+  const capture = WorkItemService.prototype.exportWithin;
+  const legacy = spyOn(WorkItemService.prototype, 'exportWithin').mockImplementation(
+    async function (this: WorkItemService, ...args) {
+      const captured = await capture.apply(this, args);
+      if (captured.kind !== 'connected') return captured;
+      return {
+        ...captured,
+        tree: {
+          ...captured.tree,
+          steps: captured.tree.steps.map((step) =>
+            step.id === target.stepId ? { ...step, code: null } : step,
+          ),
+        },
+      };
+    },
   );
-  expect(uncoded.status).toBe(409);
-  expect(uncoded.body).toMatchObject({
-    error: 'uncoded_steps',
-    steps: [{ id: target.stepId }],
-    command: 'bun run src/backfill-step-codes-cli.ts',
-  });
+  try {
+    const uncoded = await harness.call(
+      'ada',
+      'GET',
+      `/api/work-packages/${target.workPackageId}/export?format=json`,
+    );
+    expect(uncoded.status).toBe(409);
+    expect(uncoded.body).toMatchObject({
+      error: 'uncoded_steps',
+      steps: [{ id: target.stepId }],
+      command: 'bun run src/backfill-step-codes-cli.ts',
+    });
+  } finally {
+    legacy.mockRestore();
+  }
 });
 
 test('mounted transfer fixture authors exactly successor-owned links and archives outgoing component links', async () => {
@@ -362,7 +376,7 @@ test('mounted transfer fixture authors exactly successor-owned links and archive
   const authored: unknown = Reflect.get(Object(response.body), 'typedDependencies');
   expect(authored).toHaveLength(6);
   expect(response.body).toMatchObject({
-    document: { version: 14 },
+    document: { version: 16 },
     typedDependencies: contains([
       expect.objectContaining({ id: 'internal-node' }),
       expect.objectContaining({ id: 'incoming-node-a' }),
@@ -379,7 +393,7 @@ test('mounted transfer fixture authors exactly successor-owned links and archive
   expect(persistentState()).toEqual(before);
 });
 
-test('connected version14 retains the published measure lists factor and priced figures', async () => {
+test('connected version16 retains the published measure lists factor and priced figures', async () => {
   const { target } = await open();
   harness.grantPermissions('org-a', 'ada', ['project.manage_budgets']);
   const written = await harness.call(
@@ -415,9 +429,15 @@ test('connected version14 retains the published measure lists factor and priced 
     },
   );
   expect(written.status).toBe(200);
-  harness.sqlite
-    .query('UPDATE work_package SET budget_factor=1.5 WHERE id=?')
-    .run(target.workPackageId);
+  const project = harness.sqlite
+    .query<{ project_id: string }, [string]>('SELECT project_id FROM work_package WHERE id=?')
+    .get(target.workPackageId);
+  if (project === null) throw new Error('target Project missing');
+  expect(
+    await harness.call('ada', 'PATCH', `/api/projects/${project.project_id}/settings`, {
+      budgetFactor: 1.5,
+    }),
+  ).toMatchObject({ status: 200 });
   expect(
     await harness.call(
       'ada',
@@ -427,7 +447,7 @@ test('connected version14 retains the published measure lists factor and priced 
   ).toMatchObject({
     status: 200,
     body: {
-      document: { version: 14 },
+      document: { version: 16 },
       settings: { budgetFactor: 1.5 },
       connected: { kind: 'connected' },
       measureDefinitions: contains([

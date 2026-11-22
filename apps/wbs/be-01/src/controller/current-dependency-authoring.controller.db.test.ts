@@ -5,6 +5,7 @@ import {
   closeFixture,
   harness,
   openFixture,
+  readFixtureStep,
   readTables,
   runSemantic,
 } from './cross-work-package-dependency-fixture';
@@ -289,12 +290,7 @@ for (const fault of ['missing', 'unknown'] as const) {
 
 test('derived incident history does not require general external authoring', async () => {
   const fixture = await openFixture();
-  const step = harness.sqlite
-    .query<{ id: string }, [string]>(
-      'SELECT id FROM step WHERE work_package_id=? ORDER BY position LIMIT 1',
-    )
-    .get(fixture.owner.workPackageId);
-  if (step === null) throw new Error('fixture owner step missing');
+  const step = readFixtureStep(fixture.owner.workPackageId);
   const authoring = mutableAuthoring('active');
   expect(
     (

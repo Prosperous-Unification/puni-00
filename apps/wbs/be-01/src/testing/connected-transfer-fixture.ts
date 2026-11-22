@@ -1,6 +1,7 @@
 import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-activation';
 
 import type { OrganizationHarness } from './organization-harness';
+import { createFixturePackage, readFixturePackage } from './space-rollup';
 
 interface TransferWorkPackage {
   workPackageId: string;
@@ -14,7 +15,7 @@ interface TransferWorkPackage {
 export async function connectedTransferFixture(harness: OrganizationHarness) {
   await harness.register('ada');
   harness.organization('org-a');
-  harness.member('org-a', 'ada', 'member', ['project-contributor']);
+  harness.member('org-a', 'ada', 'member', ['project-contributor', 'org-viewer']);
   harness.grantPermissions('org-a', 'ada', [
     'organization.create_project',
     'organization.manage_directory',
@@ -22,18 +23,31 @@ export async function connectedTransferFixture(harness: OrganizationHarness) {
   harness.bind('ada', 'org-a');
   harness.activate();
   seedDependencyAuthority(harness.databasePath());
-  const parent = await harness.call('ada', 'POST', '/api/projects', { name: 'Transfer parent' });
-  if (parent.status !== 201) throw new Error('transfer parent creation refused');
-  const projectId = (parent.body as { project: { id: string } }).project.id;
-  if (typeof projectId !== 'string' || projectId === '')
-    throw new Error('transfer parent identity absent');
-  const create = async (name: string): Promise<TransferWorkPackage> => {
-    const created = await harness.call('ada', 'POST', '/api/work-packages', { name, projectId });
-    if (created.status !== 200)
-      throw new Error(`fixture work package refused: ${String(created.status)}`);
-    const workPackage = harness.sqlite
-      .query<{ id: string }, [string]>('SELECT id FROM work_package WHERE name=?')
-      .get(name);
+  const remoteId = await createFixturePackage(harness, 'ada', 'Remote');
+  // Remote labels can change independently while the receiving Project keeps its import codes.
+  harness.sqlite.run(
+    "UPDATE step_definition SET name='Remote ' || name,code='remote-' || code WHERE organization_id='org-a'",
+  );
+  const sourceId = await createFixturePackage(harness, 'ada', 'Source');
+  const parent = harness.sqlite
+    .query<{ project_id: string }, [string]>('SELECT project_id FROM work_package WHERE id=?')
+    .get(sourceId);
+  if (parent === null) throw new Error('transfer parent missing');
+  const projectId = parent.project_id;
+  const create = async (name: string, existingId?: string): Promise<TransferWorkPackage> => {
+    if (existingId === undefined) {
+      const created = await harness.call('ada', 'POST', '/api/work-packages', { name, projectId });
+      if (created.status !== 200)
+        throw new Error('fixture work package refused', { cause: created });
+    }
+    const workPackage =
+      existingId === undefined
+        ? harness.sqlite
+            .query<{ id: string }, [string, string]>(
+              'SELECT id FROM work_package WHERE project_id=? AND name=?',
+            )
+            .get(projectId, name)
+        : { id: existingId };
     if (workPackage === null) throw new Error('fixture work package missing');
     const add = async (rowName: string, parentId: string | null) => {
       const added = await harness.call(
@@ -57,11 +71,7 @@ export async function connectedTransferFixture(harness: OrganizationHarness) {
     const parentId = await add(`${name} parent`, null);
     const leafId = await add(`${name} leaf`, parentId);
     const tailId = await add(`${name} tail`, null);
-    const steps = harness.sqlite
-      .query<{ id: string }, [string]>(
-        'SELECT id FROM step WHERE work_package_id=? ORDER BY position',
-      )
-      .all(workPackage.id);
+    const { steps } = await readFixturePackage(harness, 'ada', workPackage.id);
     if (steps.length < 2) throw new Error('fixture needs distinct steps');
     harness.sqlite
       .query(
@@ -88,8 +98,8 @@ export async function connectedTransferFixture(harness: OrganizationHarness) {
       stepIds: steps.map((step) => step.id),
     };
   };
-  const remote = await create('Remote');
-  const source = await create('Source');
+  const remote = await create('Remote', remoteId);
+  const source = await create('Source', sourceId);
   const downstream = await create('Downstream');
   const unrelated = await create('Unrelated');
   const external = (

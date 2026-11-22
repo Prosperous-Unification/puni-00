@@ -5,6 +5,7 @@ import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-ac
 import { afterEach, beforeEach, expect, test } from 'bun:test';
 
 import { OrganizationHarness } from '../testing/organization-harness';
+import { createFixturePackage, readFixturePackage } from '../testing/space-rollup';
 
 let harness: OrganizationHarness;
 let target: string;
@@ -23,7 +24,11 @@ beforeEach(async () => {
     openReadOnlyConnection: (path) =>
       openReadOnlyConnection(path, {
         logQuery(query, parameters) {
-          if (!armed || !query.includes('from "step_node_attempt"') || !parameters.includes(remote))
+          if (
+            !armed ||
+            !query.includes('FROM step_node_attempt f LEFT JOIN work_item') ||
+            !parameters.includes(remote)
+          )
             return;
           armed = false;
           injections += 1;
@@ -54,14 +59,13 @@ beforeEach(async () => {
   // Synthetic stored authority establishes the reader fixture, not runtime authoring admission.
   seedDependencyAuthority(harness.databasePath());
   const create = async (name: string) => {
-    const answer = await harness.call('ada', 'POST', '/api/work-packages', { name });
-    expect(answer.status).toBe(200);
-    const created = answer.body as { workPackage: { id: string }; steps: { id: string }[] };
+    const id = await createFixturePackage(harness, 'ada', name);
+    const created = await readFixturePackage(harness, 'ada', id);
     const step = created.steps[0].id;
-    harness.sqlite.run('DELETE FROM step WHERE work_package_id=? AND id<>?', [
-      created.workPackage.id,
-      step,
-    ]);
+    harness.sqlite.run(
+      "DELETE FROM step_binding WHERE scope_kind='project' AND scope_id=(SELECT project_id FROM work_package WHERE id=?) AND step_id<>?",
+      [created.workPackage.id, step],
+    );
     return { workPackageId: created.workPackage.id, stepId: step };
   };
   const first = await create('Target');
@@ -192,7 +196,7 @@ function buildSnapshot(canStart: boolean, isClaimed: boolean) {
         capacity: 1,
         occupied: isClaimed ? 1 : 0,
         free: isClaimed ? 0 : 1,
-        occupancyScope: 'project',
+        occupancyScope: 'work_package',
         directory: null,
       },
     ],

@@ -5,6 +5,7 @@ import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-ac
 import { afterEach, beforeEach, expect, test } from 'bun:test';
 
 import { OrganizationHarness } from '../testing/organization-harness';
+import { createFixturePackage, readFixturePackage } from '../testing/space-rollup';
 
 let harness: OrganizationHarness;
 let target: string;
@@ -27,9 +28,8 @@ beforeEach(async () => {
   harness.activate();
   seedDependencyAuthority(harness.databasePath());
   const create = async (name: string) => {
-    const answer = await harness.call('ada', 'POST', '/api/work-packages', { name });
-    expect(answer.status).toBe(200);
-    return answer.body as { workPackage: { id: string }; steps: { id: string }[] };
+    const id = await createFixturePackage(harness, 'ada', name);
+    return await readFixturePackage(harness, 'ada', id);
   };
   const first = await create('Target');
   const second = await create('Predecessor');
@@ -41,10 +41,10 @@ beforeEach(async () => {
     [target, targetStep],
     [predecessor, predecessorStep],
   ])
-    harness.sqlite.run('DELETE FROM step WHERE work_package_id=? AND id<>?', [
-      workPackageId,
-      stepId,
-    ]);
+    harness.sqlite.run(
+      "DELETE FROM step_binding WHERE scope_kind='project' AND scope_id=(SELECT project_id FROM work_package WHERE id=?) AND step_id<>?",
+      [workPackageId, stepId],
+    );
   for (const [id, workPackage] of [
     ['target-leaf', target],
     ['predecessor-leaf', predecessor],

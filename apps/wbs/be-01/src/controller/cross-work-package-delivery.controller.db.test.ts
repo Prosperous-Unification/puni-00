@@ -3,6 +3,7 @@ import { expect, it } from 'bun:test';
 
 import { TEST_JWT_KEY } from '../testing/auth-fixture';
 import { OrganizationHarness } from '../testing/organization-harness';
+import { createFixturePackage, readFixturePackage } from '../testing/space-rollup';
 
 // Bun supplies headers at runtime; the backend's DOM library shadows its constructor overload.
 const CookieSocket = WebSocket as unknown as new (
@@ -76,9 +77,8 @@ it('mounted completion delivers durable successor envelopes through the producti
       harness.sqlite.query("SELECT shared_people FROM organization WHERE id = 'org-a'").get(),
     ).toEqual({ shared_people: 0 });
     const create = async (username: string, name: string) => {
-      const created = await harness.call(username, 'POST', '/api/work-packages', { name });
-      expect(created.status).toBe(200);
-      const body = created.body as { workPackage: { id: string }; steps: { id: string }[] };
+      const id = await createFixturePackage(harness, username, name);
+      const body = await readFixturePackage(harness, username, id);
       const step = body.steps.at(0);
       if (step === undefined) throw new Error('work package has no step');
       const workPackage = {
@@ -86,10 +86,10 @@ it('mounted completion delivers durable successor envelopes through the producti
         row: `${body.workPackage.id}-row`,
         step: step.id,
       };
-      harness.sqlite.run('DELETE FROM step WHERE work_package_id = ? AND id <> ?', [
-        workPackage.id,
-        workPackage.step,
-      ]);
+      harness.sqlite.run(
+        "DELETE FROM step_binding WHERE scope_kind='project' AND scope_id=(SELECT project_id FROM work_package WHERE id=?) AND step_id<>?",
+        [workPackage.id, workPackage.step],
+      );
       harness.sqlite.run(
         "INSERT INTO work_item (id, work_package_id, position, name, readiness) VALUES (?, ?, 10, ?, 'ready')",
         [workPackage.row, workPackage.id, name],

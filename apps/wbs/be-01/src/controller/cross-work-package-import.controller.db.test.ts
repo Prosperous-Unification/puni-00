@@ -50,7 +50,7 @@ function snapshotHistory() {
 function transferProjectId(): string {
   const parent = harness.sqlite
     .query<{ id: string }, []>(
-      "SELECT id FROM project WHERE organization_id='org-a' AND name='Transfer parent'",
+      "SELECT id FROM project WHERE organization_id='org-a' AND name='Source engagement'",
     )
     .get();
   if (parent === null) throw new Error('explicit transfer parent is absent');
@@ -80,9 +80,6 @@ async function assertIncomingImportRoundTrip(
   if (mode === 'mounted-production')
     expect(() => harness.syntheticImports()).toThrow('synthetic transfer imports are absent');
   const { source, remote } = await connectedTransferFixture(harness);
-  const remoteStep = remote.stepIds.at(0);
-  if (remoteStep === undefined) throw new Error('fixture remote step missing');
-  harness.sqlite.query('UPDATE step SET code=NULL WHERE id=?').run(remoteStep);
   const { document, classified } = await exported(source.workPackageId);
   expect(document).toMatchObject({ document: { version: 16 }, connected: { kind: 'connected' } });
   expect(classified).not.toHaveProperty('connected');
@@ -163,11 +160,11 @@ async function assertIncomingImportRoundTrip(
   for (const row of rows) expect(sourceRows.map((sourceRow) => sourceRow.id)).not.toContain(row.id);
   const steps = harness.sqlite
     .query<{ id: string; name: string }, [string]>(
-      'SELECT id,name FROM step WHERE work_package_id=? ORDER BY position',
+      "SELECT d.id,d.name FROM work_package w JOIN step_binding b ON b.scope_kind='project' AND b.scope_id=w.project_id JOIN step_definition d ON d.id=b.step_id WHERE w.id=? ORDER BY b.position",
     )
     .all(importedWorkPackageId);
   expect(steps).toHaveLength(source.stepIds.length);
-  for (const step of steps) expect(source.stepIds).not.toContain(step.id);
+  expect(steps.map(({ id }) => id)).toEqual(source.stepIds);
   const mappedRow = (oldId: string) => {
     const old = sourceRows.find((row) => row.id === oldId);
     const copied = rows.find((row) => row.name === old?.name);
@@ -235,11 +232,11 @@ async function assertIncomingImportRoundTrip(
   expect(snapshotHistory()).toEqual(histories);
 }
 
-test('downloaded successor-owned v12 content round trips through same-store synthetic transaction', async () => {
+test('downloaded successor-owned v16 content round trips through same-store synthetic transaction', async () => {
   await assertIncomingImportRoundTrip('synthetic');
 });
 
-test('capable mounted incoming v12 import preserves stable external identities and owned remapping', async () => {
+test('capable mounted incoming v16 import preserves stable external identities and owned remapping', async () => {
   await assertIncomingImportRoundTrip('mounted-production');
 });
 
@@ -270,7 +267,7 @@ for (const synthetic of [false, true])
     expect(pushes).toBe(0);
   });
 
-test('mounted outgoing-only v12 imports authored content while ignoring outgoing history', async () => {
+test('mounted outgoing-only v16 imports authored content while ignoring outgoing history', async () => {
   harness = OrganizationHarness.openComposedWith({ syntheticTransferImports: true });
   const { remote } = await connectedTransferFixture(harness);
   const { document, classified } = await exported(remote.workPackageId);
@@ -393,7 +390,9 @@ test('rename and renumber round trip stable external UUIDs with current export l
     .run(remote.leafId);
   const stepId = remote.stepIds.at(0);
   if (stepId === undefined) throw new Error('fixture remote step absent');
-  harness.sqlite.query("UPDATE step SET name='Renamed step',code='next' WHERE id=?").run(stepId);
+  harness.sqlite
+    .query("UPDATE step_definition SET name='Renamed step',code='next' WHERE id=?")
+    .run(stepId);
   harness.sqlite
     .query("UPDATE work_package_abbreviation SET abbreviation='NEXT' WHERE work_package_id=?")
     .run(remote.workPackageId);
@@ -867,7 +866,7 @@ for (const mapped of [false, true])
         .all(admitted.workPackageId);
       const copiedSteps = harness.sqlite
         .query<{ id: string }, [string]>(
-          'SELECT id FROM step WHERE work_package_id=? ORDER BY position',
+          "SELECT b.step_id AS id FROM work_package w JOIN step_binding b ON b.scope_kind='project' AND b.scope_id=w.project_id WHERE w.id=? ORDER BY b.position",
         )
         .all(admitted.workPackageId);
       const expected = classified.typedDependencies.flatMap(({ predecessor, successor, type }) => {
@@ -1035,8 +1034,10 @@ for (const fault of [
         .query('DELETE FROM typed_dependency WHERE predecessor_step_id=? OR successor_step_id=?')
         .run(stepId, stepId);
       harness.sqlite.query('DELETE FROM estimate WHERE step_id=?').run(stepId);
-      harness.sqlite.query('DELETE FROM step WHERE id=?').run(stepId);
+      harness.sqlite.query('DELETE FROM step_binding WHERE step_id=?').run(stepId);
     } else if (fault === 'node-on-parent') {
+      // This row becomes a parent, whose estimates are derived from its children.
+      harness.sqlite.query('DELETE FROM estimate WHERE work_item_id=?').run(remote.leafId);
       harness.sqlite
         .query(
           "INSERT INTO work_item(id,work_package_id,parent_id,position,name,created_at,updated_at) VALUES ('new-child',?,?,0,'New child',1,1)",
@@ -1099,7 +1100,7 @@ for (const fault of [
   });
 
 for (const fault of ['missing-row', 'cycle'] as const)
-  test(`capable mounted v12 import refuses current ${fault} with indexed diagnosis and no effects`, async () => {
+  test(`capable mounted v16 import refuses current ${fault} with indexed diagnosis and no effects`, async () => {
     let pushes = 0;
     harness = OrganizationHarness.openComposedWith({
       dependencyCapability: BACKEND_DEPENDENCY_CAPABILITY,
@@ -1240,9 +1241,9 @@ async function assertImportRecordingRollback(
       expect(tx.all(sql`SELECT * FROM work_item WHERE work_package_id=${copied.id}`)).toHaveLength(
         3,
       );
-      expect(tx.all(sql`SELECT * FROM step WHERE work_package_id=${copied.id}`)).toHaveLength(
-        source.stepIds.length,
-      );
+      expect(
+        tx.all(sql`SELECT * FROM work_package_step WHERE work_package_id=${copied.id}`),
+      ).toHaveLength(source.stepIds.length);
       expect(
         tx.all(sql`SELECT * FROM work_package_abbreviation WHERE work_package_id=${copied.id}`),
       ).toHaveLength(1);
@@ -1286,7 +1287,7 @@ async function assertImportRecordingRollback(
         ),
       ).toEqual({ next_seq: recorded.seq + 1 });
       expect(pushes).toBe(0);
-      // Proof: in 'capable mounted incoming v12 import rolls back staged writes and durable event on recording failure',
+      // Proof: in 'capable mounted incoming v16 import rolls back staged writes and durable event on recording failure',
       // an early spy assertion before this marker still returned opaque HTTP500 but failed the final
       // completion check; exact restoration passed (2026-11-02).
       injected = true;
@@ -1324,6 +1325,6 @@ test('downloaded artifact rolls back staged import and first durable elsewhere e
   await assertImportRecordingRollback('synthetic');
 });
 
-test('capable mounted incoming v12 import rolls back staged writes and durable event on recording failure', async () => {
+test('capable mounted incoming v16 import rolls back staged writes and durable event on recording failure', async () => {
   await assertImportRecordingRollback('mounted-production');
 });

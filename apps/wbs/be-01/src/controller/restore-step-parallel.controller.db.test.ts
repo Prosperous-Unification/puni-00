@@ -5,6 +5,7 @@ import { WorkItemRepository } from '@wbs/store-sqlite/work-item';
 import { expect, it, spyOn } from 'bun:test';
 
 import { OrganizationHarness } from '../testing/organization-harness';
+import { createFixturePackage, readFixturePackage } from '../testing/space-rollup';
 
 for (const operation of ['redo-create', 'undo-delete'] as const) {
   for (const policy of [
@@ -35,15 +36,9 @@ for (const operation of ['redo-create', 'undo-delete'] as const) {
         h.bind('owner', 'org');
         h.bind('viewer', 'org');
         h.activate();
-        const created = await h.call('owner', 'POST', '/api/work-packages', {
-          name: 'Restore replay',
-        });
-        expect(created.status).toBe(200);
-        const workPackageId = (created.body as { workPackage: { id: string } }).workPackage.id;
-        const step = h.sqlite
-          .query('SELECT id FROM step WHERE work_package_id = ? ORDER BY position,id LIMIT 1')
-          .get(workPackageId) as { id: string } | null;
-        if (step === null) throw new Error('fixture step absent');
+        const workPackageId = await createFixturePackage(h, 'owner', 'Restore replay');
+        const step = (await readFixturePackage(h, 'owner', workPackageId)).steps.at(0);
+        if (step === undefined) throw new Error('fixture step absent');
         for (const id of ['root', 'unrelated'])
           h.sqlite.run(
             'INSERT INTO work_item (id,work_package_id,name,position,revision) VALUES (?,?,?,1,0)',
@@ -59,6 +54,14 @@ for (const operation of ['redo-create', 'undo-delete'] as const) {
           h.sqlite.run(
             'INSERT INTO step_blockage (work_item_id,step_id,blocked_at) VALUES (?,?,17)',
             ['child', step.id],
+          );
+        // A first child records a transition_first_child command. A sibling makes
+        // this edit record the ordinary subtree restoration exercised by these cases.
+        const needsSibling = operation === 'redo-create' && parentId !== null;
+        if (needsSibling)
+          h.sqlite.run(
+            "INSERT INTO work_item (id,work_package_id,name,parent_id,position,revision) VALUES ('existing-sibling',?,'Existing sibling','root',10,0)",
+            [workPackageId],
           );
         const edit =
           operation === 'redo-create'
@@ -81,6 +84,7 @@ for (const operation of ['redo-create', 'undo-delete'] as const) {
           expect(
             (await h.call('owner', 'POST', `/api/work-packages/${workPackageId}/undo`)).status,
           ).toBe(200);
+        if (needsSibling) h.sqlite.run("DELETE FROM work_item WHERE id='existing-sibling'");
         // The restored row is absent; its destination survives without revision drift.
         const owner = policy === 'unrelated' || policy === 'root' ? 'unrelated' : 'root';
         const beforeRevision = h.sqlite
@@ -263,15 +267,9 @@ it('redo-duplicate restores its historical snapshot without rereading newly auth
     h.grantPermissions('org', 'owner', ['organization.create_project']);
     h.bind('owner', 'org');
     h.activate();
-    const created = await h.call('owner', 'POST', '/api/work-packages', {
-      name: 'Duplicate history',
-    });
-    expect(created.status).toBe(200);
-    const workPackageId = (created.body as { workPackage: { id: string } }).workPackage.id;
-    const step = h.sqlite
-      .query('SELECT id FROM step WHERE work_package_id = ? LIMIT 1')
-      .get(workPackageId) as { id: string } | null;
-    if (step === null) throw new Error('fixture step absent');
+    const workPackageId = await createFixturePackage(h, 'owner', 'Duplicate history');
+    const step = (await readFixturePackage(h, 'owner', workPackageId)).steps.at(0);
+    if (step === undefined) throw new Error('fixture step absent');
     h.sqlite.run(
       "INSERT INTO work_item (id,work_package_id,name,position,revision) VALUES ('source',?,'Original',1,0)",
       [workPackageId],
@@ -336,15 +334,9 @@ for (const policy of ['source', 'destination'] as const) {
       h.grantPermissions('org', 'owner', ['organization.create_project']);
       h.bind('owner', 'org');
       h.activate();
-      const created = await h.call('owner', 'POST', '/api/work-packages', {
-        name: 'Nested duplicate history',
-      });
-      expect(created.status).toBe(200);
-      const workPackageId = (created.body as { workPackage: { id: string } }).workPackage.id;
-      const step = h.sqlite
-        .query('SELECT id FROM step WHERE work_package_id = ? LIMIT 1')
-        .get(workPackageId) as { id: string } | null;
-      if (step === null) throw new Error('fixture step absent');
+      const workPackageId = await createFixturePackage(h, 'owner', 'Nested duplicate history');
+      const step = (await readFixturePackage(h, 'owner', workPackageId)).steps.at(0);
+      if (step === undefined) throw new Error('fixture step absent');
       h.sqlite.run(
         "INSERT INTO work_item (id,work_package_id,name,parent_id,position,revision) VALUES ('parent',?,'Parent',NULL,1,0),('source',?,'Original','parent',1,0)",
         [workPackageId, workPackageId],

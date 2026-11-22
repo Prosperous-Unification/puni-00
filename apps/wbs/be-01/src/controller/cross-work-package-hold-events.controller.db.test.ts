@@ -2,6 +2,7 @@ import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-ac
 import { afterEach, expect, it } from 'bun:test';
 
 import { OrganizationHarness } from '../testing/organization-harness';
+import { createFixturePackage, readFixturePackage } from '../testing/space-rollup';
 
 const opened: OrganizationHarness[] = [];
 afterEach(async () => {
@@ -20,9 +21,8 @@ async function fixture(push?: () => Promise<Response>) {
   harness.activate();
   harness.grantPermissions('org-a', 'ada', ['organization.create_project']);
   const create = async (name: string) => {
-    const answer = await harness.call('ada', 'POST', '/api/work-packages', { name });
-    expect(answer.status).toBe(200);
-    const body = answer.body as { workPackage: { id: string }; steps: { id: string }[] };
+    const id = await createFixturePackage(harness, 'ada', name);
+    const body = await readFixturePackage(harness, 'ada', id);
     const step = body.steps.at(0);
     if (step === undefined) throw new Error('work package fixture omitted step');
     harness.sqlite.run(
