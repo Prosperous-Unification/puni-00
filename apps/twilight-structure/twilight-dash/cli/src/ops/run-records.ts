@@ -18,20 +18,45 @@ export interface HostServiceBound {
 }
 
 /**
+ * A named `puni.host-service` container removed before `docker inspect` could read its bounds,
+ * dated by its own create and die events: `name` is the service, `lifetimeMs` from create to die,
+ * at most `sampleIntervalMs` (A-ATTR-ENDED-1). Its `--memory` and `--cpus` are unknown: Docker's
+ * events carry labels, not the host config.
+ */
+export interface LifetimeBound {
+  name: string;
+  lifetimeMs: number;
+  sampleIntervalMs: number;
+}
+
+/**
  * One container the run saw start, and whether it ran labelled and inside the declared bound.
  * `host-service` is a declared host service's container beside the job, run under its own
  * bounds (`dash-host-jobs` J16 amendment, A-ATTR-HOSTSVC-1); it is listed, never charged.
+ * `lifetime-bounded` is a declared host service's container that ended, within one sampling
+ * interval, before its bounds could be read (A-ATTR-ENDED-1); a job's own container never is.
  */
 export type ContainerVerdict =
   | { id: string; verdict: 'bounded' | 'unlabelled' | 'unbounded' | 'unverified'; reason: string }
-  | { id: string; verdict: 'host-service'; reason: string; hostService: HostServiceBound };
+  | { id: string; verdict: 'host-service'; reason: string; hostService: HostServiceBound }
+  | { id: string; verdict: 'lifetime-bounded'; reason: string; lifetimeBound: LifetimeBound };
 
-/** Whether `container` is accounted for: the job's own bounded container or a bounded host service. */
+/**
+ * Whether `container` is accounted for: the job's own bounded container, a bounded host service,
+ * or a host service's container that lived at most one sampling interval.
+ */
 export function isAttributed(container: ContainerVerdict): boolean {
   // Proof: dropping the host-service term made `a record whose only other container is a bounded
   // host service is complete (task 6.22)` (propose.test.ts) refuse with two complete records, and
   // three host-service tests in audit.test.ts fail (2026-11-19).
-  return container.verdict === 'bounded' || container.verdict === 'host-service';
+  // Proof: dropping the lifetime-bounded term made `a lifetime-bounded container leaves the
+  // record complete (A-ATTR-ENDED-1)` (propose.test.ts) refuse with two complete records
+  // (2026-11-22).
+  return (
+    container.verdict === 'bounded' ||
+    container.verdict === 'host-service' ||
+    container.verdict === 'lifetime-bounded'
+  );
 }
 
 /**
@@ -253,6 +278,18 @@ const OutcomeShape = type({
       verdict: "'host-service'",
       reason: 'string',
       hostService: { name: 'string > 0', memoryBytes: 'number > 0', cpuCores: 'number > 0' },
+    })
+    // Proof: admitting 'lifetime-bounded' in the plain branch above made `a lifetime-bounded
+    // verdict without its lifetime is refused` (run-records.test.ts) write the record (2026-11-22).
+    .or({
+      id: 'string',
+      verdict: "'lifetime-bounded'",
+      reason: 'string',
+      lifetimeBound: {
+        name: 'string > 0',
+        lifetimeMs: 'number >= 0',
+        sampleIntervalMs: 'number > 0',
+      },
     })
     .array(),
 });

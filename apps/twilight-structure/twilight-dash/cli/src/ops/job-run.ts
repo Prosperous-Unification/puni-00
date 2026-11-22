@@ -1379,8 +1379,17 @@ async function runAdmitted(
   const watch =
     docker === null || bound === 'none'
       ? null
-      : ContainerWatch.start(docker, deps.environment, job.id, bound, startedAt, (owner) =>
-          runtime.listHostJobs().some((other) => other.id === owner && other.state !== 'released'),
+      : ContainerWatch.start(
+          docker,
+          deps.environment,
+          job.id,
+          bound,
+          deps.sampleIntervalMs,
+          startedAt,
+          (owner) =>
+            runtime
+              .listHostJobs()
+              .some((other) => other.id === owner && other.state !== 'released'),
         );
   // The gate sample, the HEAD check, `records.begin` and the watch start are synchronous: a
   // signal that arrived during them is dispatched only once the event loop turns, so turn it
@@ -1617,6 +1626,9 @@ async function runAdmitted(
   // the job keeps attribution complete (task 6.22)` (job-run.test.ts) record attribution
   // incomplete (2026-11-19).
   const incomplete = verdicts.filter((verdict) => !isAttributed(verdict));
+  for (const verdict of verdicts)
+    if (verdict.verdict === 'lifetime-bounded')
+      deps.report(`ops job: ${job.id} attributed ${verdict.id.slice(0, 12)} ${verdict.reason}`);
   for (const verdict of incomplete)
     deps.report(
       `ops job: ${job.id} attribution incomplete: ${verdict.id.slice(0, 12)} ${verdict.verdict}: ${verdict.reason}`,

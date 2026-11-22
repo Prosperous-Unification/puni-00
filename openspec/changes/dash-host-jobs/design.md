@@ -399,6 +399,34 @@ declaring operator and which any job could imitate; and making the crons Dash jo
 without Dash on unenrolled hosts and, as admitted jobs, would block a gate's admission or queue
 behind it.
 
+_Amendment (task 6.28, 2026-11-22, assumption A-ATTR-ENDED-1 for Dany)._ The watch reads a
+container's bounds with `docker inspect` after its create event, and a `--rm` container can be
+removed first. On 2026-11-22 h2puni's gate calibration e1b18304 lost that race twice to the
+hourly `keinos/sqlite3` backup snapshots, which run about one second each, already labelled
+`puni.host-service=sqlite3-backup --memory 256m --cpus 1`, and was excluded from proposals. The
+create event already carries every label with `image` and `name`; it does not carry the host
+config, so the bounds of a removed container are unknowable. The watch now also reads `die`
+events. When `docker inspect` answers `No such container` for a container without `puni.job`
+and with a named `puni.host-service`, it waits for the stream and the replay to end. If that
+container's own create and die events date a lifetime of at most one sampling interval (10 s),
+it is recorded `lifetime-bounded`, with the name and lifetime. It leaves the attribution
+complete, and `ops job run` prints a line naming it `attributed` from its create event. This is
+a tolerance, not a proof. Dash accepts, without reading its bounds, a labelled host-service
+container that competed with the measured job for at most one sampling interval. Its memory and
+CPU during that interval are unknown and unbounded by anything Dash saw. The job's scope
+samples never include a host service's container, so its contention can skew at most one CPU
+sample of the job, and it adds nothing to the scope's memory counters. The job's own `puni.job`
+containers are not covered: the declared bound is what the envelope trusts (task 6.22, #929),
+so one removed before its bound was read stays `unverified` whatever its lifetime. An unlabelled
+removed container stays `unlabelled`. A host-service container stays `unverified` without both
+event times, with a die earlier than its create (the daemon's clock went backwards), or after a
+longer life, and so does any other inspect failure. The replay is the daemon's in-memory event
+buffer, which holds a bounded number of events (256 on the laptop's Docker 29), and it ends at
+its `--until`. A die event lost to either limit leaves the container `unverified`, which is
+safe. Rejected: inspecting from inside the event stream, which narrows the race without closing
+it; `docker run` without `--rm` on the hosts, which leaves the cleanup to the operator; and
+reading the bounds from the image or the label, which no daemon enforces.
+
 **J17. One tool; `ops job …` now; the `dev` migration is its own change (Codex's
 recommendation).** The job commands land as `twilight-dash ops job run|calibrate|propose|
 audit|status` and `ops pool init|inspect|switch-mode`. Moving today's commands under `dev` and
