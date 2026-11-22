@@ -41,9 +41,6 @@ beforeEach(async () => {
   path = await openSpaceDatabase(folder);
   seedDependencyAuthority(path);
   write("UPDATE organization_activation SET state = 'activated', activated_at = 1");
-  write(
-    "INSERT INTO organization_membership (organization_id,user_id,role,created_at) VALUES ('org-a','ada','member',1)",
-  );
   for (const id of ['a1', 'a2', 'a3', 'a4'])
     write(
       `INSERT INTO work_item (id,work_package_id,position,name) VALUES ('${id}','${id}',10,'${id}')`,
@@ -97,8 +94,20 @@ test('shared closure alternates person bridges and incoming dependencies without
     ['a3', 'p'],
     ['a4', 'q'],
   ]) {
+    const project = 'project-' + workPackage;
+    const step = workPackage + '-' + person;
     write(
-      `INSERT INTO step (id,work_package_id,name,position) VALUES ('${workPackage}-${person}','${workPackage}','${person}',10)`,
+      `INSERT INTO project (id,organization_id,name,created_at,created_by) VALUES ('${project}','org-a','${project}',1,'ada')`,
+    );
+    write(`UPDATE work_package SET project_id = '${project}' WHERE id = '${workPackage}'`);
+    write(
+      `INSERT INTO step_definition (id,organization_id,code,name,estimate_unit,default_allowance_bps,position,defined_at_scope_kind,defined_at_scope_id,origin) VALUES ('${step}','org-a','${step}','${step}','workdays',0,10,'project','${project}','authored')`,
+    );
+    write(
+      `INSERT INTO step_binding (id,organization_id,scope_kind,scope_id,step_id,position,origin) VALUES ('binding-${step}','org-a','project','${project}','${step}',10,'authored')`,
+    );
+    write(
+      `INSERT INTO work_package_step (work_package_id,step_id,estimate_unit,allowance_bps,allowance_revision) VALUES ('${workPackage}','${step}','workdays',0,0)`,
     );
     write(
       `INSERT INTO assignment (work_item_id,step_id,person_id) VALUES ('${workPackage}','${workPackage}-${person}','${person}')`,

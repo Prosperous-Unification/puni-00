@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -11,10 +11,13 @@ import { runMigrations } from './migrate';
 import { readMigrationFolders, rollbackTo } from './migrate-down';
 import { SavedPlanCaptureRepository } from './saved-plan-capture';
 import { seedDependencyAuthority } from './testing/dependency-activation';
+import { applyHistoricalCatalogueFixture } from './testing/historical-catalogue';
+import { copyRecoveryPrefix } from './testing/recovery-state';
 import { TypedDependencyRepository } from './typed-dependency';
 
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const MIGRATION = '20261022211000_add_external_dependencies';
+let history: string;
 let dir: string;
 let path: string;
 const stamp = { at: 2, by: 'u' };
@@ -22,9 +25,8 @@ const stamp = { at: 2, by: 'u' };
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-external-'));
   path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
-  // Historical storage contract predates semantic admission; never used by application boot.
-  rollbackTo(path, FOLDER, MIGRATION);
+  history = copyRecoveryPrefix(dir, MIGRATION);
+  runMigrations(path, history);
   const sqlite = openDatabase(path);
   try {
     sqlite.run(
@@ -34,27 +36,20 @@ beforeEach(() => {
       "INSERT INTO organization (id,name,created_at) VALUES ('org','Org',1),('foreign','Foreign',1)",
     );
     for (const id of ['a', 'b', 'c']) {
-      sqlite.run("INSERT INTO work_package(id,name,owner_id,created_at) VALUES (?,?, 'u',1)", [
+      sqlite.run("INSERT INTO project(id,name,owner_id,created_at) VALUES (?,?, 'u',1)", [id, id]);
+      sqlite.run('INSERT INTO project_organization(resource_id,organization_id) VALUES (?,?)', [
         id,
-        id,
+        id === 'c' ? 'foreign' : 'org',
       ]);
-      sqlite.run(
-        'INSERT INTO work_package_organization(resource_id,organization_id) VALUES (?,?)',
-        [id, id === 'c' ? 'foreign' : 'org'],
-      );
-      sqlite.run(
-        'INSERT INTO work_item(id,work_package_id,position,name,revision) VALUES (?,?,1,?,0)',
-        [id, id, id],
-      );
-      sqlite.run('INSERT INTO step(id,work_package_id,name,code) VALUES (?,?,?,?)', [
-        id,
+      sqlite.run('INSERT INTO work_item(id,project_id,position,name,revision) VALUES (?,?,1,?,0)', [
         id,
         id,
         id,
       ]);
+      sqlite.run('INSERT INTO step(id,project_id,name,code) VALUES (?,?,?,?)', [id, id, id, id]);
     }
     sqlite.run(
-      "INSERT INTO work_item(id,work_package_id,position,name,revision) VALUES ('b2','b',2,'B2',0)",
+      "INSERT INTO work_item(id,project_id,position,name,revision) VALUES ('b2','b',2,'B2',0)",
     );
   } finally {
     sqlite.close();
@@ -63,6 +58,39 @@ beforeEach(() => {
 afterEach(() => {
   rmSync(dir, { recursive: true, force: true });
 });
+
+/** Retains the original project rows through the explicit catalogue writer before testing the current repository. */
+function prepareAuthoring() {
+  // Rename backfill groups A and B under the same parent, but these packages deliberately
+  // have different step sets. Give B its own project before taking the catalogue report.
+  const parents = join(dir, 'parents');
+  mkdirSync(parents);
+  runMigrations(path, copyRecoveryPrefix(parents, '20261110110000_add_project'));
+  const parent = openDatabase(path);
+  try {
+    parent.run(
+      "INSERT INTO project(id,organization_id,name,created_at,created_by) VALUES('parent-b','org','B parent',1,'u')",
+    );
+    parent.run("UPDATE work_package SET project_id='parent-b' WHERE id='b'");
+  } finally {
+    parent.close();
+  }
+  applyHistoricalCatalogueFixture(path, dir, {});
+  runMigrations(path, FOLDER);
+  seedDependencyAuthority(path);
+}
+
+/** A retained edge in the physical pre-activation schema, before the project-to-work-package rename. */
+function insertHistoricalExternal() {
+  const sqlite = openDatabase(path);
+  try {
+    sqlite.run(
+      "INSERT INTO external_dependency(id,organization_id,predecessor_project_id,successor_project_id,predecessor_work_item_id,predecessor_scope,successor_work_item_id,successor_scope,type,created_at,created_by) VALUES('external','org','a','b','a','whole','b','whole','FS',2,'u')",
+    );
+  } finally {
+    sqlite.close();
+  }
+}
 
 function link(id = 'external'): StoredTypedDependency {
   return {
@@ -94,6 +122,7 @@ function stored(sql: string): unknown[] {
 }
 
 it('combines local and external rows and lists both incident directions once', async () => {
+  prepareAuthoring();
   const repo = repository();
   const local = {
     ...link('local'),
@@ -109,6 +138,7 @@ it('combines local and external rows and lists both incident directions once', a
 });
 
 it('representation move preserves identity, creation audit and endpoint revisions in both directions', async () => {
+  prepareAuthoring();
   const repo = repository();
   const local = {
     ...link(),
@@ -148,6 +178,7 @@ it('representation move preserves identity, creation audit and endpoint revision
 });
 
 it('rejects cross-work-package mismatched endpoints and foreign organizations', async () => {
+  prepareAuthoring();
   const repo = repository();
   expect(await rejection(repo.add({ ...link(), workPackageId: 'a' }, stamp))).toContain(
     'successor',
@@ -180,6 +211,7 @@ it('rejects cross-work-package mismatched endpoints and foreign organizations', 
 });
 
 it('protects surviving external successors and permits deleting both ends', async () => {
+  prepareAuthoring();
   const repo = repository();
   await repo.add(link(), stamp);
   expect(await rejection(repo.removeAllFor(['a'], stamp))).toContain('surviving successor');
@@ -188,6 +220,7 @@ it('protects surviving external successors and permits deleting both ends', asyn
 });
 
 it('work package persistence refuses a referenced predecessor and permits its deletion after link removal', async () => {
+  prepareAuthoring();
   const repo = repository();
   await repo.add(link(), stamp);
   const before = {
@@ -214,7 +247,7 @@ it('work package persistence refuses a referenced predecessor and permits its de
   await repo.remove('external', { ...stamp, at: 3 });
   const unlinked = openDatabase(path);
   try {
-    unlinked.run("DELETE FROM step WHERE work_package_id='a'");
+    unlinked.run("DELETE FROM work_package_step WHERE work_package_id='a'");
     unlinked.run("DELETE FROM work_item WHERE id='a'");
     unlinked.run("DELETE FROM work_package WHERE id='a'");
   } finally {
@@ -224,6 +257,7 @@ it('work package persistence refuses a referenced predecessor and permits its de
 });
 
 it('refuses missing work-item and organization evidence on reads', async () => {
+  prepareAuthoring();
   const repo = repository();
   await repo.add(link(), stamp);
   const sqlite = openDatabase(path);
@@ -243,34 +277,43 @@ it('refuses missing work-item and organization evidence on reads', async () => {
 });
 
 it('down refuses external rows and preserves local rows and their audit when empty', async () => {
-  const repo = repository();
   const local = {
     ...link('local'),
-    predecessor: { workPackageId: 'b', scope: 'whole' as const, workItemId: 'b2' },
+    predecessor: { ...link().predecessor, workPackageId: 'b', workItemId: 'b2' },
   };
-  await repo.add(local, stamp);
-  await repo.add(link(), stamp);
-  const baseline = readMigrationFolders(FOLDER)
-    .filter(({ name }) => name < MIGRATION)
-    .at(-1);
-  if (baseline === undefined) throw new Error('missing migration baseline');
-  const ledger = stored('SELECT * FROM __drizzle_migrations ORDER BY id');
-  expect(() => rollbackTo(path, FOLDER, baseline.name)).toThrow('external dependencies remain');
-  expect(stored('SELECT * FROM __drizzle_migrations ORDER BY id')).toEqual(ledger);
-  await repo.remove('external', stamp);
-  const before = stored('SELECT * FROM typed_dependency');
-  expect(rollbackTo(path, FOLDER, baseline.name)).toEqual([MIGRATION]);
-  expect(stored('SELECT * FROM typed_dependency')).toEqual(before);
-  runMigrations(path, FOLDER);
-  // Historical storage contract predates semantic admission; never used by application boot.
-  rollbackTo(path, FOLDER, MIGRATION);
-  expect(stored('SELECT * FROM typed_dependency')).toEqual(before);
-  expect(await repo.listByWorkPackage('b')).toEqual([local]);
+  const sqlite = openDatabase(path);
+  try {
+    sqlite.run(
+      "INSERT INTO typed_dependency(id,project_id,predecessor_work_item_id,predecessor_scope,successor_work_item_id,successor_scope,type,created_at,created_by) VALUES('local','b','b2','whole','b','whole','FS',2,'u')",
+    );
+    insertHistoricalExternal();
+    const baseline = readMigrationFolders(history)
+      .filter(({ name }) => name < MIGRATION)
+      .at(-1);
+    if (baseline === undefined) throw new Error('missing migration baseline');
+    const ledger = stored('SELECT * FROM __drizzle_migrations ORDER BY id');
+    const before = stored('SELECT * FROM typed_dependency');
+    const external = stored('SELECT * FROM external_dependency');
+    expect(before).toMatchObject([{ id: 'local', created_at: 2, created_by: 'u' }]);
+    expect(external).toMatchObject([{ id: 'external', created_at: 2, created_by: 'u' }]);
+    expect(() => rollbackTo(path, history, baseline.name)).toThrow('external dependencies remain');
+    expect(stored('SELECT * FROM __drizzle_migrations ORDER BY id')).toEqual(ledger);
+    expect(stored('SELECT * FROM typed_dependency')).toEqual(before);
+    expect(stored('SELECT * FROM external_dependency')).toEqual(external);
+    sqlite.run("DELETE FROM external_dependency WHERE id='external'");
+    expect(rollbackTo(path, history, baseline.name)).toEqual([MIGRATION]);
+    expect(stored('SELECT * FROM typed_dependency')).toEqual(before);
+    runMigrations(path, history);
+    expect(stored('SELECT * FROM typed_dependency')).toEqual(before);
+  } finally {
+    sqlite.close();
+  }
+  prepareAuthoring();
+  expect(await repository().listByWorkPackage('b')).toEqual([local]);
 });
 
 it('refuses external rows in the historical single-work-package capture', async () => {
-  runMigrations(path, FOLDER);
-  seedDependencyAuthority(path);
+  prepareAuthoring();
   await repository().add(link(), stamp);
   const capture = new SavedPlanCaptureRepository({ openConnection: () => openConnection(path) });
   expect(await rejection(capture.readPlanInput('b'))).toContain('external');
@@ -281,12 +324,12 @@ it('duplicates refuse across representations on insert and relevant update in bo
   const sqlite = openDatabase(path);
   const local = (id: string, predecessor = 'a', successor = 'b') =>
     sqlite.run(
-      "INSERT INTO typed_dependency(id,work_package_id,predecessor_work_item_id,predecessor_scope,successor_work_item_id,successor_scope,type) VALUES (?,'b',?,'whole',?,'whole','FS')",
+      "INSERT INTO typed_dependency(id,project_id,predecessor_work_item_id,predecessor_scope,successor_work_item_id,successor_scope,type) VALUES (?,'b',?,'whole',?,'whole','FS')",
       [id, predecessor, successor],
     );
   const external = (id: string, successor = 'b') =>
     sqlite.run(
-      "INSERT INTO external_dependency(id,organization_id,predecessor_work_package_id,successor_work_package_id,predecessor_work_item_id,predecessor_scope,successor_work_item_id,successor_scope,type) VALUES (?,'org','a','b','a','whole',?,'whole','FS')",
+      "INSERT INTO external_dependency(id,organization_id,predecessor_project_id,successor_project_id,predecessor_work_item_id,predecessor_scope,successor_work_item_id,successor_scope,type) VALUES (?,'org','a','b','a','whole',?,'whole','FS')",
       [id, successor],
     );
   try {
@@ -335,16 +378,16 @@ it('duplicates refuse across representations on insert and relevant update in bo
   }
 });
 
-it('enforces endpoint and organization foreign keys and referenced ownership updates', async () => {
-  await repository().add(link(), stamp);
+it('enforces endpoint and organization foreign keys and referenced ownership updates', () => {
+  insertHistoricalExternal();
   const sqlite = openDatabase(path);
   try {
     for (const sql of [
       "DELETE FROM work_item WHERE id='a'",
       "DELETE FROM work_item WHERE id='b'",
-      "UPDATE work_item SET work_package_id='b' WHERE id='a'",
-      "UPDATE external_dependency SET predecessor_work_package_id='c',predecessor_work_item_id='c'",
-      "UPDATE external_dependency SET successor_work_package_id='c',successor_work_item_id='c'",
+      "UPDATE work_item SET project_id='b' WHERE id='a'",
+      "UPDATE external_dependency SET predecessor_project_id='c',predecessor_work_item_id='c'",
+      "UPDATE external_dependency SET successor_project_id='c',successor_work_item_id='c'",
       "UPDATE external_dependency SET predecessor_work_item_id='b2'",
       "UPDATE external_dependency SET successor_work_item_id='a'",
       "UPDATE external_dependency SET predecessor_scope='node',predecessor_step_id='b'",
@@ -357,7 +400,7 @@ it('enforces endpoint and organization foreign keys and referenced ownership upd
     for (const sql of [
       "DELETE FROM step WHERE id='a'",
       "DELETE FROM step WHERE id='b'",
-      "UPDATE step SET work_package_id='b' WHERE id='a'",
+      "UPDATE step SET project_id='b' WHERE id='a'",
     ])
       expect(() => sqlite.run(sql), sql).toThrow('FOREIGN KEY constraint failed');
   } finally {
@@ -365,8 +408,8 @@ it('enforces endpoint and organization foreign keys and referenced ownership upd
   }
 });
 
-it('enforces external discriminants, step nullability, distinct work packages, identity and duplicate keys', async () => {
-  await repository().add(link(), stamp);
+it('enforces external discriminants, step nullability, distinct work packages, identity and duplicate keys', () => {
+  insertHistoricalExternal();
   const sqlite = openDatabase(path);
   try {
     for (const assignment of [
@@ -377,7 +420,7 @@ it('enforces external discriminants, step nullability, distinct work packages, i
       "successor_step_id='b'",
       "predecessor_scope='node'",
       "successor_scope='node'",
-      "predecessor_work_package_id='b',predecessor_work_item_id='b2'",
+      "predecessor_project_id='b',predecessor_work_item_id='b2'",
     ])
       expect(() => sqlite.run(`UPDATE external_dependency SET ${assignment}`), assignment).toThrow(
         'CHECK constraint failed',
@@ -387,7 +430,7 @@ it('enforces external discriminants, step nullability, distinct work packages, i
     );
     expect(() =>
       sqlite.run(
-        "INSERT INTO external_dependency SELECT 'duplicate',organization_id,predecessor_work_package_id,successor_work_package_id,predecessor_work_item_id,predecessor_scope,predecessor_step_id,successor_work_item_id,successor_scope,successor_step_id,type,created_at,updated_at,created_by FROM external_dependency",
+        "INSERT INTO external_dependency SELECT 'duplicate',organization_id,predecessor_project_id,successor_project_id,predecessor_work_item_id,predecessor_scope,predecessor_step_id,successor_work_item_id,successor_scope,successor_step_id,type,created_at,updated_at,created_by FROM external_dependency",
       ),
     ).toThrow('UNIQUE constraint failed');
   } finally {
@@ -396,6 +439,7 @@ it('enforces external discriminants, step nullability, distinct work packages, i
 });
 
 it('rolls back a representation move when its destination insert or revision update fails', async () => {
+  prepareAuthoring();
   const repo = repository();
   const local = {
     ...link(),
@@ -427,6 +471,7 @@ it('rolls back a representation move when its destination insert or revision upd
 });
 
 it('keeps a coherent union while a rival commits a representation move between component reads', async () => {
+  prepareAuthoring();
   const local = {
     ...link(),
     predecessor: { workPackageId: 'b', scope: 'whole' as const, workItemId: 'b2' },
@@ -458,6 +503,7 @@ it('keeps a coherent union while a rival commits a representation move between c
 });
 
 it('refuses a duplicated physical identity instead of deduplicating corrupt rows', async () => {
+  prepareAuthoring();
   const local = {
     ...link(),
     predecessor: { workPackageId: 'b', scope: 'whole' as const, workItemId: 'b2' },
@@ -481,6 +527,7 @@ it('refuses a duplicated physical identity instead of deduplicating corrupt rows
 });
 
 it('refuses missing steps and mismatched recorded organization evidence on reads', async () => {
+  prepareAuthoring();
   const repo = repository();
   await repo.add(
     { ...link(), predecessor: { workPackageId: 'a', scope: 'node', workItemId: 'a', stepId: 'a' } },
@@ -492,7 +539,7 @@ it('refuses missing steps and mismatched recorded organization evidence on reads
     sqlite.run("UPDATE external_dependency SET organization_id='foreign'");
     expect(await rejection(repo.listByWorkPackage('b'))).toContain('inconsistent organization');
     sqlite.run("UPDATE external_dependency SET organization_id='org'");
-    sqlite.run("DELETE FROM step WHERE id='a'");
+    sqlite.run("DELETE FROM step_definition WHERE id='a'");
     expect(await rejection(repo.listIncident(['b']))).toContain('step a outside work package a');
   } finally {
     sqlite.close();
@@ -500,6 +547,7 @@ it('refuses missing steps and mismatched recorded organization evidence on reads
 });
 
 it('refuses duplicate trusted endpoint keys even when physical uniqueness is corrupted', async () => {
+  prepareAuthoring();
   const local = {
     ...link('first'),
     predecessor: { workPackageId: 'b', scope: 'whole' as const, workItemId: 'b2' },
@@ -520,6 +568,7 @@ it('refuses duplicate trusted endpoint keys even when physical uniqueness is cor
 });
 
 it('refuses external writes without real organization ownership on either work package', async () => {
+  prepareAuthoring();
   const sqlite = openDatabase(path);
   try {
     sqlite.run('DROP TRIGGER work_package_organization_frozen_delete');
@@ -535,19 +584,19 @@ it('refuses external writes without real organization ownership on either work p
   }
 });
 
-it('restricts deletion and reassignment of external work package ownership rows', async () => {
-  await repository().add(link(), stamp);
+it('restricts deletion and reassignment of external work package ownership rows', () => {
+  insertHistoricalExternal();
   const sqlite = openDatabase(path);
   try {
-    sqlite.run('DROP TRIGGER work_package_organization_frozen_delete');
-    sqlite.run('DROP TRIGGER work_package_organization_frozen_update');
+    sqlite.run('DROP TRIGGER project_organization_frozen_delete');
+    sqlite.run('DROP TRIGGER project_organization_frozen_update');
     for (const workPackageId of ['a', 'b']) {
       expect(() =>
-        sqlite.run('DELETE FROM work_package_organization WHERE resource_id=?', [workPackageId]),
+        sqlite.run('DELETE FROM project_organization WHERE resource_id=?', [workPackageId]),
       ).toThrow('FOREIGN KEY constraint failed');
       expect(() =>
         sqlite.run(
-          "UPDATE work_package_organization SET organization_id='foreign' WHERE resource_id=?",
+          "UPDATE project_organization SET organization_id='foreign' WHERE resource_id=?",
           [workPackageId],
         ),
       ).toThrow('FOREIGN KEY constraint failed');
@@ -564,16 +613,17 @@ it('adds the complete incident index set without changing local rows', () => {
     return row.name;
   });
   for (const direction of ['predecessor', 'successor']) {
-    for (const field of ['work_package', 'work_item', 'step'])
+    for (const field of ['project', 'work_item', 'step'])
       expect(names).toContain(`external_dependency_by_${direction}_${field}`);
   }
-  expect(names).toContain('work_item_id_work_package');
-  expect(names).toContain('step_id_work_package');
+  expect(names).toContain('work_item_id_project');
+  expect(names).toContain('step_id_project');
 });
 
 it.each(['owned-a', 'owned-b', 'incident-a', 'remove-a', 'remove-b2'] as const)(
   'refuses a physical identity hidden by the %s filter before any mutation',
   async (query) => {
+    prepareAuthoring();
     const local = {
       ...link('same-id'),
       predecessor: { workPackageId: 'b', scope: 'whole' as const, workItemId: 'b2' },
@@ -610,6 +660,7 @@ it.each(['owned-a', 'owned-b', 'incident-a', 'remove-a', 'remove-b2'] as const)(
 );
 
 it('incident detach and restore preserve null creation audit and bump the completed endpoint union once', async () => {
+  prepareAuthoring();
   const repo = repository();
   const original: StoredTypedDependency = {
     ...link(),
@@ -657,6 +708,7 @@ it('incident detach and restore preserve null creation audit and bump the comple
 for (const storage of ['local', 'external'] as const) {
   for (const legacy of [false, true]) {
     it(`incident restore preserves ${storage} creation audit (${legacy ? 'legacy null' : 'authored'}) and stamps updates`, async () => {
+      prepareAuthoring();
       const repo = repository();
       const dependency: StoredTypedDependency =
         storage === 'local'
@@ -698,6 +750,7 @@ for (const storage of ['local', 'external'] as const) {
 }
 
 it('incident detach refuses changed relationship evidence before deleting it', async () => {
+  prepareAuthoring();
   const repo = repository();
   await repo.add(link(), stamp);
   const receipt = await repo.incidents.capture('external');
@@ -714,6 +767,7 @@ it('incident detach refuses changed relationship evidence before deleting it', a
 
 for (const fault of ['identity', 'owner'] as const)
   it(`incident restore refuses changing ${fault} before writing any row`, async () => {
+    prepareAuthoring();
     const repo = repository();
     const original = link();
     await repo.add(original, stamp);
@@ -739,6 +793,7 @@ for (const fault of ['identity', 'owner'] as const)
   });
 
 it('incident restore refuses a reused physical identity before writing revisions', async () => {
+  prepareAuthoring();
   const repo = repository();
   const original = link();
   await repo.add(original, stamp);

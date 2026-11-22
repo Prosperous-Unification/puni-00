@@ -2133,3 +2133,17 @@ The duplicate and cycle cases still used relationships mapped to real allocated
 rows and checked the original declaration path. Runtime-ledger and work-package
 owners passed 63 and 51 cases respectively. The SQLite Nx typecheck passed.
 The previously repaired `tool-deploy:test` target passed all 1,789 tests uncached.
+
+The installed PUNI package case at `4ca47db0bc8519f807156449d2394c76c6a94903`
+passed in 354 seconds with 546 assertions. The test packed the captured source,
+installed it outside the checkout and exercised Navigator, Burokrat and Dash
+with the existing startup protections. The separate working-source package
+case passed in 63 seconds with 19 assertions.
+
+The focused Nx SQLite target passed 99 tests across connected-plan capture,
+external dependency migration and step persistence. The connected-plan
+person bridge uses real project bindings. The external dependency fixture
+checks the exact historical rollback ledger and reads the retained local edge
+after the catalogue transition. Historical step writes and cascades still run
+against migration 116, while the step list and allowance readers exercise
+current catalogue storage. The SQLite Nx typecheck passed.
