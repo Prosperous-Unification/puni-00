@@ -191,7 +191,13 @@ non-production cluster has.
 
 - **WHEN** a drill ends and a volume of its throwaway cluster remains, Released or as a
   directory on the node
-- **THEN** the drill reports failure
+- **THEN** the verifier, which may read volumes and nothing else, or the host reading
+  reports it, and the drill counts as failed
+
+#### Scenario: Drill asked to judge its own cleanup
+
+- **WHEN** the drill's ServiceAccount lists PersistentVolumes
+- **THEN** the API refuses it
 
 #### Scenario: Drill would raise the disk alert
 

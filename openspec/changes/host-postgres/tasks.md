@@ -130,7 +130,10 @@ which they extend.
       NetworkPolicies allow the dump job's and the drill's pods their SQL connection, the
       object storage endpoint and DNS, and the drill's pods also the API server, and
       nothing else; the drill's ServiceAccount has a Role for `Cluster` objects in its own
-      namespace only (design decision 3); negatives on
+      namespace only; the Job `drill-verify` has a ClusterRole for get and list on
+      `persistentvolumes` alone, the API server and DNS; the `database` capability's
+      host timer lists the provisioner's directory read-only and exports the count of
+      directories no bound volume names, with its alert (design decision 3); negatives on
       k3d: with the allow removed the dump job times out (fault: test with the namespace's
       default-deny absent), a pod in the namespace without either label is refused
       port 5432 (fault: allow the whole namespace), the dump job's pod is refused the API
@@ -145,8 +148,9 @@ which they extend.
       restores the cluster from the object store into a throwaway `Cluster` in `postgres`
       that selects `database` and tolerates both taints, on the packaged
       `local-path` class, whose policy is `Delete`; runs sanity queries against it;
-      deletes it; and fails unless no volume of it is left, Released or as a directory
-      (design decision 3). It reads the node's available memory first and does not start
+      deletes it; cleanup is then judged by `drill-verify` and the host reading, and the
+      drill counts as failed when either finds a volume in any phase or a directory no
+      bound volume names (design decision 3). It reads the node's available memory first and does not start
       under 2,304 MiB (design decision 2; negative: a fixture node with less, and the job
       exits nonzero before it creates a cluster; fault: drop the reading). It reads the
       node's filesystem first and does not start when
@@ -167,7 +171,11 @@ which they extend.
       the newest dump of a database is never planned for deletion (fault: drop that
       guard); a drill whose sanity query fails reports failure and still deletes the
       throwaway cluster (fault: exit before the report); a drill that leaves a Released
-      volume or a directory fails (fault: give the throwaway cluster `puni-retain`); a
+      volume fails at `drill-verify` (fault: give the throwaway cluster `puni-retain`;
+      second fault: have the verifier list claims instead of volumes, and watch it
+      pass); a directory left with no volume raises the host reading above zero (fault:
+      count only directories of bound volumes); the drill's own ServiceAccount is
+      refused a list of `persistentvolumes` (fault: give it the verifier's ClusterRole); a
       throwaway cluster on a class that retains fails rule (o) (fault: drop that
       clause); a drill pointed at the live cluster's own name is refused (fault: drop
       the name comparison); a throwaway cluster that carries a WAL archiver is refused,
@@ -239,14 +247,17 @@ server (design decision 4) and are not run before its trigger.
       and its job pods admitted there; both canary databases present and the role of one
       refused on the other; a first recoverability point and a completed base backup read
       from the plugin's metrics; one dump object per database; the drill's sanity result,
-      and no Released volume or directory of its throwaway cluster left; a read of a
+      the receipt of `drill-verify`, no volume of the throwaway cluster in any phase, and
+      the host reading, no directory without a bound volume; a read of a
       named object of a production bucket refused with this key by an authorisation
       error, and one of its own objects read; both jobs' pods seen connected to the instance under
       the namespace's policies; the WAL alert seen firing in Alertmanager
       and cleared; the per-container memory table and the limits kept or changed by a
       commit. Stop: a unit is not Healthy after 20 minutes, a pod of the cluster is
       denied by the placement policy, WAL is not archived, the restore fails or leaves a
-      volume, a dump or drill pod is refused its SQL connection or reaches anything else,
+      volume or a directory, a dump or drill pod is refused its SQL connection, the
+      object storage endpoint or DNS, the drill or the verifier is refused the API
+      server, any of those pods reaches a destination outside that list,
       or the key can read a production object. Rollback: nothing reads the
       cluster yet. Reduce `nonproduction-db` and `barman-plugin` to their markers and
       sync, then remove their Application files; the `Cluster` and its claim carry
@@ -282,7 +293,7 @@ server (design decision 4) and are not run before its trigger.
       design.md by a commit; the drill's series present and its alert quiet; the drill's
       throwaway instance seen on the node that carries `database`, h5plat in the
       minimal profile, with the platform pods' restart counts unchanged; no throwaway
-      cluster, claim, Released volume or directory left, that node's disk back to its reading
+      cluster or claim left, the receipt of `drill-verify` and the host reading both clean, that node's disk back to its reading
       before, and its highest reading during the drill, which stayed under 80%. Stop: a restore fails, the copy changes `canary-b`, the disk does not
       return, or the 80% alert fired during the drill. Then no port may write production data to
       `platform-db`, and the owners of the port changes are told. Rollback: delete the

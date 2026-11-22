@@ -998,8 +998,11 @@ The only guards:
    which is the agents' live tracker; the WBS production database; the website data; MLflow.
    Each gets one final backup after its writer is stopped, a restore of that named stamp, and
    a check against the backup's report. A store is restored while its workload is at zero
-   replicas and its backup job is suspended. Going back is bounded by the first write on
-   the new side, as the paragraph after this list states.
+   replicas and its backup job is suspended, and its workload is not started until the
+   store's applied-migration ledger, names and hashes, equals the set of the image that
+   is about to run; a difference goes through the attended schema Job with its capture
+   and rollback (decision 9). Going back is bounded by the first write on the new side,
+   as the paragraph after this list states.
 2. **What the new cluster needs from escrow is read back first** (task 0.5): the registry CA
    key pair, the object storage credentials, the old cluster's age identity, and the backup
    archive key. This happens before stage 1 and before h1claw is deleted (R30).
@@ -1018,23 +1021,41 @@ The only guards:
    step before anything is written.
 
 **Going back.** The old writer is never started while the new one runs, and never over
-data the new side has accepted. Before the names are pointed at the new node, going back
-is starting the old app again. After that the order is fixed: the new writer is stopped
-first, by scaling its workload to zero with the names still pointed at the new node, and
-only then is the new store compared with the restored stamp, so no write can land between
-the comparison and the stop. The comparison covers the whole durable state and not one
-table: a write to WBS can land outside `event_log`, an account created in `users` for
-one, so the test of [the cutover plan](../../../docs/infra/cutover-plan.md), a count of
-`event_log`, is not enough here. For each SQLite store, WBS and its MCP store, the website
-and the request app, it is the SHA-256 of `sqlite3 <store> .dump` taken from the stopped
-store against the same digest of the restored stamp; for MLflow it is that digest of the
-metadata store and the manifest of the artifact store, each object with its checksum,
-against the manifest of slice 3.6's stamp. Any difference counts as a write, a migration
-the new side applied included. If the two are equal, the names are pointed back and the
-old side started. If they differ, the choice is to recover forward, by starting the new
-writer again, or to take the stopped writer's final backup, restore that onto the old
-side, check it and only then start the old side. A18 proves the order and the comparison
-once, with one edit made after the first app's switch.
+data the new side has accepted. The order is the same before and after the names are
+pointed at the new node, because the new writer may be running in both cases:
+
+1. _Hold the new side at zero in the source Argo CD reads._ A scale to zero in the cluster
+   is not enough: staging's self-heal reverts it, a later staging build would publish one
+   replica again, and a production sync would apply `main`. For an app whose staging
+   source is its pins directory, the owner merges a pull request there that sets the
+   workload to zero replicas, suspends its backup job and adds a file `HOLD`, which is not
+   a manifest; the render step of slice 3.7 refuses to commit to a directory that holds
+   it. For the website and request app in staging, whose source is the fleet overlay, the
+   hold is the zero-replica overlay merged there, and their owner's tooling has to honour
+   the same marker, which is part of the migration contract of decision 9; without that
+   contract their publication is not automatic and the merge alone holds. For production
+   and for MLflow the hold is the zero-replica overlay merged to `main` and synced by the
+   owner; nothing else syncs them.
+2. _See every writer pod of the new side gone_: the workload reports zero replicas and no
+   pod with the app's selector is left in its namespace.
+3. _Only then compare_ the stopped store with the restored stamp, so no write can land
+   between the comparison and the stop. The comparison covers the whole durable state and
+   not one table: a write to WBS can land outside `event_log`, an account created in
+   `users` for one, so the test of [the cutover plan](../../../docs/infra/cutover-plan.md),
+   a count of `event_log`, is not enough here. For each SQLite store, WBS and its MCP
+   store, the website and the request app, it is the SHA-256 of `sqlite3 <store> .dump`
+   taken from the stopped store against the same digest of the restored stamp; for MLflow
+   it is that digest of the metadata store and the manifest of the artifact store, each
+   object with its checksum, against the manifest of slice 3.6's stamp. Any difference
+   counts as a write, a migration the new side applied included.
+4. _Only then may the old writer start._ If the two are equal, the names are pointed back
+   where they had been moved, and the old side is started. If they differ, the choice is
+   to recover forward, by lifting the hold, or to take the stopped writer's final backup,
+   restore that onto the old side, check it and only then start the old side.
+
+A hold is lifted by a pull request that removes the marker and restores one replica; the
+next build publishes again. A18 proves the hold, the order and the comparison once, with
+one edit made after the first app's switch and one merge made during the hold.
 
 The final backup of a store on an old host is taken with the store's own tool after its writer
 stops: the cluster's backup job for the website, and for the Compose databases a

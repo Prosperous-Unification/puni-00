@@ -268,7 +268,17 @@ label to the instances on 5432, from those pods to the object storage endpoint a
 DNS, and from the drill's pods alone to the API server, because the drill creates,
 watches and deletes its throwaway `Cluster`. The drill runs as a ServiceAccount whose Role
 may create, get, list, watch and delete `Cluster` objects in its own namespace and
-nothing else. No other pod in the namespace may open a SQL connection. Both jobs run
+nothing else. That Role cannot see a PersistentVolume, which is cluster-scoped, nor a
+directory on the node, so the drill does not judge its own cleanup. Two read-only
+observers do. A Job `drill-verify` in the same unit runs after the drill as its own
+ServiceAccount, whose ClusterRole may get and list `persistentvolumes` and nothing else;
+it fails when a volume of the throwaway cluster is left, in any phase. The directory is
+read on the host, where no pod of the database namespace is admitted a host path: a
+systemd timer the `database` capability installs lists the provisioner's directory
+read-only and exports the count of directories that no bound volume names, and an alert
+reads it. In an attended drill the operator reads both. The verifier's pods are allowed
+the API server and DNS and nothing else. No other pod in the namespace may open a SQL
+connection. Both jobs run
 under these policies in PG-A3 and PG-A5, not with them lifted. Rule 2.4(k) already refuses
 a staging object that names a production namespace or Service, which now includes the
 production database's.
@@ -326,8 +336,10 @@ by a restart of that app, and the port's change says how.
   memory is under 2,304 MiB (decision 2). The throwaway cluster's claim is on `local-path`,
   the class k3s packages, whose reclaim policy is `Delete`, so deleting the cluster removes
   the volume and its directory. On `puni-retain` every drill would leave a copy of
-  production data on the node's disk. The job ends by checking that no volume of the
-  throwaway cluster is left, Released or as a directory, and fails otherwise. Its result is
+  production data on the node's disk. Whether anything is left is judged by the
+  verifier Job and the host reading of the policy paragraph above, not by the drill, whose
+  Role sees neither; a volume left in any phase or a directory no bound volume names is a
+  failed drill. The drill's result is
   read from the kube-state-metrics series of its CronJob, as the SQLite rule reads a backup
   job's, and its duration from the Job's start and completion times.
 - _When the drill runs._ On a database server it is weekly, and a failed or missing drill

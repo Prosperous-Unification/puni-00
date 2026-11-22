@@ -265,6 +265,22 @@ for each Workflow UID.
 - **WHEN** a second finish event arrives for a Workflow that already has its report
 - **THEN** no second report is created
 
+### Requirement: A report belongs to one source Workflow
+
+A report SHALL carry its source Workflow's UID. An existing report SHALL count as that
+Workflow's only when its UID equals the event's, and an event whose source Workflow no
+longer exists SHALL start nothing.
+
+#### Scenario: A name taken by another source
+
+- **WHEN** a report of that name exists and its UID label differs from the event's
+- **THEN** the trigger fails and the alert is raised
+
+#### Scenario: An event after its Workflow expired
+
+- **WHEN** a finish event arrives for a Workflow whose object has been removed
+- **THEN** no report is created
+
 ### Requirement: The old gate hosts stay until a gate passes here
 
 No old gate host SHALL be deleted before a full gate has exited 0 through a Workflow on the

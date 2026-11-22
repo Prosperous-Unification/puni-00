@@ -959,11 +959,11 @@ pin.
 
 ### Requirement: An old writer does not restart over newer data
 
-After an app's names point at the new cluster, the new writer SHALL be stopped before its
-store is compared with the restored stamp, and the comparison SHALL cover the store's whole
-durable state. The old instance SHALL be started again only when the two are equal, or
-after the stopped writer's latest state has been restored onto the old side and checked.
-The old and the new writer of one store SHALL never run at the same time.
+The new writer SHALL be stopped before its store is compared with the restored stamp, and
+the comparison SHALL cover the store's whole durable state. The old instance SHALL be
+started again only when the two are equal, or after the stopped writer's latest state has
+been restored onto the old side and checked. The old and the new writer of one store SHALL
+never run at the same time.
 
 #### Scenario: Going back after an edit
 
@@ -981,6 +981,41 @@ The old and the new writer of one store SHALL never run at the same time.
 
 - **WHEN** the stopped new store equals the restored stamp
 - **THEN** the names may be pointed back and the old side started
+
+### Requirement: Going back holds the new side at zero first
+
+Whenever going back is considered, before or after an app's names point at the new
+cluster, the new side SHALL first be held at zero replicas in the source Argo CD reads, so
+that neither self-heal nor a later publication raises it, and every writer pod of the new
+side SHALL be seen terminated before any comparison or any start of the old side.
+
+#### Scenario: Going back before the names are pointed
+
+- **WHEN** the new writer has one replica and the names still point at the old side
+- **THEN** the old side is not started until the new side is held at zero, its pods are
+  gone and the stores have been compared
+
+#### Scenario: Publication during a hold
+
+- **WHEN** a merge that touches a held app's paths reaches `main`
+- **THEN** the build does not publish for that app and no writer pod of the new side starts
+
+### Requirement: A restored store starts only against its own migration set
+
+Before a workload is given a replica on a restored store, the store's applied-migration
+ledger, names and hashes, SHALL equal the migration set of the image about to run. A
+difference SHALL go through the attended schema Job with its capture and rollback, and the
+workload SHALL stay at zero replicas until then.
+
+#### Scenario: Restored store behind the candidate
+
+- **WHEN** the image about to run names a migration the restored store has not applied
+- **THEN** no replica is merged and the schema Job's attended path is taken
+
+#### Scenario: Ledger equal
+
+- **WHEN** the names and hashes of the two sets are equal
+- **THEN** the first replica may be merged
 
 ### Requirement: A final backup is of the stopped store
 

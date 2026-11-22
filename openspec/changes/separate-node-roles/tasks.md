@@ -686,7 +686,9 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       newer render (fault: compare timestamps); a source commit whose migration set for
       the app differs from that of the commit the directory's head names is refused with
       a message that names the attended path of design decision 9 (fault: compare image
-      digests only); the
+      digests only); a directory that holds the `HOLD` marker of design decision 7 is
+      left as it is and the step exits nonzero, so a publication during a hold starts no
+      writer (fault: clear the directory before looking for the marker); the
       promotion check refuses a base manifest changed since the commit staging ran
       (fault: compare the overlay directory only) and passes a difference of digests
       alone.
@@ -897,9 +899,10 @@ this change reserves is step A25, so those namespaces are not an open end.
       instance and its artifact fetched through MLflow with the recorded SHA-256; one
       backup and one verify under the new prefix, taken after the restore. Stop: the
       artifact's SHA-256 differs, the verify fails, or a backup under the new prefix
-      predates the restore. Rollback: as design decision 7 states for every store: stop
-      the new instance first, compare its metadata digest and artifact manifest with the
-      final stamp, and start MLflow on h3mon again only when they are equal.
+      predates the restore. Rollback: as design decision 7 states for every store: merge
+      the unit at zero replicas and sync it, see no pod of the new instance left, only
+      then compare its metadata digest and artifact manifest with the final stamp, and
+      start MLflow on h3mon again only when they are equal.
 
 ### Stage 4: apps
 
@@ -952,13 +955,19 @@ this change reserves is step A25, so those namespaces are not an open end.
       only then merge the app's staging Application file, which the root applies at
       once and which syncs by itself; check the file against the recorded value with
       `sha256sum --check` and restore it into the new claim only if it matches (guard 6);
-      merge one replica and the CronJob resumed; point the names the staging overlay declares
+      read the restored store's applied-migration ledger, names and hashes, with the
+      app's own status command run once as a Job on the claim while the workload is at
+      zero (for WBS `migrate-status-cli.ts --capture`; for the website and request app
+      the command their migration contract names), and the set of the image about to
+      run from its `migrate-capabilities-cli.ts` response, which needs no database;
+      only when the two are equal merge one replica and the CronJob resumed; point the names the staging overlay declares
       at that node; wait for the certificates from the issuer each overlay names; run the new
       backup job once. Receipt, per app: the stamp and SHA-256, and the check's "OK"; a
       read of one of staging's own backup objects with the staging credential, and a read of a
       named production object refused with an authorisation error; no pod of the app
       and no backup run on the new side before the restore finished; the restored store's
-      check equals the backup's; for WBS, the project list of the tracker read back through
+      check equals the backup's; the restored store's ledger and the candidate's set,
+      equal, read before the first replica; for WBS, the project list of the tracker read back through
       its API, and the WBS owner's word on what `wbs-mcp` held; the pages read back on their
       names with a Ready certificate, which for WBS staging comes from the ACME staging
       issuer its overlay names and is not trusted by a browser; the solver pod of one
@@ -969,48 +978,60 @@ this change reserves is step A25, so those namespaces are not an open end.
       edit, reporting equal; then one edit on the new side after the names were pointed,
       the new writer stopped, and the comparison reporting that the stopped store
       differs from the restored stamp; and for WBS staging the same again with an edit
-      that touches no row of `event_log`; for each of the three apps, a merge to the app's source
+      that touches no row of `event_log`; for that same app, during the hold of design
+      decision 7, one merge to `main` that touches the app's paths: the build refused to
+      publish, the pins directory's head stayed the hold, and no writer pod started; for each of the three apps, a merge to the app's source
       deployed to staging with no command, or the owner's dated waiver for that app: for
       WBS as a second backend digest with no pin moved by hand and no run of
       `solver.yml`, for the website and the request app by their owner's tooling (design
       decision 9). Stop: the Application file would be merged while the
       pins directory's head, or for the website the fleet overlay on `main`, is not the
-      zero-replica render; the SHA-256 differs;
+      zero-replica render; the SHA-256 differs; the restored store's ledger differs from
+      the candidate's set: then the workload stays at zero and the difference goes
+      through the attended schema Job with its capture and rollback (design decision 9);
       the staging credential can read a named production object, or the refusal is anything
       but an authorisation error; the restore differs from the
       backup; a backup under the new prefix predates the restore or is empty; or a
-      certificate is not Ready after 15 minutes. Rollback: as design decision 7 states.
-      Before the names are pointed, start the old side again. After that, stop the new
-      writer first, by scaling it to zero, and only then compare the whole store with
-      the restored stamp, by the `.dump` digest of design decision 7: if the two are
-      equal, point the names back and start the old side; if they differ, recover
-      forward by starting the new writer again, or take the stopped writer's final
-      backup, restore that onto the old side, check it, and only then start the old
-      side. The old writer is never started while the new one runs.
+      certificate is not Ready after 15 minutes. Rollback: as design decision 7 states,
+      in this order whether or not the names have been pointed. Hold the new side at
+      zero in the source Argo CD reads: for WBS the owner merges, into the app's pins
+      directory, the render at zero replicas with the backup job suspended and the
+      `HOLD` marker; for the website and request app their owner merges the
+      zero-replica overlay. See the workload at zero replicas and no pod of the app left
+      in its namespace. Only then compare the whole store with the restored stamp, by
+      the `.dump` digest of design decision 7. Only then: if the two are equal, point
+      the names back where they were moved and start the old side; if they differ,
+      recover forward by lifting the hold, or take the stopped writer's final backup,
+      restore that onto the old side, check it, and only then start the old side. The
+      old writer is never started while the new one runs.
 - [ ] A19 The production website and request app (R26), after A18's receipt for them. Who:
       operator, with the website's owner; owner for the Secrets and for the sync. As A18 for
       production: the owner writes the production Secrets into OpenBao; the old side is
       stopped and backed up once; the production Application is merged at zero replicas with
-      its backup job suspended, and the owner syncs it; the stamp is restored; one replica
+      its backup job suspended, and the owner syncs it; the stamp is restored; the ledger
+      comparison of A18 is made before any replica; one replica
       and the job resumed are merged, and the owner syncs again; the names are pointed at
       h6apps. Receipt: as A18, plus that the merged Application stayed OutOfSync until the
       owner's sync, and that the sync was made with the local account; the node's
       available memory at rest and during one backup run (design decision 2). Stop: as A18, the
       Application syncs without a command, or the node's available memory is under 1,024
       MiB at either reading: then the node is rescaled before A20 adds WBS (design
-      decision 11). Rollback: as A18, with h4claw as the old side.
+      decision 11). Rollback: as A18, with h4claw as the old side; the hold is the
+      zero-replica overlay merged to `main` and synced by the owner.
 - [ ] A20 WBS production, the simple way (R28), after 3.5, Harbor and A18's WBS receipt. Who:
       operator, with the WBS deploy tooling's owner; owner for the Secrets and for the sync.
       As A19 for WBS: Secrets and Harbor's pull credential written into OpenBao; production
       stopped on h2puni; one final backup; the `wbs` Application merged at zero replicas and
-      synced by the owner; the stamp restored; one replica merged and synced; the name
+      synced by the owner; the stamp restored; the ledger comparison of A18 made, equal,
+      before any replica; one replica merged and synced; the name
       pointed at h6apps. Receipt: as A19, plus the WBS alert group present and quiet,
       that h6apps is in no `gate_hosts` group, and the node's available memory at rest,
       during the hourly backup and during one solve, with the owner's decision to keep
       the trial size or rescale (design decision 2). Stop: as A19, the node's available memory under 1,024 MiB at any of those readings, a pod
       killed for memory, or the WBS owner names a step a
       first start needs that this simple move skips. Rollback: as A18, with h2puni as the
-      old side.
+      old side; the hold is the zero-replica overlay merged to `main` and synced by the
+      owner.
 
 - [ ] A23 The staging build path (R20, R31, R35), in two parts. Numbered last so that
       the other steps keep their ids. **First part**, after A17, slices 3.5, 3.7 and 3.8,
