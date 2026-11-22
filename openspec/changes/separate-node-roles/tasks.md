@@ -105,7 +105,9 @@ and the step reads back that the name answers (design decision 12).
       beside `observability`, which is the minimal profile's one co-location in this change
       (design decisions 1 and 11); no host in `gate_hosts` is in a k3s group of the same
       inventory. In the `k3s_server` template: a server with `platform-services` writes
-      the taint `CriticalAddonsOnly=true:NoSchedule` (R25), and every server writes
+      the taint `CriticalAddonsOnly=true:NoSchedule` (R25) and the
+      `kube-apiserver-arg` entry `enable-admission-plugins+=PodNodeSelector`, which
+      appends to the `NodeRestriction` k3s sets itself (design decision 14), and every server writes
       `etcd-expose-metrics: true`, so that etcd's latency can be scraped on the node that
       also carries a database (design, Risks). In `validate-enrollment.yml`: the
       CoreDNS step appends the enrollment toleration when it is absent (a JSON patch that adds
@@ -122,7 +124,10 @@ and the step reads back that the name answers (design decision 12).
       the server only); a gate host under `k3s_agents` is refused (fault: skip the gate-host
       comparison); a `platform-services` server whose rendered config lacks the
       taint fails the role test (fault: remove the template branch); a server config without
-      `etcd-expose-metrics` fails it (fault: drop the line); a play whose CoreDNS
+      `etcd-expose-metrics` fails it (fault: drop the line); a `platform-services` server
+      config without the `+=` entry, or with the plain `=` form that would drop
+      `NodeRestriction`, fails it (fault: write `=`); the old inventories' rendered server
+      configs are byte-equal to today's (fault: write the entry for every server); a play whose CoreDNS
       step replaces the toleration list fails the contract test (fault: restore the strategic
       patch). The existing two-node path keeps passing its tests unchanged. Stop: validation
       cannot pass on one node with both taints. Then the cause is reported and the owner
@@ -222,7 +227,10 @@ and the step reads back that the name answers (design decision 12).
       interface from the bastion's address alone and on no other interface; the Kubernetes
       API is admitted on the tailnet interface; the cluster's own ports keep today's rule,
       from the set of enrolled node addresses alone, which never holds the bastion; and for
-      the new inventories two rules in the prerouting hook, before destination NAT: from
+      the new inventories two rules in a stateful prerouting chain at priority −150, after
+      connection tracking and before destination NAT, which accepts
+      `ct state established,related` first and drops new connections only, as the public
+      drop does: from
       the bastion's address on the private interface everything is dropped but TCP 22 to
       the host's own address, and from a private address that is not an enrolled node,
       traffic to the cluster CIDR, the service CIDR or a NodePort is dropped, the
@@ -243,7 +251,11 @@ and the step reads back that the name answers (design decision 12).
       the rehearsal of 2.7, from a stand-in host on the private network that routes the
       cluster CIDR and the service CIDR via the node, a pod address and a ClusterIP do not
       answer, and from an enrolled node they do (fault: put both rules in the input chain,
-      and watch the pod answer);
+      and watch the pod answer); a connection from a server to the bastion's port 22
+      completes, and a server's outbound connection to a package mirror on the public
+      interface completes (fault: drop without the state match); a non-production
+      namespace's egress allow that covers 10.10.1.12 fails rule 2.4(k) (fault: read
+      ingress rules alone);
       in the rehearsal of
       2.7 a NodePort Service on a new host does not answer on the public interface and the
       `otel-gateway` ports answer from an enrolled private address only (fault: drop in the
@@ -273,7 +285,7 @@ and the step reads back that the name answers (design decision 12).
       jump key nor the servers' admin key (A2), on the same public port; a
       console account as slice 1.8 makes one; and an nftables set that admits TCP 22 on the
       public interface with new connections limited per source address, TCP 22 on the
-      private interface from the observability node's prober alone, established traffic
+      private interface from the observability node's address alone, established traffic
       and nothing else inbound, and sends anything out. The play reads `sshd -T -C user=jump,...` back and compares every option above
       with the render. The placement check of 1.2 refuses a `bastion` host in a k3s group or
       in `gate_hosts`, and slice 3.2's outside probes include the bastion, with an alert
@@ -459,7 +471,8 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       an image whose digest differs from the lock's or from the digest of the
       controller's own build of that commit, which it records beside the lock (design
       decision 10). The same mount carries the jump key and the `ProxyJump` setting for
-      every host behind the bastion (R55), from `$OPS`, under the same refusal. It is run
+      every host behind the bastion, and, for `bastion.yml` alone, the bastion's own admin
+      key (R55), from `$OPS`, under the same refusal. It is run
       on the operator's laptop only. Add a read-only mount of a fleet repository checkout
       to `fleet_ansible`, named by an input in `$OPS`. Test: `infra/ansible/tests`, including
       a second run of `argocd.yml` with one more secret file, which changes that Secret and
@@ -655,12 +668,12 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       design decision 14, deletes the five pre-upgrade objects and the PriorityClass
       `rancher-critical`, and adds the Ingress of the Tailscale operator's class; in the
       `policy` unit, the class `puni-platform-interface` and an admission policy that
-      denies a pod in `cattle-system` whose name begins `dashboard-shell-`; in the
+      denies a pod in `cattle-system` whose `metadata.name` or `metadata.generateName`
+      begins `dashboard-shell-`; in the
       `namespaces` unit, `cattle-system`, `cattle-fleet-system` and
       `cattle-fleet-local-system`, each with the `scheduler.alpha.kubernetes.io/node-selector`
-      annotation for the `platform-services` capability; in the `k3s_server` template,
-      `kube-apiserver-arg` enabling `PodNodeSelector` beside `NodeRestriction`; a
-      kube-state-metrics alert for a pod in a `cattle-` namespace on another node; its SecretStore and the ExternalSecret `bootstrap-secret` in
+      annotation for the `platform-services` capability (the API server flag is slice
+      1.2's, due before A3); a kube-state-metrics alert for a pod in a `cattle-` namespace on another node; its SecretStore and the ExternalSecret `bootstrap-secret` in
       `secret-sync`, landing with A27's revision and not with A7's; the Application file at
       order 7 with its needs; an alert when `rancher-webhook` has no ready pod for ten
       minutes; and, in the runbook of slice 2.9, the step that deletes the
@@ -675,7 +688,7 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       included, without the platform toleration and capability term; `webhook` or `fleet`
       values without them; an `IMPERATIVE_API_DIRECT` other than "true"; no
       `CATTLE_FLEET_AGENT_DEFAULT_AFFINITY` naming the capability; session and token
-      lifetimes above 720 minutes; a `priorityClassName` other than
+      lifetimes above 720 minutes, or an idle session lifetime above 60; a `priorityClassName` other than
       `puni-platform-interface`; a PriorityClass object. The toolchain check refuses a k3s
       pin whose minor the Rancher lock does not list, and a Rancher lock without that list,
       and renders the chart with `helm template --kube-version` set to the k3s pin.
@@ -708,9 +721,12 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       Rancher pod on a second node fails health, with a fixture whose node list puts the
       platform node second (fault: compare against the node list's first entry); a
       `dashboard-shell-` pod is denied at admission (fault: match the name exactly rather
-      than by prefix); a pod applied to `cattle-system` with a selector for another
-      capability is refused by `PodNodeSelector` (fault: leave the annotation off the
-      namespace); `IMPERATIVE_API_DIRECT` patched to "false" fails rule (y) (fault: read
+      than by prefix), and one that carries only `generateName` is denied too (fault: match
+      `metadata.name` alone); a pod applied to `cattle-system` with a selector for another
+      capability is admitted with the namespace's selector added and is never scheduled
+      off the platform node (fault: leave the annotation off the namespace); a pod there
+      with `puni.dev/capability-platform-services: "false"` is refused (fault: leave the
+      annotation off the namespace); `IMPERATIVE_API_DIRECT` patched to "false" fails rule (y) (fault: read
       only the variables the values set). Rehearsal, part **2.7/A27** of slice 2.7, before A27, in two passes on the k3d
       lab. First on a cluster of the tainted server alone, with no agent: `rancher` Synced
       and Healthy from the playbook, every sync finishing with no Pending pod; the Helm
@@ -1218,7 +1234,10 @@ this change reserves is step A25, so those namespaces are not an open end.
       Rancher's own kept beside the check of slice 2.11; no `plans.upgrade.cattle.io` object
       and no `system-upgrade-controller`; the Rancher pod's `CATTLE_FEATURES` with
       `continuous-delivery` and `turtles` off, and no `cattle-turtles-system` namespace;
-      the token and session settings at 720 minutes; the local Fleet agent's affinity read
+      the token and session settings at 720 minutes and the idle session at 60;
+      `enable-admission-plugins` with `NodeRestriction` and `PodNodeSelector` in the running
+      API server's arguments; a pod in `cattle-system` created with `--dry-run=server`
+      returned with the namespace's selector merged in; the local Fleet agent's affinity read
       back as the capability; a shell opened in the interface denied; one
       Ingress, of the Tailscale operator's class, and no Service of type LoadBalancer or
       NodePort in those namespaces; the interface answering on its tailnet name with a valid

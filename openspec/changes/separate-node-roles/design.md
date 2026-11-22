@@ -1793,13 +1793,26 @@ from any private address that is not an enrolled node, traffic to the cluster CI
 service CIDR or to a NodePort is dropped, except the two named exceptions, the
 `otel-gateway` NodePorts for the CI server and the store's private listener (decision 9).
 Then all the bastion can reach on a server is `sshd`, and a host that is not a node reaches
-no pod and no Service. Tailscale's own UDP port
+no pod and no Service. The chain is stateful. It sits at priority −150, after connection
+tracking (−200) and before destination NAT (−100), accepts `ct state established,related`
+first, and its drops match new connections only, the public drop of slice 1.8 included:
+otherwise the replies to a server's own outbound connections, which arrive on the public
+interface, and the replies from the bastion to a connection a server opened, would be
+dropped as well. Tailscale's own UDP port
 stays open so that connections are direct and not relayed. The existing inventories keep
 today's behaviour by default, so no old host changes. The bastion has a group of its own
 (slice 1.9): its firewall admits SSH on the public interface, new connections limited
 per source address, nothing else inbound but SSH on the private interface from the
-observability node's prober alone, so that R16's probe has a target, and sends anything
-out. In front of every server the provider's panel firewall refuses, once
+observability node's address alone, so that R16's probe has a target, and sends anything
+out. That address admits more than the prober: traffic that a pod on that node sends off
+the cluster is masqueraded to it, and in the minimal profile staging and dev run there. So
+the planning session's choice, recorded for the owner to overrule: every non-production
+namespace's default-deny NetworkPolicy of slice 2.10 covers egress, and no egress allow
+of the `policy` unit or of an overlay may cover 10.10.1.12, which the `delivery` check
+holds (rule 2.4(k)); a NetworkPolicy from the pins repository is bounded only as the
+Risks entry on it says; a host-network prober was the alternative and would not help, since
+the masqueraded pods share its address. What a pod would still reach there is a TCP
+handshake with `sshd`, which wants the jump key. In front of every server the provider's panel firewall refuses, once
 it is attached, any outbound traffic it does not allow, so each server's rule set there
 allows outbound explicitly; package mirrors, registries, the object store and the
 tailnet's coordination service are reached that way. m1plat1 has no host firewall until
@@ -2032,8 +2045,10 @@ Values:
   `CATTLE_AUTH_TOKEN_MAX_TTL_MINUTES=720`,
   `CATTLE_KUBECONFIG_DEFAULT_TOKEN_TTL_MINUTES=720`,
   `CATTLE_AUTH_USER_SESSION_TTL_MINUTES=720` and
-  `CATTLE_AUTH_USER_SESSION_IDLE_TTL_MINUTES=720`, so every API key, every kubeconfig and
-  every login session Rancher issues expires within 12 hours;
+  `CATTLE_AUTH_USER_SESSION_IDLE_TTL_MINUTES=60`, so every API key, every kubeconfig and
+  every login session Rancher issues expires within 12 hours, and a session left idle
+  for an hour ends (the idle figure is the planning session's, for the owner to
+  overrule);
   `CATTLE_FLEET_AGENT_DEFAULT_AFFINITY` (below) (its settings read `CATTLE_` and the setting's
   name from the environment, `pkg/settings`). No tool of this plan uses a Rancher token:
   `kubectl` uses the cluster's admin kubeconfig;
@@ -2091,21 +2106,31 @@ them. What places them:
   (`pkg/api/steve/clusters/shell.go`) and would run with the administrator's rights.
   Decided by the planning session: the browser shell is not used; the operator uses
   `kubectl` from the laptop. It is refused, not only found: an admission policy of the
-  `policy` unit denies a pod in `cattle-system` whose name begins `dashboard-shell-`, the
-  prefix Rancher generates.
+  `policy` unit denies a pod in `cattle-system` whose `metadata.name` or
+  `metadata.generateName` begins `dashboard-shell-`, the prefix Rancher generates; the
+  policy matches both, because at admission a generated name may not be set yet.
 
 **Placement forced at admission.** A pod's tolerations decide where it may run, not where
-it must. So the API server's `PodNodeSelector` admission plugin is enabled, through the
-k3s server's `kube-apiserver-arg` (`enable-admission-plugins`, with `NodeRestriction`,
-which k3s enables itself, kept in the list), and each namespace in which Rancher runs pods,
+it must. So the API server's `PodNodeSelector` admission plugin is enabled through the
+k3s server's configuration, on a server that carries `platform-services` only, as its
+taint is (slice 1.2, before A3, so that it needs no restart later). k3s sets
+`enable-admission-plugins=NodeRestriction` itself (`pkg/daemons/control/server.go`); a
+plain `kube-apiserver-arg` for the same flag replaces that default, and the form
+`enable-admission-plugins+=PodNodeSelector` appends to it (`pkg/util/args.go`, read at
+the k3s source the reviewer fetched), so the template writes the `+=` form and the API
+server receives the flag twice, which its list flag accumulates (believed; A27 reads the
+running arguments). Each namespace in which Rancher runs pods,
 `cattle-system`, `cattle-fleet-system` and `cattle-fleet-local-system`, is created by the
 `namespaces` unit with the annotation `scheduler.alpha.kubernetes.io/node-selector` set to
 the `platform-services` capability. The plugin merges that selector into every pod of the
-namespace and refuses a pod whose own selector conflicts with it (Kubernetes'
-admission-controllers page, read 2026-11-22; alpha since v1.5, disabled by default, no
-deprecation). Whether k3s v1.36 accepts the flag with that list is not read; the
-rehearsal of slice 2.11 shows it, and if not the fallback is a mutating admission policy
-of the `policy` unit that sets the same selector. A namespace Rancher makes that is not in
+namespace and refuses a pod whose own selector gives the same key another value
+(Kubernetes' admission-controllers page, read 2026-11-22; alpha since v1.5, disabled by
+default, no deprecation). A pod that selects a different key is not refused: it is
+admitted with the namespace's selector added, so it can be scheduled only where both
+match, which is never off the platform node. If k3s v1.36 does not take the flag, the
+fallback is a `MutatingAdmissionPolicy` of the `policy` unit that sets the same selector:
+`admissionregistration.k8s.io/v1`, stable and enabled by default since v1.36, with no
+`runtime-config` flag (Kubernetes' mutating admission policy page, read 2026-11-22). A namespace Rancher makes that is not in
 that list is not bound.
 
 What checks all of it is `tool-fleet:health`: any pod in a `cattle-` namespace or in a
@@ -2538,7 +2563,7 @@ users.
   182 GiB in bytes, or the 169 GiB exit of decision 2 applies.
 - That `useBundledSystemChart` covers the webhook and Fleet charts on 2.15; that the
   Tailscale Ingress carries Rancher's interface, websockets included, to its port 80; that
-  k3s v1.36 enables `PodNodeSelector` through `kube-apiserver-arg` with `NodeRestriction`
-  kept; that a PriorityClass may have a negative value; and Rancher's memory. Slice 2.11's rehearsal and A27 and A28 show each.
+  the API server accumulates the repeated `enable-admission-plugins` flag that the `+=`
+  form emits; that a PriorityClass may have a negative value; and Rancher's memory. Slice 2.11's rehearsal and A27 and A28 show each.
 - That k3s v1.36.4+k3s1 itself, and not only its minor, runs Rancher v2.15.3; the matrix
   names minors only.

@@ -297,6 +297,13 @@ version certifies for a cluster that hosts it.
 
 - **WHEN** a pod in an annotated `cattle-` namespace selects a capability other than
   `platform-services`
+- **THEN** it is admitted with the namespace's selector added and is never scheduled off
+  the platform node
+
+#### Scenario: A Rancher pod contradicts the namespace
+
+- **WHEN** a pod in an annotated `cattle-` namespace selects
+  `puni.dev/capability-platform-services: "false"`
 - **THEN** admission refuses it
 
 #### Scenario: An upgrade plan

@@ -618,3 +618,20 @@ folded in.
 
 Not changed: the reviewer accepted the size-against-floor comparison, the 169 GiB exit,
 the −10 class, the 720-minute lifetimes and the deletion of the hook objects.
+
+**A third review** (2026-11-22, of `b20a90128`) found three S2 and five S3 findings, all
+folded in after a check:
+
+| Finding                                            | What was read                                                                                                                                                                                                                            | Now                                                                                                                                                                               |
+| -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Nothing put `PodNodeSelector` on m1plat1 before A3 | k3s `pkg/daemons/control/server.go` (`enable-admission-plugins=NodeRestriction` set by k3s) and `pkg/util/args.go` (a plain argument replaces the default, `+=` appends, each value emitted as its own flag), as fetched by the reviewer | The `+=` entry moves to slice 1.2, gated on `platform-services`, with negatives for `=` and for the old inventories; A27 reads the running arguments and a `--dry-run=server` pod |
+| The prerouting drops were stateless                | the plan                                                                                                                                                                                                                                 | A chain at −150 that accepts established and related traffic first; drops match new connections; negatives for a server's connection to the bastion and its outbound traffic      |
+| The prober's address is shared by masqueraded pods | the plan                                                                                                                                                                                                                                 | Egress default-deny for non-production with no allow to 10.10.1.12, held by rule 2.4(k); a host-network prober would not help                                                     |
+| `PodNodeSelector` refuses only a same-key conflict | Kubernetes' admission-controllers page, read in the second pass                                                                                                                                                                          | Spec and slice reworded; a true conflict negative                                                                                                                                 |
+| The mutating fallback's API version                | Kubernetes' mutating admission policy page, read 2026-11-22: stable and on by default since v1.36, `admissionregistration.k8s.io/v1`, no `runtime-config` flag                                                                           | Named in decision 14                                                                                                                                                              |
+
+Also applied: the shell denial matches `metadata.generateName`; the controller mount for
+`bastion.yml` carries the bastion's admin key; the idle session lifetime is 60 minutes, the
+reviewer's figure, for the owner to overrule. A finding of this pass's own: the public
+drop of slice 1.8 sat in the prerouting hook without a state match, which would have
+dropped the replies to a server's outbound traffic; it now matches new connections only.
