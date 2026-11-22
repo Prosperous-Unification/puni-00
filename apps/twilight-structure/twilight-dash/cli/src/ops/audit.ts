@@ -115,24 +115,26 @@ const MIB = 1024 ** 2;
 
 /**
  * The host services that ran containers beside `record` (task 6.22), each with its declared
- * bounds and how many containers it started, or null when none did: background load the
- * operator declared, listed so it is seen, never added to the job's envelope (S22-A3).
+ * bounds (or `ended before inspection`, A-ATTR-ENDED-1) and how many containers it started, or
+ * null when none did: background load the operator declared, listed so it is seen, never added
+ * to the job's envelope (S22-A3).
  */
 function hostServicesOf(record: RunRecord): string | null {
-  const counted = new Map<string, { service: HostServiceBound; count: number }>();
+  const counted = new Map<string, number>();
   for (const container of record.containers) {
-    if (container.verdict !== 'host-service') continue;
-    const { name, memoryBytes, cpuCores } = container.hostService;
-    const key = `${name}\0${String(memoryBytes)}\0${String(cpuCores)}`;
-    const seen = counted.get(key);
-    if (seen === undefined) counted.set(key, { service: container.hostService, count: 1 });
-    else seen.count += 1;
+    let described: string;
+    if (container.verdict === 'host-service') {
+      const service: HostServiceBound = container.hostService;
+      described = `${service.name} (${figure(service.memoryBytes / MIB)} MiB, ${figure(service.cpuCores)} ${service.cpuCores > 1 ? 'cpus' : 'cpu'})`;
+    } else if (container.verdict === 'lifetime-bounded')
+      // Proof: dropping this branch made `a host service that ended before inspection is listed
+      // as such (A-ATTR-ENDED-1)` (audit.test.ts) find no note (2026-11-22).
+      described = `${container.lifetimeBound.name} (ended before inspection)`;
+    else continue;
+    counted.set(described, (counted.get(described) ?? 0) + 1);
   }
   if (counted.size === 0) return null;
-  const listed = [...counted.values()].map(
-    ({ service, count }) =>
-      `${service.name} (${figure(service.memoryBytes / MIB)} MiB, ${figure(service.cpuCores)} ${service.cpuCores > 1 ? 'cpus' : 'cpu'}) ×${String(count)}`,
-  );
+  const listed = [...counted].map(([described, count]) => `${described} ×${String(count)}`);
   return `host services beside run ${record.jobId}: ${listed.join(', ')}`;
 }
 
