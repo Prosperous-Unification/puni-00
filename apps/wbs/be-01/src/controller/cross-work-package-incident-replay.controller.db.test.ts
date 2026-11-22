@@ -9,7 +9,9 @@ import {
   closeFixture,
   harness,
   openFixture,
+  readFixtureStep,
   readTables,
+  restrictFixturePackage,
   setRequestAdmissionObserver,
 } from './cross-work-package-dependency-fixture';
 
@@ -29,6 +31,15 @@ interface IncidentRow {
   successor_step_id: string | null;
   created_at: number;
   created_by: string;
+}
+
+function grantIncidentManager(workPackageId: string): void {
+  restrictFixturePackage(workPackageId);
+  harness.grant('org-a', 'grace', 'package-manager', 'work_package', workPackageId);
+}
+
+function node(address: { workPackageId: string; workItemId: string }) {
+  return { ...address, scope: 'node' as const, stepId: readFixtureStep(address.workPackageId).id };
 }
 
 function deferSignal() {
@@ -65,18 +76,7 @@ for (const corruptAudit of [false, true]) {
         "UPDATE organization_membership SET role='member' WHERE organization_id='org-a' AND user_id=?",
       )
       .run(fixture.principal.id);
-    harness.sqlite
-      .query('UPDATE work_package SET owner_id=?,restricted=1 WHERE id=?')
-      .run(harness.userId('grace'), fixture.successor.workPackageId);
-    const node = (address: { workPackageId: string; workItemId: string }) => {
-      const step = harness.sqlite
-        .query<{ id: string }, [string]>(
-          'SELECT id FROM step WHERE work_package_id=? ORDER BY position LIMIT 1',
-        )
-        .get(address.workPackageId);
-      if (step === null) throw new Error('endpoint step missing');
-      return { ...address, scope: 'node' as const, stepId: step.id };
-    };
+    grantIncidentManager(fixture.successor.workPackageId);
     const links: StoredTypedDependency[] = [
       {
         id: 'mounted-incoming',
@@ -263,24 +263,25 @@ for (const direction of ['undo', 'redo'] as const)
       "UPDATE organization_membership SET role='member' WHERE organization_id='org-a' AND user_id=?",
       [fixture.principal.id],
     );
-    harness.sqlite.run('UPDATE work_package SET owner_id=? WHERE id IN (?,?)', [
-      harness.userId('grace'),
+    grantIncidentManager(fixture.owner.workPackageId);
+    grantIncidentManager(fixture.successor.workPackageId);
+    harness.sqlite.run('UPDATE work_package SET restricted=0 WHERE id=?', [
       fixture.owner.workPackageId,
-      fixture.successor.workPackageId,
-    ]);
-    harness.sqlite.run('UPDATE work_package SET restricted=1 WHERE id=?', [
-      fixture.successor.workPackageId,
     ]);
     const policies = () =>
       harness.sqlite
-        .query<{ id: string; owner_id: string; restricted: number }, [string, string]>(
-          'SELECT id,owner_id,restricted FROM work_package WHERE id IN (?,?) ORDER BY id',
+        .query<{ id: string; managerId: string; restricted: number }, [string, string]>(
+          `SELECT package.id, grant_row.subject_id AS managerId, package.restricted
+           FROM work_package AS package JOIN access_grant AS grant_row
+             ON grant_row.scope_kind='work_package' AND grant_row.scope_id=package.id
+               AND grant_row.subject_kind='user' AND grant_row.role_id='package-manager'
+           WHERE package.id IN (?,?) ORDER BY package.id`,
         )
         .all(fixture.owner.workPackageId, fixture.successor.workPackageId);
     expect(policies()).toEqual(
       [
-        { id: fixture.owner.workPackageId, owner_id: harness.userId('grace'), restricted: 0 },
-        { id: fixture.successor.workPackageId, owner_id: harness.userId('grace'), restricted: 1 },
+        { id: fixture.owner.workPackageId, managerId: harness.userId('grace'), restricted: 0 },
+        { id: fixture.successor.workPackageId, managerId: harness.userId('grace'), restricted: 1 },
       ].sort((left, right) => left.id.localeCompare(right.id)),
     );
     const cookie = fixture.principal.organizationBinding?.cookie;
@@ -307,15 +308,6 @@ for (const direction of ['undo', 'redo'] as const)
       .query<{ id: string }, []>("SELECT id FROM work_item WHERE name='Replay peer'")
       .get();
     if (peer === null) throw new Error('replay peer missing');
-    const node = (address: { workPackageId: string; workItemId: string }) => {
-      const step = harness.sqlite
-        .query<{ id: string }, [string]>(
-          'SELECT id FROM step WHERE work_package_id=? ORDER BY position LIMIT 1',
-        )
-        .get(address.workPackageId);
-      if (step === null) throw new Error('incident endpoint step missing');
-      return { ...address, scope: 'node' as const, stepId: step.id };
-    };
     await harness.publicWrites().uow.run(async (scope) => {
       await scope.stores.typedDependencies.add(
         {
@@ -438,7 +430,7 @@ for (const direction of ['undo', 'redo'] as const)
       separate.run('UPDATE work_package SET restricted=1 WHERE id=?', [
         fixture.owner.workPackageId,
       ]);
-      expect(policies().every(({ owner_id }) => owner_id === harness.userId('grace'))).toBe(true);
+      expect(policies().every(({ managerId }) => managerId === harness.userId('grace'))).toBe(true);
       const before = readTables();
       const links = readLinks();
       const journal = readSelected();

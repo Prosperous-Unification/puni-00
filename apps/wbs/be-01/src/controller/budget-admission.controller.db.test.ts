@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { OrganizationHarness } from '../testing/organization-harness';
+import { createFixturePackage, readFixturePackage } from '../testing/space-rollup';
 
 /**
  * Budget admission (`wbs-measure-budgets` D69): `startAttempt` refuses
@@ -26,16 +27,11 @@ beforeEach(async () => {
   h.grantPermissions('org-a', 'ada', ['organization.create_project', 'project.manage_budgets']);
   h.bind('ada', 'org-a');
   h.activate();
-  const created = await h.call('ada', 'POST', '/api/work-packages', { name: 'Admission' });
-  if (created.status !== 200) throw new Error(`create refused: ${JSON.stringify(created)}`);
-  own = (created.body as { workPackage: { id: string } }).workPackage.id;
-  const first = h.sqlite
-    .query<{ id: string }, [string]>(
-      'SELECT id FROM step WHERE work_package_id = ? ORDER BY position',
-    )
-    .get(own)?.id;
-  if (first === undefined) throw new Error('the work package has no step');
-  dev = first;
+  own = await createFixturePackage(h, 'ada', 'Admission');
+  const { steps } = await readFixturePackage(h, 'ada', own);
+  const step = steps.find(({ code }) => code === 'fixture-dev');
+  if (step === undefined) throw new Error('admission fixture lacks its Dev step');
+  dev = step.id;
   const built = await batch([
     { kind: 'createWorkItem', ref: 'P', name: 'P', parentId: null, afterId: null },
     { kind: 'createWorkItem', ref: 'A', name: 'A', parentRef: 'P', parentId: null, afterId: null },
@@ -58,8 +54,8 @@ beforeEach(async () => {
   [parent, a, b] = [idOf('P'), idOf('A'), idOf('B')];
 });
 
-afterEach(() => {
-  h.close();
+afterEach(async () => {
+  await h.closeComposed();
 });
 
 function send(commands: readonly unknown[]) {
