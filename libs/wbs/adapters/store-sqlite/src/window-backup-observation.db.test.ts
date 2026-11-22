@@ -581,22 +581,26 @@ test('refuses actual snapshot mutation after publication before writing a report
   }
 });
 
-test('completes the real premature EOF refusal inside a bounded child', async () => {
+async function expectBoundedWindowRefusal(file: URL, testName: string): Promise<void> {
   const parent = filesystem.mkdtempSync(join(tmpdir(), 'window-observation-child-'));
   roots.push(parent);
+  const reportPath = join(parent, 'junit.xml');
   const child = Bun.spawn(
     [
       process.execPath,
       'test',
-      new URL('./window-backup-observation.db.test.ts', import.meta.url).pathname,
+      file.pathname,
       '--test-name-pattern',
-      '^refuses premature source EOF and closes its actual descriptor once$',
+      '^' + testName + '$',
+      '--reporter=junit',
+      '--reporter-outfile=' + reportPath,
     ],
     {
-      env: { ...process.env, WINDOW_OBSERVATION_PARENT: parent },
+      env: { ...process.env, TMPDIR: parent, WINDOW_OBSERVATION_PARENT: parent },
       stdout: 'pipe',
       stderr: 'pipe',
-      signal: AbortSignal.timeout(3500),
+      // The child needs time to load Bun and its modules before the measured test begins.
+      signal: AbortSignal.timeout(10_000),
       killSignal: 'SIGKILL',
     },
   );
@@ -605,14 +609,26 @@ test('completes the real premature EOF refusal inside a bounded child', async ()
     new Response(child.stdout).text(),
     new Response(child.stderr).text(),
   ]);
-  expect(exitCode).toBe(0);
+  expect(exitCode, stdout + stderr).toBe(0);
   expect(child.signalCode).toBeNull();
-  expect(stdout + stderr).toContain(
-    '(pass) refuses premature source EOF and closes its actual descriptor once',
+  const report = await Bun.file(reportPath).text();
+  // Bun writes executed successes as self-closing cases and gives skipped cases a child element.
+  const passed = report.match(/<testcase\b[^>]*\/>/gu) ?? [];
+  expect(passed).toHaveLength(1);
+  const [selected] = passed;
+  if (selected === undefined) throw new Error('native child test outcome is absent');
+  expect(selected).toContain('name="' + testName + '"');
+  expect(Number(/\bassertions="(\d+)"/u.exec(selected)?.[1])).toBeGreaterThan(0);
+  // Proof: delaying the real checkpoint child by 3.7 seconds reached this assertion at 4.31 seconds.
+  expect(Number(/\btime="([\d.]+)"/u.exec(selected)?.[1])).toBeLessThanOrEqual(3.5);
+}
+
+test('completes the real premature EOF refusal inside a bounded child', async () => {
+  await expectBoundedWindowRefusal(
+    new URL('./window-backup-observation.db.test.ts', import.meta.url),
+    'refuses premature source EOF and closes its actual descriptor once',
   );
-  expect(stdout + stderr).toContain(' 1 pass');
-  expect(stdout + stderr).toContain(' 0 fail');
-});
+}, 12_000);
 
 for (const field of ['source', 'report'] as const) {
   test(
@@ -708,37 +724,11 @@ test('refuses an existing snapshot before acquiring any staging directory', () =
 });
 
 test('completes the actual blocking reader checkpoint refusal inside a bounded child', async () => {
-  const parent = filesystem.mkdtempSync(join(tmpdir(), 'window-checkpoint-child-'));
-  roots.push(parent);
-  const child = Bun.spawn(
-    [
-      process.execPath,
-      'test',
-      new URL('./window-backup.db.test.ts', import.meta.url).pathname,
-      '--test-name-pattern',
-      '^refuses a genuine reader-blocked checkpoint without publishing either artifact$',
-    ],
-    {
-      env: { ...process.env, TMPDIR: parent },
-      stdout: 'pipe',
-      stderr: 'pipe',
-      signal: AbortSignal.timeout(3500),
-      killSignal: 'SIGKILL',
-    },
+  await expectBoundedWindowRefusal(
+    new URL('./window-backup.db.test.ts', import.meta.url),
+    'refuses a genuine reader-blocked checkpoint without publishing either artifact',
   );
-  const [exitCode, stdout, stderr] = await Promise.all([
-    child.exited,
-    new Response(child.stdout).text(),
-    new Response(child.stderr).text(),
-  ]);
-  expect(exitCode).toBe(0);
-  expect(child.signalCode).toBeNull();
-  expect(stdout + stderr).toContain(
-    '(pass) refuses a genuine reader-blocked checkpoint without publishing either artifact',
-  );
-  expect(stdout + stderr).toContain(' 1 pass');
-  expect(stdout + stderr).toContain(' 0 fail');
-});
+}, 12_000);
 
 test('opens the exact immutable source whose native filename contains URI delimiters', () => {
   const request = fixture(false, 'source #?% mode=rw.db');
