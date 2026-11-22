@@ -2,6 +2,7 @@ import { applyWorkPackageCommands, type SchemaShape, validateSchema } from '@wbs
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { OrganizationHarness } from '../testing/organization-harness';
+import { createFixturePackage, readFixturePackage } from '../testing/space-rollup';
 
 /**
  * Every refusal code `wbs-measure-budgets` slices 1 to 4 introduced, driven
@@ -50,14 +51,9 @@ beforeEach(async () => {
   h.bind('ada', 'org-a');
   h.bind('grace', 'org-b');
   h.activate();
-  const created = await h.call('ada', 'POST', '/api/work-packages', { name: 'Refusals' });
-  if (created.status !== 200) throw new Error(`create refused: ${JSON.stringify(created)}`);
-  workPackageId = (created.body as { workPackage: { id: string } }).workPackage.id;
-  const first = h.sqlite
-    .query<{ id: string }, [string]>(
-      'SELECT id FROM step WHERE work_package_id = ? ORDER BY position',
-    )
-    .get(workPackageId)?.id;
+  workPackageId = await createFixturePackage(h, 'ada', 'Refusals');
+  const { steps } = await readFixturePackage(h, 'ada', workPackageId);
+  const first = steps.at(0)?.id;
   if (first === undefined) throw new Error('the work package has no step');
   dev = first;
   const built = await h.call('ada', 'POST', `/api/work-packages/${workPackageId}/commands`, {
@@ -432,11 +428,12 @@ describe('measure refusals on the work package patch', () => {
 
 describe('measure refusals before activation', () => {
   it('answers a definition write with 409 organization_required on both batches', async () => {
-    h.close();
+    await h.closeComposed();
     h = OrganizationHarness.openComposed();
     await h.register('ada');
-    const created = await h.call('ada', 'POST', '/api/work-packages', { name: 'Legacy' });
-    const legacy = (created.body as { workPackage: { id: string } }).workPackage.id;
+    h.organization('org-a');
+    const legacy = await createFixturePackage(h, 'ada', 'Legacy');
+    h.sqlite.run("UPDATE organization SET legacy=0 WHERE id='org-a'");
     for (const path of ['/api/directory/commands', `/api/work-packages/${legacy}/commands`])
       expect(await h.call('ada', 'POST', path, { commands: [GPU] })).toEqual({
         status: 409,

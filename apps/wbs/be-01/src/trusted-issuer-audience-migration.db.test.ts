@@ -1,14 +1,14 @@
-import { cpSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { mkdtempSync, readdirSync, renameSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { openDatabase } from '@wbs/store-sqlite/db';
 import { runMigrations } from '@wbs/store-sqlite/migrate';
+import { copyRecoveryPrefix } from '@wbs/store-sqlite/testing/recovery-state';
 import { afterEach, describe, expect, it } from 'bun:test';
 
 const APP_ROOT = dirname(fileURLToPath(new URL('../package.json', import.meta.url)));
-const MIGRATIONS = join(APP_ROOT, 'drizzle');
 const ID_SHAPE = '20261022110100_check_machine_credential_id';
 const AUDIENCE_SCOPE = '20261022120000_scope_trusted_issuer_audience';
 const ISSUER = 'https://token.actions.githubusercontent.com';
@@ -20,14 +20,14 @@ afterEach(() => {
 });
 
 /**
- * A store migrated to the latest with organizations A and B, each with an
+ * A store migrated through issuer audience scoping with organizations A and B, each with an
  * agent bound to its admin and a registration of one shared issuer URL under
  * its own audience.
  */
 function migratedStore(): { root: string; dbPath: string } {
   const root = mkdtempSync(join(tmpdir(), 'wbs-trusted-issuer-audience-'));
   roots.push(root);
-  cpSync(MIGRATIONS, join(root, 'drizzle'), { recursive: true });
+  renameSync(copyRecoveryPrefix(root, AUDIENCE_SCOPE), join(root, 'drizzle'));
   const dbPath = join(root, 'plan.db');
   runMigrations(dbPath, join(root, 'drizzle'));
   run(dbPath, [

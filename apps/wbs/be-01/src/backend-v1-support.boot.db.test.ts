@@ -64,7 +64,10 @@ async function fixture() {
       }),
     );
   const create = async (name: string) => {
-    expect((await request('/api/work-packages', { name })).status).toBe(200);
+    const created = await request('/api/projects', { name: name + ' parent' });
+    expect(created.status).toBe(201);
+    const { project } = (await created.json()) as { project: { id: string } };
+    expect((await request('/api/work-packages', { name, projectId: project.id })).status).toBe(200);
     const workPackage = running.sqlite
       .query<{ id: string }, [string]>('SELECT id FROM work_package WHERE name=?')
       .get(name);
@@ -80,12 +83,22 @@ async function fixture() {
       .query<{ id: string }, [string]>('SELECT id FROM work_item WHERE work_package_id=?')
       .get(workPackage.id);
     if (row === null) throw new Error('production fixture leaf missing');
-    return { workPackageId: workPackage.id, workItemId: row.id, scope: 'whole' as const };
+    return {
+      projectId: project.id,
+      address: { workPackageId: workPackage.id, workItemId: row.id, scope: 'whole' as const },
+    };
   };
   const predecessor = await create('Predecessor');
   const successor = await create('Successor');
   seedDependencyAuthority(running.databasePath());
-  return { running, request, predecessor, successor, cookie };
+  return {
+    running,
+    request,
+    predecessor: predecessor.address,
+    successor: successor.address,
+    importProjectId: successor.projectId,
+    cookie,
+  };
 }
 
 function snapshot(running: BootedBrowserProcess) {
@@ -179,35 +192,61 @@ test('real backend descriptor admits external command identities history events 
 });
 
 test('real backend imports an external declaration through unchanged production composition', async () => {
-  const { running, request, predecessor } = await fixture();
+  const { running, request, predecessor, importProjectId } = await fixture();
+  for (const [code, name, position, allowance] of [
+    ['impl', 'Build', 10, 0],
+    ['qa', 'QA', 20, 3000],
+  ] as const) {
+    const bound = await request('/api/organization/step-bindings', {
+      scopeKind: 'project',
+      scopeId: importProjectId,
+      workItemTypeId: null,
+      position,
+      define: {
+        code,
+        name,
+        position,
+        defaultEstimateUnit: 'workdays',
+        defaultAllowanceBps: allowance,
+      },
+    });
+    expect(bound.status).toBe(201);
+  }
   const document = planDocumentFixture();
   const history = running.sqlite.query('SELECT * FROM command_journal').all();
-  const imported = await request('/api/work-packages/import', {
-    ...document,
-    document: { ...document.document, version: 12 },
-    workItems: document.workItems.map(({ attempts: _attempts, ...row }) => ({
-      ...row,
-      attempts: {},
-    })),
-    typedDependencies: [
-      {
-        id: 'downloaded-external',
-        type: 'FS',
-        predecessor: {
-          kind: 'external',
-          ...predecessor,
-          display: {
-            workPackageName: 'Predecessor',
-            abbreviation: 'PRE',
-            workItemName: 'Remote leaf',
-            address: 'PRE.1',
+  const importExternal = (dependencyId: string) =>
+    request('/api/work-packages/import', {
+      projectId: importProjectId,
+      document: {
+        ...document,
+        document: { ...document.document, version: 12 },
+        workItems: document.workItems.map(({ attempts: _attempts, ...row }) => ({
+          ...row,
+          attempts: {},
+        })),
+        typedDependencies: [
+          {
+            id: dependencyId,
+            type: 'FS',
+            predecessor: {
+              kind: 'external',
+              projectId: predecessor.workPackageId,
+              workItemId: predecessor.workItemId,
+              scope: predecessor.scope,
+              display: {
+                projectName: 'Predecessor',
+                abbreviation: 'PRE',
+                workItemName: 'Remote leaf',
+                address: 'PRE.1',
+              },
+            },
+            successor: { kind: 'internal', scope: 'whole', workItem: 'row-1' },
           },
-        },
-        successor: { kind: 'internal', scope: 'whole', workItem: 'row-1' },
+        ],
       },
-    ],
-  });
-  expect(imported.status).toBe(201);
+    });
+  const imported = await importExternal('downloaded-external');
+  expect(imported.status, await imported.clone().text()).toBe(201);
   const summary = (await imported.json()) as { workPackageId: string };
   const external = running.sqlite
     .query<
@@ -236,31 +275,7 @@ test('real backend imports an external declaration through unchanged production 
     "CREATE TRIGGER refuse_test_external_import AFTER INSERT ON external_dependency BEGIN SELECT RAISE(ABORT,'injected production external import failure'); END",
   );
   const beforeFailure = snapshot(running);
-  const refused = await request('/api/work-packages/import', {
-    ...document,
-    document: { ...document.document, version: 12 },
-    workItems: document.workItems.map(({ attempts: _attempts, ...row }) => ({
-      ...row,
-      attempts: {},
-    })),
-    typedDependencies: [
-      {
-        id: 'later-external',
-        type: 'FS',
-        predecessor: {
-          kind: 'external',
-          ...predecessor,
-          display: {
-            workPackageName: 'Predecessor',
-            abbreviation: 'PRE',
-            workItemName: 'Remote leaf',
-            address: 'PRE.1',
-          },
-        },
-        successor: { kind: 'internal', scope: 'whole', workItem: 'row-1' },
-      },
-    ],
-  });
+  const refused = await importExternal('later-external');
   expect(refused.status).toBe(500);
   expect(snapshot(running)).toEqual(beforeFailure);
 });

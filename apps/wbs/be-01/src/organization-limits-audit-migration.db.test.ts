@@ -1,14 +1,14 @@
-import { cpSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { mkdtempSync, readdirSync, renameSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { openDatabase } from '@wbs/store-sqlite/db';
 import { runMigrations } from '@wbs/store-sqlite/migrate';
+import { copyRecoveryPrefix } from '@wbs/store-sqlite/testing/recovery-state';
 import { afterEach, describe, expect, it } from 'bun:test';
 
 const APP_ROOT = dirname(fileURLToPath(new URL('../package.json', import.meta.url)));
-const MIGRATIONS = join(APP_ROOT, 'drizzle');
 const ORGANIZATION_LIMITS = '20261022130000_add_organization_limits';
 const LIMITS_AUDIT = '20261022130100_widen_organization_audit_organization_limits';
 const roots: string[] = [];
@@ -17,11 +17,11 @@ afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 
-/** A store migrated to the latest, with one organization. */
+/** A store migrated through the limits audit widening, with one organization. */
 function migratedStore(): { root: string; dbPath: string } {
   const root = mkdtempSync(join(tmpdir(), 'wbs-limits-audit-'));
   roots.push(root);
-  cpSync(MIGRATIONS, join(root, 'drizzle'), { recursive: true });
+  renameSync(copyRecoveryPrefix(root, LIMITS_AUDIT), join(root, 'drizzle'));
   const dbPath = join(root, 'plan.db');
   runMigrations(dbPath, join(root, 'drizzle'));
   run(dbPath, ["INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1)"]);
@@ -77,7 +77,7 @@ describe(LIMITS_AUDIT, () => {
       audit('a1', 'organization_limits_changed', 'organization_limits'),
       audit('a2', 'session_policy_changed', 'session_policy'),
       audit('a3', 'machine_credential_created', 'machine_credential'),
-      audit('a4', 'restricted_work_package_recovery', 'work_package'),
+      audit('a4', 'restricted_project_recovery', 'project'),
     ]);
     expect(auditRows(dbPath)).toHaveLength(4);
   });
