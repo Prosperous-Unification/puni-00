@@ -821,8 +821,10 @@ jobs:
                 printf 'no new lines since the previous tick; the last earlier line:\n'
                 head -c "$from" nx-gate.log | recorder_log_filter | awk 'END { print }'
               else
-                # The last 200 whole lines that fit 40960 bytes; `shown` counts what is posted.
-                printf '%s\n' "$lines" | awk -v count="$count" -v range="$from..$((from + ${#whole}))" '
+                # The last 200 whole lines that fit 40960 bytes; `shown` counts what is posted. The local
+                # LC_ALL above sets bash's own locale but is not exported, and gawk's length() counts
+                # characters under a UTF-8 locale, so awk gets C explicitly and counts bytes.
+                printf '%s\n' "$lines" | LC_ALL=C awk -v count="$count" -v range="$from..$((from + ${#whole}))" '
                   NR > count - 200 { kept[++n] = $0 }
                   END {
                     first = n + 1
@@ -1578,8 +1580,10 @@ jobs:
                 printf 'no new lines since the previous tick; the last earlier line:\n'
                 head -c "$from" nx-gate.log | recorder_log_filter | awk 'END { print }'
               else
-                # The last 200 whole lines that fit 40960 bytes; `shown` counts what is posted.
-                printf '%s\n' "$lines" | awk -v count="$count" -v range="$from..$((from + ${#whole}))" '
+                # The last 200 whole lines that fit 40960 bytes; `shown` counts what is posted. The local
+                # LC_ALL above sets bash's own locale but is not exported, and gawk's length() counts
+                # characters under a UTF-8 locale, so awk gets C explicitly and counts bytes.
+                printf '%s\n' "$lines" | LC_ALL=C awk -v count="$count" -v range="$from..$((from + ${#whole}))" '
                   NR > count - 200 { kept[++n] = $0 }
                   END {
                     first = n + 1

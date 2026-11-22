@@ -1602,12 +1602,21 @@ test('each tick posts only the nx-gate.log lines written since the previous tick
 // Proof (2026-11-22): without the 200-line cap the tick posted 258 lines, all 250 among them;
 // the earlier byte cap (`tail -c 40960` after counting) said `shown=200` while 118 lines were
 // posted, the first a fragment (review probe); dropping the byte condition from the whole-line
-// trim posted 200 wide lines past the body cap, so no tick showed the last one.
-test('a tick posts at most the last 200 new lines that fit 40960 bytes', () => {
-  for (const [wide, name] of [
-    [false, 'cap line'],
-    [true, 'wide line'],
+// trim posted 200 wide lines past the body cap, so no tick showed the last one. Proof
+// (2026-11-22): without `LC_ALL=C` on the trim's awk, gawk under the runner's LANG=C.UTF-8
+// counted the 3-byte ✓ as one character: hosted run 44991572202 (job 137113719053) posted 41154
+// bytes, and locally gawk 5.2.1 first on PATH failed the LANG=C.UTF-8 case with the same 41154.
+// mawk counts bytes in every locale, so on a mawk host only the hosted runs exercise it.
+test('a tick posts at most the last 200 new lines that fit 40960 bytes, in any locale', () => {
+  // A hosted runner sets LANG and leaves LC_ALL unset, so the step's `local LC_ALL=C` is not
+  // exported to awk; an exported LC_ALL would be, and would hide the fault.
+  for (const [wide, name, locale] of [
+    [false, 'cap line', 'LANG=C.UTF-8'],
+    [true, 'wide line', 'LANG=C.UTF-8'],
+    [true, 'wide line', 'LC_ALL=C.UTF-8'],
+    [true, 'wide line', 'LC_ALL=C'],
   ] as const) {
+    const [variable, value] = locale.split('=');
     const h = history();
     const execution = runStep(
       h,
@@ -1624,6 +1633,8 @@ test('a tick posts at most the last 200 new lines that fit 40960 bytes', () => {
           ),
         ),
         RUNTIME_SLEEP: '2',
+        LC_ALL: variable === 'LC_ALL' ? value : undefined,
+        LANG: value,
       },
       { recorderInterval: 1 },
     );
@@ -1634,7 +1645,7 @@ test('a tick posts at most the last 200 new lines that fit 40960 bytes', () => {
         (section) =>
           !section.includes(' newLines=0 ') && section.includes(`${name} 250${wide ? ' ' : '\n'}`),
       );
-    expect(capped, name).toHaveLength(1);
+    expect(capped, `${name} ${locale}`).toHaveLength(1);
     const [header, ...lines] = (capped[0] ?? '').trimEnd().split('\n');
     const shown = Number(/ newLines=2[5-9][0-9] shown=([0-9]+)$/.exec(header)?.[1]);
     expect(lines, name).toHaveLength(shown);
@@ -1645,9 +1656,10 @@ test('a tick posts at most the last 200 new lines that fit 40960 bytes', () => {
       );
     if (wide) {
       expect(shown).toBeLessThan(200);
-      expect(Buffer.byteLength(lines.map((line) => `${line}\n`).join(''))).toBeLessThanOrEqual(
-        40960,
-      );
+      expect(
+        Buffer.byteLength(lines.map((line) => `${line}\n`).join('')),
+        locale,
+      ).toBeLessThanOrEqual(40960);
       // One more line would not have fitted.
       expect(Buffer.byteLength(lines.map((line) => `${line}\n`).join('')) + 360).toBeGreaterThan(
         40960,

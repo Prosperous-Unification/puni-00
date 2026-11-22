@@ -976,6 +976,10 @@ Each of these faults failed a test:
 - Dropping the offset update reposted the log from byte 0.
 - Dropping the 200-line cap posted 258 lines. Dropping the byte condition from the whole-line trim
   posted 200 wide lines past the body cap, so no tick showed the last one.
+- Running the trim's awk in the step's own locale posted 41154 bytes on hosted run 44991572202:
+  under `LANG=C.UTF-8` gawk's `length()` counts the 3-byte ✓ as one character. The awk now runs
+  under `LC_ALL=C`, and the test runs the step under `LANG=C.UTF-8`, `LC_ALL=C.UTF-8` and
+  `LC_ALL=C`. On a mawk host the fault does not show; gawk 5.2.1 reproduced the 41154 locally.
 - Dropping the probes' `unavailable` branch left absent tools' labels empty.
 - Dropping the network section, the previous tick's counters, the journal section, its filter, the
   120-character cut, the 60 s filter or the own-tree exclusion failed the living-comment test.
