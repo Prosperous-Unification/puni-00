@@ -2,6 +2,7 @@ import { SEEDED_MEASURE_DEFINITIONS } from '@wbs/domain';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { OrganizationHarness } from '../testing/organization-harness';
+import { createFixturePackage, readFixturePackage } from '../testing/space-rollup';
 
 /**
  * Measure definitions (`wbs-measure-budgets` slice 1) under organization
@@ -223,16 +224,9 @@ describe('budgets and money bases in an organization', () => {
 
   /** A work package of org-a with parent P over leaves L and R, and the first step's id. */
   async function plan() {
-    const created = await h.call('ada', 'POST', '/api/work-packages', { name: 'Budgets' });
-    if (created.status !== 200) throw new Error(`create refused: ${JSON.stringify(created)}`);
-    const workPackageId = (created.body as { workPackage: { id: string } }).workPackage.id;
-    const dev = h.sqlite
-      .query<{ id: string }, [string]>(
-        'SELECT id FROM step WHERE work_package_id = ? ORDER BY position',
-      )
-      .all(workPackageId)
-      .map(({ id }) => id)
-      .at(0);
+    const workPackageId = await createFixturePackage(h, 'ada', 'Budgets');
+    const { steps } = await readFixturePackage(h, 'ada', workPackageId);
+    const dev = steps.find(({ code }) => code === 'fixture-dev')?.id;
     if (dev === undefined) throw new Error('the work package has no step');
     const run = (commands: readonly unknown[]) =>
       h.call('ada', 'POST', `/api/work-packages/${workPackageId}/commands`, { commands });

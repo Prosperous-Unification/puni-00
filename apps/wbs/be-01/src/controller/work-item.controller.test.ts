@@ -708,7 +708,7 @@ describe('work item routes', () => {
           do: 'transition_first_child',
           direction: 'down',
           record: {
-            version: 1,
+            version: 2,
             child: { id: childId, parentId, workPackageId },
             stepIds: [devId, qaId],
           },
@@ -725,7 +725,7 @@ describe('work item routes', () => {
         do: 'transition_first_child',
         direction: 'up',
         record: {
-          version: 1,
+          version: 2,
           child: { id: childId, parentId, workPackageId },
           stepIds: [devId, qaId],
         },

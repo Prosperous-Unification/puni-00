@@ -11,6 +11,7 @@ import {
   issueApiKey,
 } from '../testing/machine-credential-fixture';
 import { OrganizationHarness } from '../testing/organization-harness';
+import { createFixturePackage } from '../testing/space-rollup';
 
 let h: OrganizationHarness;
 beforeEach(async () => {
@@ -303,9 +304,7 @@ it('does not require organization-role permission for authority held only throug
 });
 
 it('counts group and member-wide grants once and omits package-only organization roles', async () => {
-  const created = await h.call('owner', 'POST', '/api/work-packages', { name: 'Private address' });
-  expect(created.status).toBe(200);
-  const packageId = (created.body as { workPackage: { id: string } }).workPackage.id;
+  const packageId = await createFixturePackage(h, 'owner', 'Private address');
   h.grant('org', 'target', 'package-viewer', 'work_package', packageId);
   h.sqlite.run(
     "INSERT INTO access_group(id,organization_id,name,created_at) VALUES('group','org','Group',1)",

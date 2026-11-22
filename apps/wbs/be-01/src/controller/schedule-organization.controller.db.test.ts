@@ -501,11 +501,7 @@ describe('shared live projection', () => {
               'GET',
               `/api/work-packages/${lower}/saved-plans/compare?left=${savedId}&right=current`,
             );
-      expect(refused).toEqual(
-        operation === 'save'
-          ? { status: 404, body: { error: 'not_found' } }
-          : { status: 403, body: { error: 'not_a_member' } },
-      );
+      expect(refused).toEqual({ status: 403, body: { error: 'not_a_member' } });
       expect(h.sqlite.query('SELECT * FROM saved_plan ORDER BY id').all()).toEqual(before);
     },
   );

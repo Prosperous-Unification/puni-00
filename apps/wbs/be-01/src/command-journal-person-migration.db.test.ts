@@ -1,10 +1,11 @@
-import { cpSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { mkdtempSync, readdirSync, renameSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { openDatabase } from '@wbs/store-sqlite/db';
 import { runMigrations } from '@wbs/store-sqlite/migrate';
+import { copyRecoveryPrefix } from '@wbs/store-sqlite/testing/recovery-state';
 import { afterEach, describe, expect, it } from 'bun:test';
 
 const APP_ROOT = dirname(fileURLToPath(new URL('../package.json', import.meta.url)));
@@ -34,17 +35,17 @@ function baseline(): string {
 function migratedStore(): { root: string; dbPath: string } {
   const root = mkdtempSync(join(tmpdir(), 'wbs-journal-person-'));
   roots.push(root);
-  cpSync(MIGRATIONS, join(root, 'drizzle'), { recursive: true });
+  renameSync(
+    copyRecoveryPrefix(root, '20261103110000_add_initial_access_offers'),
+    join(root, 'drizzle'),
+  );
   const dbPath = join(root, 'plan.db');
   runMigrations(dbPath, join(root, 'drizzle'));
   run(
     dbPath,
     "INSERT INTO users (id, username, password_hash, created_at) VALUES ('dany', 'dany', 'x', 1)",
   );
-  run(
-    dbPath,
-    "INSERT INTO work_package (id, name, owner_id, created_at) VALUES ('p', 'P', 'dany', 1)",
-  );
+  run(dbPath, "INSERT INTO project (id, name, owner_id, created_at) VALUES ('p', 'P', 'dany', 1)");
   run(dbPath, "INSERT INTO person (id, name, kind) VALUES ('codex', 'Codex', 'agent')");
   return { root, dbPath };
 }
@@ -53,7 +54,7 @@ function journal(dbPath: string, id: string, seq: number, personId: string | nul
   const sqlite = openDatabase(dbPath);
   try {
     sqlite.run(
-      `INSERT INTO command_journal (id, work_package_id, user_id, person_id, seq, kind, payload, inverse, preconditions, undone, created_at)
+      `INSERT INTO command_journal (id, project_id, user_id, person_id, seq, kind, payload, inverse, preconditions, undone, created_at)
        VALUES (?, 'p', 'dany', ?, ?, 'rename', '{}', '{}', '{}', 0, 1)`,
       [id, personId, seq],
     );
@@ -101,7 +102,7 @@ function stackOf(dbPath: string, userId: string): string[] {
   try {
     return sqlite
       .query<{ id: string }, [string]>(
-        "SELECT id FROM command_journal WHERE work_package_id = 'p' AND user_id = ? ORDER BY seq",
+        "SELECT id FROM command_journal WHERE project_id = 'p' AND user_id = ? ORDER BY seq",
       )
       .all(userId)
       .map(({ id }) => id);
@@ -178,7 +179,7 @@ describe('the command journal person migration', () => {
     journal(dbPath, 'human-again', 3, null);
     run(
       dbPath,
-      `INSERT INTO command_journal (id, work_package_id, user_id, seq, kind, payload, inverse, preconditions, undone, created_at)
+      `INSERT INTO command_journal (id, project_id, user_id, seq, kind, payload, inverse, preconditions, undone, created_at)
        VALUES ('kat-own', 'p', 'kat', 1, 'rename', '{}', '{}', '{}', 0, 1)`,
     );
 
@@ -208,14 +209,14 @@ describe('the command journal person migration', () => {
           .all()
           .map(({ detail }) => detail)
           .join(' | ');
-      const stack = "work_package_id = 'p' AND user_id = 'dany' AND person_id IS 'codex'";
+      const stack = "project_id = 'p' AND user_id = 'dany' AND person_id IS 'codex'";
       expect(plan(`SELECT * FROM command_journal WHERE ${stack} ORDER BY seq`)).toBe(
-        'SEARCH command_journal USING INDEX command_journal_person_stack (work_package_id=? AND user_id=? AND person_id=?)',
+        'SEARCH command_journal USING INDEX command_journal_person_stack (project_id=? AND user_id=? AND person_id=?)',
       );
       expect(
         plan(`SELECT id FROM command_journal WHERE ${stack} AND undone = 1 LIMIT 1`),
       ).toContain(
-        'USING INDEX command_journal_person_stack (work_package_id=? AND user_id=? AND person_id=?)',
+        'USING INDEX command_journal_person_stack (project_id=? AND user_id=? AND person_id=?)',
       );
       expect(
         plan(`SELECT seq FROM command_journal WHERE ${stack} ORDER BY seq DESC LIMIT 1 OFFSET 49`),

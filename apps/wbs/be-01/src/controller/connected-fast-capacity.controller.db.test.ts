@@ -1,3 +1,4 @@
+import { createProject, createWorkPackage } from '@wbs/contracts';
 import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-activation';
 import { afterEach, beforeEach, expect, test } from 'bun:test';
 
@@ -29,15 +30,49 @@ test('mounted connected Fast keeps identical resource catalog IDs in distinct wo
     "INSERT INTO resource_organization (resource_id,organization_id,name) VALUES ('machine','capacity-org','Machine')",
   );
   const create = async (name: string, units: number) => {
-    const answer = await harness.call('ada', 'POST', '/api/work-packages', { name });
+    const parent = await harness.call('ada', createProject.method, createProject.path, { name });
+    expect(parent.status).toBe(201);
+    const project = await createProject.responses[0].schema.validator['~standard'].validate(
+      parent.body,
+    );
+    if (project.issues !== undefined) throw new Error('capacity fixture Project reply malformed');
+    const projectId = project.value.project.id;
+    const stepId = name.toLowerCase() + '-build';
+    await harness.publicWrites().uow.run(async ({ stores }) => {
+      const bound = await stores.stepCatalogue.defineAndBindStep(
+        'capacity-org',
+        {
+          id: stepId,
+          code: stepId,
+          name: name + ' Build',
+          position: 10,
+          defaultAllowancePercent: 0,
+          defaultEstimateUnit: 'workdays',
+        },
+        {
+          bindingId: stepId + '-binding',
+          scopeKind: 'project',
+          scopeId: projectId,
+          workItemTypeId: null,
+          position: 10,
+        },
+        { at: 1, by: harness.userId('ada') },
+      );
+      if (!bound.ok) throw new Error('capacity fixture step binding refused: ' + bound.reason);
+      return { commit: true, value: undefined };
+    });
+    const answer = await harness.call('ada', createWorkPackage.method, createWorkPackage.path, {
+      projectId,
+      name,
+    });
     expect(answer.status).toBe(200);
-    const created = answer.body as { workPackage: { id: string }; steps: { id: string }[] };
-    const workPackageId = created.workPackage.id;
-    const stepId = created.steps[0].id;
-    harness.sqlite.run('DELETE FROM step WHERE work_package_id=? AND id<>?', [
-      workPackageId,
-      stepId,
-    ]);
+    const created = await createWorkPackage.responses[0].schema.validator['~standard'].validate(
+      answer.body,
+    );
+    if (created.issues !== undefined)
+      throw new Error('capacity fixture Work Package reply malformed');
+    expect(created.value.steps.map(({ id }) => id)).toEqual([stepId]);
+    const workPackageId = created.value.workPackage.id;
     harness.sqlite.run(
       "UPDATE work_package SET start_date='2026-10-05',schedule_engine='fast',optimization_enabled=0,estimate_rounding='exact' WHERE id=?",
       [workPackageId],

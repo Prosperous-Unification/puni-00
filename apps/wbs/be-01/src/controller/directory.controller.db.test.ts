@@ -1,8 +1,10 @@
 import { openReadOnlyConnection as openPackageObservationConnection } from '@wbs/store-sqlite/db';
 import { NO_BOUND_ORGANIZATION } from '@wbs/store-sqlite/organization-access';
 import { refusingSavedCurrentCapture } from '@wbs/store-sqlite/saved-current-capture';
+import { StepCatalogueRepository } from '@wbs/store-sqlite/step-catalogue';
 import { SqliteWorkPackageObservation } from '@wbs/store-sqlite/work-package-observation';
 
+import { bindDevQaFixture } from '../testing/dev-qa-fixture';
 import { refusingPlanExports } from '../testing/plan-export-fixture';
 import { seedLegacyProject } from '../testing/project-fixture';
 const PROJECT_ID = 'http-fixture-parent';
@@ -92,6 +94,7 @@ let store: DirectoryRepository;
 let workItems: WorkItemRepository;
 let workPackages: WorkPackageRepository;
 let stepStore: StepRepository;
+let catalogue: StepCatalogueRepository;
 let token: string;
 
 beforeEach(async () => {
@@ -106,6 +109,7 @@ beforeEach(async () => {
   store = new DirectoryRepository(db, OPEN);
   workItems = new WorkItemRepository(db, OPEN);
   stepStore = new StepRepository(db, OPEN);
+  catalogue = new StepCatalogueRepository(db, OPEN, 'owned');
 
   // One graph, used by the routes and by the batch alike: these stores hold no
   // turn (`OPEN`), so there is nothing here for a second graph to keep apart.
@@ -556,7 +560,19 @@ describe('deletePerson and deleteTeam', () => {
     workItemOf: string;
     stepOf: string;
   }> {
-    const { body } = await call('POST', '/api/work-packages', { name: 'Rollout' });
+    const owner = sqlite
+      .query<{ id: string }, []>("SELECT id FROM users WHERE username='owner'")
+      .get();
+    if (owner === null) throw new Error('registered owner absent');
+    await bindDevQaFixture(catalogue, 'http-fixture-legacy', PROJECT_ID, {
+      at: testClock.now(),
+      by: owner.id,
+    });
+    const { status, body } = await call('POST', '/api/work-packages', {
+      name: 'Rollout',
+      projectId: PROJECT_ID,
+    });
+    expect(status).toBe(200);
     const { workPackage } = body as { workPackage: { id: string } };
     const workItemOf = createdId(
       await planCommand(workPackage.id, {
@@ -829,7 +845,11 @@ describe('the service commands', () => {
 
   it('answers 409 in_use naming the row that loses its label, then 200 on the cascade', async () => {
     const payments = await addService('Payments');
-    const { body } = await call('POST', '/api/work-packages', { name: 'Rollout' });
+    const { status, body } = await call('POST', '/api/work-packages', {
+      name: 'Rollout',
+      projectId: PROJECT_ID,
+    });
+    expect(status).toBe(200);
     const { workPackage } = body as { workPackage: { id: string } };
     const workItemOf = createdId(
       await planCommand(workPackage.id, {

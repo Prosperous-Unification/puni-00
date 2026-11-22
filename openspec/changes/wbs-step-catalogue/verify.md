@@ -2538,3 +2538,24 @@ The predecessor's `fanout-command.controller.db.test.ts` (blob
 assertions, including package-local cascade removal. The current fanout suite
 checks the mounted refusal to unbind a step with an estimate and assignment.
 It verifies that the binding, facts, audit and event ledger are preserved.
+
+The predecessor's `organization-activation.boot.db.test.ts` (blob
+`21450c54588bedee0cdeb3eb774706d16c09ca57`) passed all three tests with 33
+assertions. It exercises the activation CLI with retained packages created
+before organization ownership was required. The current boot tests exercise
+the real CLI against an empty store, followed by Project-backed creation,
+selected reads and restricted package grants. A separate current test verifies
+that the preactivation restricted package refuses edits by both actors.
+
+The same predecessor's `swarm-rehearsal.boot.db.test.ts` (blob
+`8cb4d2523e945082cfe745aebd4ffc3d8d0e2bc8`) passed all eight tests, including
+activation with a retained package. The current rehearsal verifies the real
+dry run and apply with three resources, nine people and two teams. It then
+creates the Project and Work Package through the current scoped routes before
+running its fleet controls.
+
+The predecessor's `project.controller.test.ts` (blob
+`5af844a6cbeef9f8163c167cd8b34829728e1298`) passed the mounted uncoded-step
+export refusal. The current Work Package controller exports a code from an
+actual catalogue binding. The current organization export suite still checks
+the nullable legacy input after real authorization and capture.

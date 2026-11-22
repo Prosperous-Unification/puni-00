@@ -96,18 +96,9 @@ async function listAfterSelecting(
     .toSorted();
 }
 
-/** Three accounts and two legacy work packages, then the CLI's apply against the served file. */
-async function activateLegacyStore(process: BootedBrowserProcess): Promise<void> {
+/** Activates an empty current store through the real CLI before current Project creation. */
+async function activateEmptyStore(process: BootedBrowserProcess): Promise<void> {
   for (const username of ['dany', 'ada', 'grace']) await process.register(username);
-  for (const [username, name] of [
-    ['dany', 'Launch'],
-    ['ada', 'Billing'],
-  ] as const) {
-    const created = await call(process, 'POST', '/api/work-packages', bearer(process, username), {
-      name,
-    });
-    expect(created.status).toBe(200);
-  }
   const activated = Bun.spawnSync(
     [
       globalThis.process.execPath,
@@ -138,13 +129,32 @@ async function activateLegacyStore(process: BootedBrowserProcess): Promise<void>
   });
 }
 
-test('after the CLI activates, the super-admin and a member list the legacy work packages and a stranger is refused', async () => {
+/** Creates under selected current authority, retaining the actual Project parent. */
+async function createScopedPackage(process: BootedBrowserProcess, name: string): Promise<string> {
+  const organization = process.sqlite
+    .query<{ id: string }, []>('SELECT id FROM organization WHERE legacy=1')
+    .get();
+  if (organization === null) throw new Error('activated organization missing');
+  process.grantPermissions(organization.id, 'dany', ['organization.create_project']);
+  process.grantPermissions(organization.id, 'ada', ['project.read', 'package.read']);
+  const headers = await selectSession(process, 'dany');
+  const parent = await call(process, 'POST', '/api/projects', headers, { name });
+  expect(parent.status).toBe(201);
+  const projectId = (parent.body as { project: { id: string } }).project.id;
+  const created = await call(process, 'POST', '/api/work-packages', headers, { name, projectId });
+  expect(created.status).toBe(200);
+  return (created.body as { workPackage: { id: string } }).workPackage.id;
+}
+
+test('after the CLI activates, the super-admin and a member list current work packages and a stranger is refused', async () => {
   be = await BootedBrowserProcess.open('enabled');
   const process = be;
-  await activateLegacyStore(process);
+  await activateEmptyStore(process);
+  await createScopedPackage(process, 'Launch');
+  await createScopedPackage(process, 'Billing');
 
   // The running app reads the marker per request: no restart between the CLI and these.
-  // Proof: 2026-10-20, running the CLI without --apply made the memberships read answer 403.
+  // Historical Proof at 8c997e62a: 2026-10-20, omitting --apply made memberships answer 403.
   expect(await listAfterSelecting(process, 'dany')).toEqual(['Billing', 'Launch']);
   expect(await listAfterSelecting(process, 'ada')).toEqual(['Billing', 'Launch']);
   // A Bearer credential without the browser's organization cookie binds none (mcp-01's way).
@@ -162,7 +172,7 @@ test('after the CLI activates, the super-admin and a member list the legacy work
 test('after activation, the disabled composition binds no organization', async () => {
   be = await BootedBrowserProcess.open('disabled');
   const process = be;
-  await activateLegacyStore(process);
+  await activateEmptyStore(process);
 
   // Production `disabled` wires NO_BOUND_ORGANIZATION and refuses selection: activating a
   // store served this way locks every account out of organization resources.
@@ -183,19 +193,16 @@ test('after activation, the disabled composition binds no organization', async (
   expect(selected.setCookie).toBeNull();
 });
 
-test('a member reads a restricted work package it does not own and cannot edit it, before and after', async () => {
+test('a member reads a restricted work package it cannot edit after real CLI activation', async () => {
   be = await BootedBrowserProcess.open('enabled');
   const process = be;
-  for (const username of ['dany', 'ada']) await process.register(username);
-  const created = await call(process, 'POST', '/api/work-packages', bearer(process, 'dany'), {
-    name: 'Launch',
-  });
-  const workPackageId = (created.body as { workPackage: { id: string } }).workPackage.id;
+  await activateEmptyStore(process);
+  const workPackageId = await createScopedPackage(process, 'Launch');
   const restricted = await call(
     process,
     'PATCH',
     `/api/work-packages/${workPackageId}`,
-    bearer(process, 'dany'),
+    await selectSession(process, 'dany'),
     { restricted: true },
   );
   expect(restricted.status).toBe(200);
@@ -206,33 +213,6 @@ test('a member reads a restricted work package it does not own and cannot edit i
     });
     return { read: read.status, edit: { status: edit.status, body: edit.body } };
   };
-  const before = await answers(bearer(process, 'ada'));
-  expect(before.read).toBe(200);
-  expect(before.edit.status).toBe(403);
-
-  const activated = Bun.spawnSync(
-    [
-      globalThis.process.execPath,
-      cli,
-      '--mcp-store',
-      advancedMcpStore(process.databasePath()),
-      '--name',
-      'default',
-      '--super-admin',
-      'dany',
-      '--apply',
-    ],
-    {
-      env: {
-        ...globalThis.process.env,
-        ...TEST_MACHINE_GRANT_ENV,
-        DB_PATH: process.databasePath(),
-      },
-      stdout: 'pipe',
-      stderr: 'pipe',
-    },
-  );
-  expect(activated.exitCode).toBe(0);
   const owner = process.sqlite
     .query<{ organization_id: string }, [string]>(
       'SELECT organization_id FROM work_package_organization WHERE resource_id=?',
@@ -244,7 +224,7 @@ test('a member reads a restricted work package it does not own and cannot edit i
     [owner.organization_id, workPackageId, process.userId('ada')],
   );
 
-  // Proof: 2026-10-20, granting every other user `super_admin` instead of `member` made this
+  // Historical Proof at 8c997e62a: 2026-10-20, granting every other user `super_admin` instead of `member` made this
   // edit answer 200 and rename the work package (an audited recovery) instead of 403 `forbidden`.
   expect(await answers(await selectSession(process, 'ada'))).toEqual({
     read: 200,
@@ -257,4 +237,31 @@ test('a member reads a restricted work package it does not own and cannot edit i
     await selectSession(process, 'dany'),
   );
   expect(workPackage.body).toMatchObject({ workPackage: { name: 'Launch', restricted: true } });
+});
+
+test('current preactivation restricted packages refuse edits by creator and another actor', async () => {
+  be = await BootedBrowserProcess.open('enabled');
+  const process = be;
+  for (const username of ['dany', 'ada']) await process.register(username);
+  process.organization('legacy');
+  process.sqlite.run("UPDATE organization SET legacy=1 WHERE id='legacy'");
+  process.sqlite.run(
+    "INSERT INTO project(id,organization_id,name,created_at) VALUES('parent','legacy','Parent',1)",
+  );
+  // Trusted stored fixture: current parent and creator exist; no activation or grant is fabricated.
+  process.sqlite.run(
+    "INSERT INTO work_package(id,project_id,name,created_at,created_by,restricted) VALUES('restricted','parent','Launch',1,?,1)",
+    [process.userId('dany')],
+  );
+  for (const username of ['dany', 'ada']) {
+    const headers = bearer(process, username);
+    expect((await call(process, 'GET', '/api/work-packages/restricted', headers)).status).toBe(200);
+    expect(
+      (await call(process, 'PATCH', '/api/work-packages/restricted', headers, { name: 'Hijacked' }))
+        .status,
+    ).toBe(403);
+  }
+  expect(
+    (await call(process, 'GET', '/api/work-packages/restricted', bearer(process, 'dany'))).body,
+  ).toMatchObject({ workPackage: { name: 'Launch', restricted: true } });
 });

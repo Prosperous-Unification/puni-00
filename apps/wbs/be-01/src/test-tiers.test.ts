@@ -27,7 +27,7 @@ const SRC = new URL('.', import.meta.url).pathname;
 /**
  * What a suite must mention to be counted as opening a database.
  *
- * The three real openers, and **not** `mkdtemp`. The first draft included it and
+ * SQLite connection and fixture entry points. The first draft included `mkdtemp` and
  * this check immediately caught `deployed-commit.test.ts`, which makes a temp
  * directory to write a `HEAD` file into and never touches SQLite — it had been
  * renamed into the store tier on that evidence and is back out of it.
@@ -40,6 +40,9 @@ const SRC = new URL('.', import.meta.url).pathname;
  * `openFixture` and `seedIncidents` open the composed organization harness
  * from controller/cross-work-package-dependency-fixture.ts.
  * `openSpaceDatabase` migrates and opens SQLite for the space and runtime controller suites.
+ * `withinPackageSteps` opens a composed SQLite fixture with catalogue bindings.
+ * `migrateOrganizationCatalogueFixture` and `migrateEmptyCatalogueFixture` run the
+ * catalogue migration against a real SQLite file.
  */
 // Proof: 2026-10-13, omitting openComposedWith failed `names a suite
 // `.db.test.ts` when it opens a database, and only then` for the mounted
@@ -48,8 +51,9 @@ const SRC = new URL('.', import.meta.url).pathname;
 // controller suites as opening no database (2026-10-23, 1 pass / 1 fail).
 // Proof: removing openSpaceDatabase reported the actual runtime-state/write/claim database suites as misfiled.
 // Proof: removing openFixture, seedIncidents or openSpaceDatabase independently misclassified real migrated suites (R10, 2026-10-26).
+// Proof: removing withinPackageSteps misclassified current-attempt-labels and other real catalogue suites.
 const OPENS_A_DATABASE =
-  /\b(openDrizzle|openDatabase|runMigrations|OrganizationHarness\.open(Composed(With)?)?|BootedBrowserProcess\.open|openScimWorld|openFixture|seedIncidents|openSpaceDatabase)\b/;
+  /\b(openDrizzle|openDatabase|openConnection|openExistingConnection|openReadOnlyConnection|runMigrations|migrateOrganizationCatalogueFixture|migrateEmptyCatalogueFixture|OrganizationHarness\.open(Composed(With)?)?|BootedBrowserProcess\.open|openScimWorld|openFixture|seedIncidents|openSpaceDatabase|withinPackageSteps)\b/;
 
 /** Every `*.test.ts` under `src`, as a path relative to it. */
 function suites(dir = SRC, prefix = ''): string[] {

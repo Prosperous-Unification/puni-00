@@ -5,6 +5,7 @@ import { JwksTokenVerifier } from '@wbs/auth';
 import { MCP_INTERNAL_SECRET_HEADER } from '@wbs/contracts';
 import { readOrganizationActivation } from '@wbs/store-sqlite';
 import { openExistingConnection } from '@wbs/store-sqlite/db';
+import { applyHistoricalCatalogueFixture } from '@wbs/store-sqlite/testing/historical-catalogue';
 import { activateTestStepBlockages } from '@wbs/store-sqlite/testing/step-blockage-activation';
 import { afterAll, beforeAll, describe, expect, setDefaultTimeout, test } from 'bun:test';
 import { exportJWK, generateKeyPair } from 'jose';
@@ -14,6 +15,7 @@ import { TEST_MACHINE_GRANT_ENV } from './testing/machine-grant-fixture';
 import { callForwarded, forwardingMachineGrants, requestGrant } from './testing/mcp-forwarded-call';
 import { writeMcpStoreFixture } from './testing/mcp-store-fixture';
 import { type Answer, OrganizationHarness } from './testing/organization-harness';
+import { createFixturePackage } from './testing/space-rollup';
 
 /**
  * The swarm rehearsal: `wbs-team-claims` and `wbs-resources` working together for two fleets
@@ -111,6 +113,7 @@ const sessions = new Map<string, Record<string, string>>();
 const fleetCredentials = new Map<Fleet, string>();
 /** Each fleet's whole API key, as its harness holds it. */
 const fleetKeys = new Map<Fleet, string>();
+const cleanup: (() => Promise<void>)[] = [];
 
 function cli(script: string, args: readonly string[], dbPath = h.databasePath()) {
   const run = Bun.spawnSync([process.execPath, 'run', join(APP_ROOT, 'src', script), ...args], {
@@ -131,6 +134,9 @@ beforeAll(async () => {
     fetch: () =>
       Response.json({ keys: [{ ...publicJwk, alg: 'RS256', kid: 'swarm', use: 'sig' }] }),
   });
+  cleanup.unshift(async () => {
+    await jwks.stop(true);
+  });
   h = OrganizationHarness.openComposedWith({
     sessionBinding: true,
     machineGrants: await forwardingMachineGrants(),
@@ -144,17 +150,18 @@ beforeAll(async () => {
       groupPrefix: 'dev',
       groupsClaim: 'wbs_groups',
     },
-    // From an empty file through the operator's migration CLI, as a host's first deploy does.
+    // The catalogue owner prepares migration 117; the operator CLI applies the pending additive migrations.
     migrate: (dbPath) => {
+      applyHistoricalCatalogueFixture(dbPath, dirname(dbPath), {});
       const migrated = cli('migrate-cli.ts', [], dbPath);
       if (migrated.exitCode !== 0) throw new Error(`migrate-cli.ts failed: ${migrated.stderr}`);
     },
   });
+  cleanup.unshift(() => h.closeComposed());
 });
 
 afterAll(async () => {
-  h.close();
-  await jwks.stop(true);
+  for (const close of cleanup) await close();
 });
 
 async function send(
@@ -474,29 +481,10 @@ function expectStartableAgrees(read: StartableRead, fleet: Fleet): void {
 describe('a swarm of two fleets on one plan', () => {
   test('1. the operator plans, activates organizations and credentials the fleets', async () => {
     for (const username of ['dany', 'ada']) await h.register(username);
-    const local = { authorization: `Bearer ${h.token('dany')}` };
-    const workPackage = await send(local, 'POST', '/api/work-packages', {
-      name: 'Swarm rehearsal',
-    });
-    expect(workPackage.status).toBe(200);
-    ids.workPackageId = (workPackage.body as { workPackage: { id: string } }).workPackage.id;
-    const review = await send(local, 'POST', `/api/work-packages/${ids.workPackageId}/steps`, {
-      name: 'Review',
-    });
-    expect(review.status).toBe(200);
-    const read = await send(local, 'GET', `/api/work-packages/${ids.workPackageId}`);
-    const steps = (read.body as { steps: { id: string; name: string }[] }).steps;
-    const stepNamed = (name: string) => {
-      const found = steps.find((each) => each.name === name);
-      if (found === undefined) throw new Error(`the work package has no step ${name}`);
-      return found.id;
-    };
-    ids.steps = { dev: stepNamed('Dev'), qa: stepNamed('QA'), review: stepNamed('Review') };
-    expect(Object.values(ids.steps).every((id) => id !== '')).toBe(true);
-
+    const legacy = { authorization: `Bearer ${h.token('dany')}` };
     // `resource-directory`: resources are directory entities with a kind and a unit.
     const directory = mintedIds(
-      await directoryAs(local, [
+      await directoryAs(legacy, [
         {
           kind: 'createResource',
           name: 'h2puni ram',
@@ -524,6 +512,107 @@ describe('a swarm of two fleets on one plan', () => {
     ids.teams = { claire: nth(directory, 3), claude: nth(directory, 4) };
     for (const [index, name] of [...AGENTS, 'ada-agent', 'kat'].entries())
       ids.persons.set(name, nth(directory, index + 5));
+
+    // `organization-activation-cli.ts` without --apply rehearses and rolls back: nothing written.
+    const snapshot = () =>
+      ['organization', 'organization_membership', 'organization_activation', 'external_identity']
+        .map((table) => h.sqlite.query(`SELECT * FROM ${table}`).all())
+        .concat([
+          h.sqlite.query('SELECT count(*) AS n FROM resource_organization').all(),
+          h.sqlite.query('SELECT count(*) AS n FROM person_organization').all(),
+        ]);
+    const before = snapshot();
+    const mcpStore = `${h.databasePath()}-mcp.sqlite`;
+    writeMcpStoreFixture(mcpStore, 1);
+    const rehearsed = cli('organization-activation-cli.ts', [
+      '--mcp-store',
+      mcpStore,
+      '--name',
+      'default',
+      '--super-admin',
+      'dany',
+    ]);
+    expect(rehearsed.stderr).toBe('');
+    expect(rehearsed.exitCode).toBe(0);
+    expect(JSON.parse(rehearsed.stdout)).toMatchObject({ mode: 'dry_run', activatedAt: null });
+    // Proof: 2026-10-20, an organization row inserted between the two snapshots failed here.
+    expect(snapshot()).toEqual(before);
+    const activation = () => {
+      const connection = openExistingConnection(h.databasePath());
+      try {
+        return readOrganizationActivation(connection.db);
+      } finally {
+        connection.close();
+      }
+    };
+    expect(activation()).toBe('pre_activation');
+
+    const applied = cli('organization-activation-cli.ts', [
+      '--mcp-store',
+      mcpStore,
+      '--name',
+      'default',
+      '--super-admin',
+      'dany',
+      '--apply',
+    ]);
+    expect(applied.stderr).toBe('');
+    expect(applied.exitCode).toBe(0);
+    const activated = JSON.parse(applied.stdout) as {
+      mode: string;
+      organization: { id: string };
+      members: { username: string; role: string }[];
+      mappedRoots: Record<string, number>;
+    };
+    expect(activated).toMatchObject({
+      mode: 'applied',
+      mappedRoots: { work_package: 0, resource: 3, person: 9, service_team: 2 },
+    });
+    expect(activated.members.map(({ username, role }) => [username, role]).toSorted()).toEqual([
+      ['ada', 'member'],
+      ['dany', 'super_admin'],
+    ]);
+    expect(activation()).toBe('activated');
+    ids.organizationId = activated.organization.id;
+    h.grant(ids.organizationId, 'dany', 'org-super-admin');
+    h.grant(ids.organizationId, 'ada', 'project-contributor');
+    sessions.set('dany', await select(h.token('dany'), ids.organizationId));
+    sessions.set('ada', await select(h.token('ada'), ids.organizationId));
+
+    const local = sessionOf('dany');
+    ids.workPackageId = await createFixturePackage(
+      h,
+      'dany',
+      'Swarm rehearsal',
+      (method, path, body) => send(local, method, path, body),
+    );
+    const created = await send(local, 'GET', `/api/work-packages/${ids.workPackageId}`);
+    expect(created.status).toBe(200);
+    const projectId = (created.body as { workPackage: { projectId: string } }).workPackage
+      .projectId;
+    const review = await send(local, 'POST', '/api/organization/step-bindings', {
+      scopeKind: 'project',
+      scopeId: projectId,
+      workItemTypeId: null,
+      position: 30,
+      define: {
+        code: 'review',
+        name: 'Review',
+        position: 30,
+        defaultEstimateUnit: 'workdays',
+        defaultAllowanceBps: 0,
+      },
+    });
+    expect(review.status).toBe(201);
+    const read = await send(local, 'GET', `/api/work-packages/${ids.workPackageId}`);
+    const steps = (read.body as { steps: { id: string; name: string }[] }).steps;
+    const stepNamed = (name: string) => {
+      const found = steps.find((each) => each.name === name);
+      if (found === undefined) throw new Error(`the work package has no step ${name}`);
+      return found.id;
+    };
+    ids.steps = { dev: stepNamed('Dev'), qa: stepNamed('QA'), review: stepNamed('Review') };
+    expect(Object.values(ids.steps).every((id) => id !== '')).toBe(true);
 
     // The plan: one subtree per fleet, labelled by team (inherited by its four leaves), every
     // step estimated so no leaf folds to `done`, a demand on each leaf and the work package's
@@ -612,72 +701,6 @@ describe('a swarm of two fleets on one plan', () => {
       ],
     });
     expect(planned.status).toBe(200);
-
-    // `organization-activation-cli.ts` without --apply rehearses and rolls back: nothing written.
-    const snapshot = () =>
-      ['organization', 'organization_membership', 'organization_activation', 'external_identity']
-        .map((table) => h.sqlite.query(`SELECT * FROM ${table}`).all())
-        .concat([
-          h.sqlite.query('SELECT count(*) AS n FROM resource_organization').all(),
-          h.sqlite.query('SELECT count(*) AS n FROM person_organization').all(),
-        ]);
-    const before = snapshot();
-    const mcpStore = `${h.databasePath()}-mcp.sqlite`;
-    writeMcpStoreFixture(mcpStore, 1);
-    const rehearsed = cli('organization-activation-cli.ts', [
-      '--mcp-store',
-      mcpStore,
-      '--name',
-      'default',
-      '--super-admin',
-      'dany',
-    ]);
-    expect(rehearsed.stderr).toBe('');
-    expect(rehearsed.exitCode).toBe(0);
-    expect(JSON.parse(rehearsed.stdout)).toMatchObject({ mode: 'dry_run', activatedAt: null });
-    // Proof: 2026-10-20, an organization row inserted between the two snapshots failed here.
-    expect(snapshot()).toEqual(before);
-    const activation = () => {
-      const connection = openExistingConnection(h.databasePath());
-      try {
-        return readOrganizationActivation(connection.db);
-      } finally {
-        connection.close();
-      }
-    };
-    expect(activation()).toBe('pre_activation');
-
-    const applied = cli('organization-activation-cli.ts', [
-      '--mcp-store',
-      mcpStore,
-      '--name',
-      'default',
-      '--super-admin',
-      'dany',
-      '--apply',
-    ]);
-    expect(applied.stderr).toBe('');
-    expect(applied.exitCode).toBe(0);
-    const activated = JSON.parse(applied.stdout) as {
-      mode: string;
-      organization: { id: string };
-      members: { username: string; role: string }[];
-      mappedRoots: Record<string, number>;
-    };
-    expect(activated).toMatchObject({
-      mode: 'applied',
-      mappedRoots: { workPackage: 1, resource: 3 },
-    });
-    expect(activated.members.map(({ username, role }) => [username, role]).toSorted()).toEqual([
-      ['ada', 'member'],
-      ['dany', 'super_admin'],
-    ]);
-    expect(activation()).toBe('activated');
-    ids.organizationId = activated.organization.id;
-    h.grant(ids.organizationId, 'dany', 'org-super-admin');
-    h.grant(ids.organizationId, 'ada', 'project-contributor');
-    sessions.set('dany', await select(h.token('dany'), ids.organizationId));
-    sessions.set('ada', await select(h.token('ada'), ids.organizationId));
 
     // `machine-credentials`: an admin binds every agent person to the operator's account.
     const bound = await directoryAs(sessionOf('dany'), [

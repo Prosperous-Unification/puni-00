@@ -118,9 +118,16 @@ async function preActivationAnswers(authority: 'enabled' | 'disabled'): Promise<
   await be.register('grace');
   be.organization('org-a');
   be.member('org-a', 'ada', 'member');
+  // The current parent relation is required even while organization authority is inactive.
+  be.sqlite.run("UPDATE organization SET legacy=1 WHERE id='org-a'");
+  be.sqlite.run(
+    "INSERT INTO project (id, organization_id, name, created_at) VALUES ('legacy-project', 'org-a', 'Legacy', 1)",
+  );
   const created = await call(be, 'POST', '/api/work-packages', bearer(be, 'ada'), {
     name: 'A plan',
+    projectId: 'legacy-project',
   });
+  expect(created.status).toBe(200);
   const workPackageId = (created.body as { workPackage: { id: string } }).workPackage.id;
   // A syntactically valid selection signed by someone else's key, and a
   // malformed one: before activation neither may change any answer.

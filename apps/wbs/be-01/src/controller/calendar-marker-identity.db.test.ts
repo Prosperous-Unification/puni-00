@@ -24,6 +24,7 @@ import { testStepParallels } from '@wbs/store-memory/testing/service-fixtures';
 import { MeasureEstimateRepository } from '@wbs/store-sqlite/measure-estimate';
 import { DemandRepository, ResourceCapacityRepository } from '@wbs/store-sqlite/resource';
 import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
+import { StepCatalogueRepository } from '@wbs/store-sqlite/step-catalogue';
 import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
 import { StepParallelRepository } from '@wbs/store-sqlite/step-parallel';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
@@ -52,6 +53,7 @@ import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { inMemoryCapacity, testCapacityService } from '../testing/capacity-fixture';
 import { testClock } from '../testing/clock-fixture';
 import { sqliteDependencyContext } from '../testing/dependency-graph-fixture';
+import { bindDevQaFixture } from '../testing/dev-qa-fixture';
 import { testDirectoryService } from '../testing/directory-fixture';
 import {
   refusingEmailVerification,
@@ -161,7 +163,7 @@ describe('the schedule identity guarantee', () => {
       }),
     );
 
-  beforeEach(() => {
+  beforeEach(async () => {
     dir = mkdtempSync(join(tmpdir(), 'wbs-marker-identity-'));
     const dbPath = join(dir, 'test.db');
     migrateOrganizationCatalogueFixture(dbPath);
@@ -172,6 +174,18 @@ describe('the schedule identity guarantee', () => {
         statements.push(query);
       },
     });
+    const users = new UserRepository(db, OPEN);
+    const author = await users.create(
+      { id: 'calendar-author', username: 'calendar-author', passwordHash: null, createdAt: 1 },
+      { at: 1, by: 'calendar-author' },
+    );
+    if (author === null) throw new Error('calendar catalogue author already exists');
+    await bindDevQaFixture(
+      new StepCatalogueRepository(db, OPEN, 'owned'),
+      'http-fixture-legacy',
+      PROJECT_ID,
+      { at: 1, by: author.id },
+    );
     const broadcast = recordingBroadcaster();
 
     const workPackages = new WorkPackageRepository(db, OPEN);
@@ -267,7 +281,7 @@ describe('the schedule identity guarantee', () => {
       appOrigin: 'http://localhost',
       auth: new AuthService({
         clock: testClock,
-        users: new UserRepository(db, OPEN),
+        users,
         tokens: joseTokenCodec(TEST_JWT_KEY),
         passwords: bunPasswordHasher,
       }),
@@ -507,15 +521,9 @@ describe('the schedule identity guarantee', () => {
    * **The scheduler seam is free of markers, at the inputs** — task 5.1a(c),
    * the runtime half, and the one that closes the hole (a) and (b) leave open.
    *
-   * The oracle is the SQL log, not the payload: the case above compares two
-   * captures, and two equal captures cannot prove a path is absent, because a
-   * fold that happens to be a no-op on this fixture passes it. This one asserts
-   * the read never happened at all.
-   *
-   * The plan's own table is asserted **present** before the marker table is
-   * asserted absent. Without that half, an app that answered nothing — a broken
-   * route, an empty work package, a connection this file is not watching — would
-   * pass an assertion whose whole content is "the log named no marker".
+   * The SQL log must include work-item rows and the single settings snapshot
+   * query that captures scoped markers. Any further marker lookup fails here,
+   * even if it leaves the resulting schedule unchanged on this fixture.
    *
    * `Proof:` both injections read the table through `WorkItemRepository` — the
    * one repository `tree()` already holds — and both were caught by the same
@@ -530,7 +538,7 @@ describe('the schedule identity guarantee', () => {
    * two injections and not one. Each ran 1 pass / 2 fail with the case above,
    * baseline 3 / 0 restored after both; watched 2026-09-05.
    */
-  it('reads no calendar_marker row while answering the work-items projection', async () => {
+  it('reads markers only through the settings snapshot in the work-items projection', async () => {
     const token = await register('owner');
     const workPackageId = await seed(token);
 
@@ -550,6 +558,10 @@ describe('the schedule identity guarantee', () => {
     expect((body['workItems'] as unknown[]).length).toBe(2);
 
     expect(statements.some((each) => each.includes('work_item'))).toBe(true);
-    expect(statements.filter((each) => each.includes('calendar_marker'))).toEqual([]);
+    const markerReads = statements.filter((statement) => statement.includes('calendar_marker'));
+    expect(markerReads).toHaveLength(1);
+    expect(markerReads.at(0)).toMatch(
+      /FROM calendar_marker marker\s+JOIN json_each\(\?\) selected/,
+    );
   });
 });

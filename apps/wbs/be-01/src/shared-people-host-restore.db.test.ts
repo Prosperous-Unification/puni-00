@@ -607,9 +607,11 @@ function approveHost(savedBackup: unknown) {
   const sqlite = openDatabase(database);
   try {
     sqlite.run("UPDATE organization_activation SET state='activated', activated_at=1");
-    sqlite.run(
-      "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'ada', 'super_admin', 1)",
-    );
+    expect(
+      sqlite.run(
+        "UPDATE organization_membership SET role='super_admin' WHERE organization_id='org-a' AND user_id='ada' AND role='member'",
+      ).changes,
+    ).toBe(1);
     sqlite.run(
       "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES ('host-security','org-a','organization','org-a','user','ada','org-super-admin','route',1)",
     );

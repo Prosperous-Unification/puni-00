@@ -47,8 +47,12 @@ if (role === 'writer') {
   );
   for (const [position, workPackage] of ['A', 'B'].entries()) {
     sqlite.run(
-      "INSERT INTO work_package (id, name, owner_id, restricted, revision, created_at, start_date, estimate_rounding, schedule_engine, optimization_enabled) VALUES (?, ?, 'ada', 0, 0, 1, '2026-10-05', 'exact', 'fast', 0)",
-      [workPackage, workPackage],
+      "INSERT INTO project (id, organization_id, name, created_at, created_by) VALUES (?, 'org-a', ?, 1, 'ada')",
+      [`parent-${workPackage}`, workPackage],
+    );
+    sqlite.run(
+      "INSERT INTO work_package (id, name, created_by, restricted, revision, created_at, start_date, estimate_rounding, schedule_engine, optimization_enabled, project_id) VALUES (?, ?, 'ada', 0, 0, 1, '2026-10-05', 'exact', 'fast', 0, ?)",
+      [workPackage, workPackage, `parent-${workPackage}`],
     );
     sqlite.run(
       "INSERT INTO work_package_organization (resource_id, organization_id) VALUES (?, 'org-a')",
@@ -58,11 +62,19 @@ if (role === 'writer') {
       "INSERT INTO work_package_rank (work_package_id, organization_id, position, created_at, created_by) VALUES (?, 'org-a', ?, 1, 'ada')",
       [workPackage, position * 10],
     );
-    sqlite.run('INSERT INTO step (id, work_package_id, name, position) VALUES (?, ?, ?, 10)', [
-      `${workPackage}-step`,
-      workPackage,
-      `${workPackage}-step`,
-    ]);
+    // Current authored catalogue identity, actual Project binding, and package-local capture.
+    sqlite.run(
+      "INSERT INTO step_definition (id, organization_id, code, name, estimate_unit, default_allowance_bps, position, defined_at_scope_kind, defined_at_scope_id, origin) VALUES (?, 'org-a', ?, ?, 'workdays', 0, 10, 'project', ?, 'authored')",
+      [`${workPackage}-step`, workPackage, `${workPackage}-step`, `parent-${workPackage}`],
+    );
+    sqlite.run(
+      "INSERT INTO step_binding (id, organization_id, scope_kind, scope_id, step_id, position, origin) VALUES (?, 'org-a', 'project', ?, ?, 10, 'authored')",
+      [`binding-${workPackage}`, `parent-${workPackage}`, `${workPackage}-step`],
+    );
+    sqlite.run(
+      "INSERT INTO work_package_step (work_package_id, step_id, estimate_unit, allowance_bps, allowance_revision) VALUES (?, ?, 'workdays', 0, 0)",
+      [workPackage, `${workPackage}-step`],
+    );
     sqlite.run('INSERT INTO work_item (id, work_package_id, position, name) VALUES (?, ?, 10, ?)', [
       workPackage,
       workPackage,

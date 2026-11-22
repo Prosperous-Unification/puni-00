@@ -293,42 +293,19 @@ const WORK_PACKAGE_FIELDS = [
 ] as const;
 
 describe('work_packages', () => {
-  /**
-   * Proof: with the uncoded-step branch of `PlanDocumentService.export`
-   * removed, this received 500 instead of the declared 409 (2026-09-27).
-   */
-  it('refuses a JSON export while a step is uncoded, naming it and the backfill', async () => {
-    const { register, send, source } = buildHarness();
+  it('exports the code of the project-scoped step', async () => {
+    const { register, send, defineStep } = buildHarness();
     const token = await register('owner');
-    const actor = await source.stores.users.findByUsername('owner');
-    if (actor === null) throw new Error('registered owner disappeared');
-    const workPackage = workPackageRow({
-      id: crypto.randomUUID(),
-      projectId: PROJECT_ID,
-      name: 'Mid-swap',
-    });
-    const first = {
-      id: crypto.randomUUID(),
-      workPackageId: workPackage.id,
-      name: 'Dev',
-      position: 0,
-      code: null,
-      allowancePercent: 0,
-      estimateUnit: 'workdays' as const,
-    };
-    const created = await source.stores.workPackages.create(workPackage, [first], {
-      at: 1,
-      by: actor.id,
-    });
-    expect(created).toMatchObject({ id: workPackage.id });
+    const stepId = await defineStep('owner');
+    const create = await send('/api/work-packages', token, created('Project catalogue export'));
+    expect(create.status).toBe(200);
+    const { workPackage } = (await create.json()) as { workPackage: { id: string } };
 
     const res = await send(`/api/work-packages/${workPackage.id}/export?format=json`, token);
 
-    expect(res.status).toBe(409);
-    expect(await res.json()).toEqual({
-      error: 'uncoded_steps',
-      steps: [{ id: first.id, name: first.name }],
-      command: 'bun run src/backfill-step-codes-cli.ts',
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({
+      steps: [{ id: stepId, name: 'Review', code: 'review' }],
     });
   });
 

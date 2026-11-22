@@ -5,12 +5,12 @@ import { join } from 'node:path';
 import { expect, it } from 'bun:test';
 
 import { openDatabase } from './repository/db';
-import { runMigrations } from './repository/migrate';
+import { migrateOrganizationCatalogueFixture } from './testing/organization-catalogue-fixture';
 
 it('replays committed capacity fanout after killing its writer before push', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'capacity-crash-'));
   const databasePath = join(directory, 'capacity.sqlite');
-  runMigrations(databasePath, new URL('../drizzle', import.meta.url).pathname);
+  migrateOrganizationCatalogueFixture(databasePath);
   const sqlite = openDatabase(databasePath);
   const children: ReturnType<typeof Bun.spawn>[] = [];
   const launch = (role: string) => {
@@ -69,7 +69,7 @@ it('replays committed capacity fanout after killing its writer before push', asy
     });
     const durable = sqlite
       .query<{ seq: number; message: string }, []>(
-        "SELECT seq, message FROM event_log WHERE subscription = 'work_package:B' ORDER BY seq",
+        "SELECT seq, message FROM event_log WHERE subscription = 'work-package:B' ORDER BY seq",
       )
       .all();
     // Proof: skipping recipient recording or the installed live-plan binding lost B;

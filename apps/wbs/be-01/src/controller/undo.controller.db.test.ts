@@ -1,8 +1,10 @@
 import { openReadOnlyConnection as openPackageObservationConnection } from '@wbs/store-sqlite/db';
 import { NO_BOUND_ORGANIZATION } from '@wbs/store-sqlite/organization-access';
 import { refusingSavedCurrentCapture } from '@wbs/store-sqlite/saved-current-capture';
+import { StepCatalogueRepository } from '@wbs/store-sqlite/step-catalogue';
 import { SqliteWorkPackageObservation } from '@wbs/store-sqlite/work-package-observation';
 
+import { bindDevQaFixture } from '../testing/dev-qa-fixture';
 import { refusingPlanExports } from '../testing/plan-export-fixture';
 import { seedLegacyProject } from '../testing/project-fixture';
 const PROJECT_ID = 'http-fixture-parent';
@@ -96,6 +98,7 @@ let app: ReturnType<typeof buildApp>;
  * it left behind rather than infer it from what undo happens to answer.
  */
 let journal: CommandJournalRepository;
+let catalogue: StepCatalogueRepository;
 let workItems: WorkItemRepository;
 
 beforeEach(() => {
@@ -104,6 +107,7 @@ beforeEach(() => {
   const db = openDrizzle(join(dir, 'test.db'));
   seedLegacyProject(join(dir, 'test.db'), 'http-fixture-legacy', PROJECT_ID);
   journal = new CommandJournalRepository(db, OPEN);
+  catalogue = new StepCatalogueRepository(db, OPEN, 'owned');
 
   const workPackages = new WorkPackageRepository(db, OPEN);
   workItems = new WorkItemRepository(db, OPEN);
@@ -416,8 +420,16 @@ describe('POST /api/work-packages/:id/redo', () => {
 });
 
 describe('first-child assignment hand-down over SQLite', () => {
+  async function registerOwner() {
+    const { token, userId } = await registerAccount('owner');
+    await bindDevQaFixture(catalogue, 'http-fixture-legacy', PROJECT_ID, {
+      at: testClock.now(),
+      by: userId,
+    });
+    return token;
+  }
   it('refuses redo when another account changes the parent assignment after undo', async () => {
-    const owner = await register('owner');
+    const owner = await registerOwner();
     const stranger = await register('stranger');
     const workPackageId = await newWorkPackage(owner);
     const parentId = await addRoot(owner, workPackageId, 'Parent');
@@ -490,7 +502,7 @@ describe('first-child assignment hand-down over SQLite', () => {
   });
 
   it('undoes onto the original node and clears the parent again on redo', async () => {
-    const { token } = await registerAccount('owner');
+    const token = await registerOwner();
     const workPackageId = await newWorkPackage(token);
     const parentId = await addRoot(token, workPackageId, 'Parent');
     const person = await send('/api/directory/commands', token, {
@@ -523,6 +535,7 @@ describe('first-child assignment hand-down over SQLite', () => {
     const originalNodeId = before.stepNodes.find(
       (node) => node.workItemId === parentId && node.stepId === devId,
     )?.id;
+    if (originalNodeId === undefined) throw new Error('original Dev node absent');
     const created = await command(workPackageId, token, {
       kind: 'createWorkItem',
       parentId,
@@ -542,8 +555,8 @@ describe('first-child assignment hand-down over SQLite', () => {
     );
     const afterCreate = await workItems.findById(parentId);
     if (afterCreate === null) throw new Error('parent absent after create');
-    // Creating the child touches the parent once; clearing its assignment touches it again.
-    expect(afterCreate.revision).toBe(afterAssigned.revision + 2);
+    // The first-child transition moves the assignment and bumps each affected row once.
+    expect(afterCreate.revision).toBe(afterAssigned.revision + 1);
     expect(
       (await send(`/api/work-packages/${workPackageId}/undo`, token, { method: 'POST' })).status,
     ).toBe(200);
