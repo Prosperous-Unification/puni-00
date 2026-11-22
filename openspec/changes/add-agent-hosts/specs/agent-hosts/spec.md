@@ -50,10 +50,11 @@ entry and no supplementary group, and the operator's home MUST NOT be readable b
 - **WHEN** the play runs for a workstation without the list of automation keys
 - **THEN** the play fails before it changes the host
 
-### Requirement: A host outside the cluster admits SSH by key and nothing else
+### Requirement: A host outside the cluster admits SSH by key over the private access network and nothing else
 
 The play that prepares an agents host or a workstation SHALL turn password login off, SHALL
-install a firewall whose inbound policy admits SSH only, and SHALL apply to no host of
+install a firewall whose inbound policy admits SSH on the tailnet interface only and
+nothing on the public interface, and SHALL apply to no host of
 another group.
 
 #### Scenario: Password login left on
@@ -64,7 +65,8 @@ another group.
 
 #### Scenario: Another inbound port
 
-- **WHEN** the rendered firewall of such a host admits an inbound port other than SSH
+- **WHEN** the rendered firewall of such a host admits an inbound port other than SSH, or
+  SSH on its public interface
 - **THEN** the role test fails
 
 #### Scenario: Play run against a k3s node

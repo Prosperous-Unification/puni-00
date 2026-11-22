@@ -9,9 +9,10 @@ comment. Nothing here has been done yet.
 
 ## 0. Decisions
 
-- [ ] CI-0.1 Owner reads assumptions CI1 to CI14 and the two open questions in design.md and
-      overrules by id. Open question 1, the CI server's size, blocks CI-A1 and the core
-      change's A9. Receipt: the overrules, dated and quoted, in verify.md. No slice starts
+- [ ] CI-0.1 Owner reads assumptions CI1 to CI14 in design.md and overrules by id. Three
+      were set for him on 2026-11-22 while he was away: no public path (CI11), a status
+      written to GitHub (CI12) and the server's size (CI13). None is an open question.
+      Receipt: the overrules, dated and quoted, in verify.md. No slice starts
       before the core change's task 0.1 has its receipt.
 - [ ] CI-0.2 File the decision record from design.md as an ADR under the next free number,
       once the core change's two have theirs, link it from proposal.md, and delete the quoted
@@ -46,15 +47,14 @@ All are due before CI-A1 unless they say otherwise. They follow the core change'
       alone); it refuses when the platform kubeconfig and the CI kubeconfig name the same
       server (fault: skip the comparison).
 - [ ] CI-S3 The CI tree and its delivery rules (design decisions 1 and 3). `infra/argocd/ci`
-      with the units C0 to C7; the lock entries for Argo Workflows v4.1.6, Argo Events
+      with the units C0, C1, C2, C4, C6 and C7; the lock entries for Argo Workflows v4.1.6, Argo Events
       v1.9.11 and Dagger v0.21.12 in `infra/versions/toolchain.json`; the AppProject `ci`
       and its Applications in the platform tree, automated sync off, each with its
       `puni.dev/needs`. Rules added to the `delivery` check family: (q) an Application of a
       project other than `ci` names the in-cluster destination only, and one of project
       `ci` names the CI cluster only; (r) every pod template under the CI tree selects `ci`
       and sets requests and limits; (s) a privileged container, a host path or the host
-      network appears only in a unit whose namespace ends in `-build`, Traefik's host
-      network excepted by name; (t) no ClusterWorkflowTemplate exists under the tree.
+      network appears only in a unit whose namespace ends in `-build`; (t) no ClusterWorkflowTemplate exists under the tree.
       Negatives, each with its own fault: a staging Application that names the CI cluster
       (fault: check the project `ci` only); a `ci` Application that names the in-cluster
       destination (fault: check the other projects only); a CI pod template with no selector
@@ -65,17 +65,19 @@ All are due before CI-A1 unless they say otherwise. They follow the core change'
 - [ ] CI-S4 The tenant's unit (design decisions 2, 4 and 5). One kustomize directory whose
       inputs are the tenant's name, its repositories and its `limits.yaml`: the two
       namespaces' objects, quota, limit range, three ServiceAccounts with their Roles, the
-      SecretStore and ExternalSecrets, the EventBus, the EventSource with a webhook secret
-      and no API token, the Sensors, the semaphore ConfigMap, the limits ConfigMap, the
+      SecretStore and ExternalSecrets, the EventBus, one `calendar` EventSource and its Sensor, the Role that
+      the trigger identities are bound to, two PriorityClass names so that a build's pods
+      rank under a gate's, the semaphore ConfigMap, the limits ConfigMap, the
       engine StatefulSet with its cache claim, and the controller ConfigMap's
       `workflowRestrictions: templateReferencing: Strict`. Test: the directory renders for
       `puni` and for a second, fixture tenant with no other change. Negatives, each with its
-      own fault: an EventSource that sets `apiToken` or lacks `webhookSecret` is refused
-      (fault: require the field's presence in the type, not the value); an EventSource that
-      subscribes to an event other than `push` is refused (fault: refuse a list of named
-      events and watch `pull_request_target` pass); a Sensor without the `ref` filter for
-      `refs/heads/main` or without the repository filter is refused (fault: require any data
-      filter); a Sensor trigger that holds an inline Workflow spec instead of a
+      own fault: an EventSource of any type but `calendar` is refused (fault: refuse the
+      `github` type by name and watch a `webhook` type pass); a Role bound to a trigger
+      identity that grants more than create, get, list and watch on Workflows in the
+      tenant's namespace is refused (fault: compare verbs only); a trigger workflow file in
+      a repository that names an event other than `push` to `main` and a manual dispatch
+      on `main` is refused by the lint in `gate` (fault: refuse a list of named events and
+      watch `pull_request_target` pass); a Sensor trigger that holds an inline Workflow spec instead of a
       `workflowTemplateRef` is refused (fault: accept `operation: submit` alone); a template
       that holds a number for a request or limit instead of the limits parameter is refused
       (fault: check the gate template only); a template in the `-build` namespace that
@@ -93,8 +95,8 @@ All are due before CI-A1 unless they say otherwise. They follow the core change'
       Receipts are split: CI-S5/A2 (bring-up, admission, trigger cases) and CI-S5/A4 (the
       gate pod's two steps). Not rehearsed here, and stated as such: a full gate, which needs
       a server.
-- [ ] CI-S6 The gate template (design decision 6). `WorkflowTemplate` `gate` and its
-      CronWorkflow; an image that carries the gate's locked tools, built from a Containerfile
+- [ ] CI-S6 The gate template (design decision 6). `WorkflowTemplate` `gate`, started
+      nightly by the calendar Sensor of CI-S4; an image that carries the gate's locked tools, built from a Containerfile
       in this repository and locked by digest. The template clones at `sha`, fails unless
       `HEAD` is `sha`, runs the gate steps and mounts no Secret. Test: CI-S5's gate case.
       Negatives: a clone that ends at another commit fails the Workflow (fault: check the
@@ -122,7 +124,7 @@ All are due before CI-A1 unless they say otherwise. They follow the core change'
 They are stage 2 of the core change's build order and replace its A10.
 
 - [ ] CI-A1 Bootstrap the CI cluster, after the core change's A9 has created the server at
-      the size of open question 1, its 1.3 revision, CI-S1, CI-S2 and the receipt CI-S5/A2.
+      12 vCPUs and 24 GiB (CI13), its 1.3 revision, CI-S1, CI-S2 and the receipt CI-S5/A2.
       Who: operator. Commands: `fleet_ansible --limit h8ci playbooks/bootstrap.yml` for
       `ci-production`; `playbooks/ci-cluster.yml`; `argocd cluster list` on the platform
       side. Receipt: the node Ready with the capability `ci`; the server's disk at or above
@@ -130,25 +132,31 @@ They are stage 2 of the core change's build order and replace its A10.
       Secret, kubeconfig or token of the platform cluster on the CI node, read back by
       listing. Stop: a platform credential is found on the CI node, or the disk is smaller.
       Rollback: delete the cluster Secret and the server.
-- [ ] CI-A2 Sync C0 to C7 and measure, after CI-S3, CI-S4 and the platform cluster's A4.
+- [ ] CI-A2 Sync C0, C1, C2, C4, C6 and C7 and measure, after CI-S3, CI-S4 and the platform cluster's A4.
       Who: operator. Commands: the sync playbook for project `ci` in order; `kubectl top`
-      after one hour at rest. Receipt: each unit Synced and Healthy; every controller's
+      after one hour at rest. Receipt: each unit Synced and Healthy; the Argo Workflows interface answers on
+      its tailnet name and no public port of the server answers; every controller's
       memory against design decision 5; the sum left for jobs. Stop: what is left for jobs
       is under the gate's request. Then the owner chooses the next server class before
       CI-A4. Rollback: remove the Applications; nothing else depends on them.
-- [ ] CI-A3 The tenant and its secrets, after pull request #935's mount for this cluster,
-      and the first part of the core change's A23 (the pins repository, its App and the robot's
-      configuration in the store). Who:
-      owner for the values, operator for the sync. Commands: in this repository's rules, pin the
-      required checks `gate` and `pixels` to GitHub Actions as their source; then write the
-      webhook secret and the status App's key to the tenant's store path, beside the two A23
-      wrote; sync `ci-puni` (C8); add the webhook in each repository's settings with that
-      secret, content type JSON and the `push` event only. Receipt: the required checks'
-      source read back; each ExternalSecret Ready; GitHub's delivery log shows a `ping` answered 200; a delivery replayed with a
-      wrong signature is refused; the tenant's service account reads its own store path and
-      is refused another's. Stop: a required check's source cannot be pinned, in which case
-      the status App is not created and open question 2 is answered no; the mount gives the
-      CI cluster more than `ci/<tenant>`; or an unsigned delivery is accepted. Rollback: delete the webhook and the values.
+- [ ] CI-A3 The tenant, its secrets and its trigger, after pull request #935's mount for
+      this cluster, the core change's task 0.7 and the first part of its A23 (the pins
+      repository, its App and the robot's configuration in the store). Who: owner for the
+      values, operator for the sync. Commands: in this repository's rules, pin the required
+      checks `gate` and `pixels` to GitHub Actions as their source; write the status App's
+      key to the tenant's store path, beside the two A23 wrote; sync `ci-puni` (C8); make
+      the trigger key, tagged `tag:ci-trigger`, reusable and ephemeral, sign it from the
+      owner's device, store it as a secret of each repository the tenant builds, and note
+      its expiry date in the runbook; merge the trigger workflow file. Receipt: the required
+      checks' source read back; each ExternalSecret Ready; a device tagged
+      `tag:ci-trigger` creates a Workflow from a template and is refused a `get` of a
+      Secret and a create in another namespace; the same device cannot reach the Argo
+      Workflows interface or any server; the tenant's service account reads its own store
+      path and is refused another's. Stop: a required check's source cannot be pinned, in
+      which case the status App is not created and CI12 is withdrawn; the mount gives the
+      CI cluster more than `ci/<tenant>`; or the trigger identity can do more than the
+      Role states. Rollback: delete the repository secret, the trigger file and the values.
+      The key is renewed by this step's key part before it expires, at most every 90 days.
 - [ ] CI-A4 A full gate through a workflow, after CI-S6 and the receipt CI-S5/A4. Who:
       operator. Commands: `argo submit --from workflowtemplate/gate -p sha=<main>` over the
       private access network; the same SHA through `bin/h2puni-gate.sh` on an old gate
@@ -164,6 +172,7 @@ They are stage 2 of the core change's build order and replace its A10.
       commit's statuses. Receipt: one Workflow started by the push with no command; one
       commit in the pins repository that names the source commit and the digests; a status
       under `argo/` on that commit; the required checks' source read back as GitHub Actions;
-      a push to a branch other than `main` starting nothing. Stop: a push to a branch
-      starts a Workflow, or the status can satisfy a required check. Rollback: remove the
-      Sensor; the owner's waiver of core decision 9 then applies.
+      a push to a branch other than `main` starting nothing; a `staging-build` submitted
+      by hand with a `sha` that is not on `main` failing at its first step. Stop: a push to
+      a branch starts a Workflow, or the status can satisfy a required check. Rollback:
+      remove the trigger workflow file; the owner's waiver of core decision 9 then applies.

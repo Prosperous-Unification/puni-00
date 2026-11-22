@@ -848,3 +848,78 @@ without failing. The cold-restore verification SHALL accept such a cluster.
 
 - **WHEN** the cold-restore verification runs against a restored cluster delivered by Argo CD
 - **THEN** it reads the root Application and passes when that is present
+
+### Requirement: Platform services have no public route
+
+No unit of the `platform` or `ci` project SHALL define an Ingress, an IngressRoute, a route
+of a Gateway, or a Service of type LoadBalancer or NodePort, except the `traefik` unit and
+an Ingress of the Tailscale operator's class.
+
+#### Scenario: A platform tool given a public route
+
+- **WHEN** a unit of the `platform` project defines an Ingress of Traefik's class, an
+  IngressRoute or a Service of type LoadBalancer
+- **THEN** the `delivery` check refuses the tree and names the object
+
+#### Scenario: A tool exposed to the tailnet
+
+- **WHEN** a unit of the `platform` project defines an Ingress of the Tailscale operator's
+  class
+- **THEN** the `delivery` check passes
+
+### Requirement: New hosts admit nothing public but what they serve
+
+A host of the new inventories SHALL admit on its public interface only the ports its
+inventory lists, which MUST be none unless the host carries `ingress`, and SHALL admit SSH
+and the Kubernetes API on the tailnet interface only. An existing inventory's rendered
+firewall SHALL NOT change.
+
+#### Scenario: Public SSH on a new host
+
+- **WHEN** the rendered firewall of a host of the new inventories admits port 22 on its
+  public interface
+- **THEN** the role's test fails
+
+#### Scenario: An old inventory
+
+- **WHEN** the firewall is rendered for an existing inventory
+- **THEN** it is byte-equal to the rendering before this change
+
+### Requirement: Access rules are one tested policy file
+
+The private access network's rules SHALL be one file in this repository that names tags and
+the service's built-in groups and names no person. A server tag SHALL be granted no path to
+another device, and the tag of the trigger job SHALL be granted the CI cluster's API server
+proxy and nothing else.
+
+#### Scenario: A server granted a path
+
+- **WHEN** the policy file grants a server tag a path to any device
+- **THEN** the policy test fails and names the grant
+
+#### Scenario: The trigger job granted more
+
+- **WHEN** the policy file grants `tag:ci-trigger` anything but the CI cluster's API server
+  proxy
+- **THEN** the policy test fails
+
+#### Scenario: A person named
+
+- **WHEN** the policy file names a person
+- **THEN** the policy test fails
+
+### Requirement: Every tenant-scoped namespace names its tenant
+
+Every namespace of a `staging`, `production`, CI or database unit SHALL carry the label
+`puni.dev/tenant`, and an object in such a namespace SHALL NOT carry another tenant's
+label.
+
+#### Scenario: A namespace without a tenant
+
+- **WHEN** a namespace of the `staging` project has no `puni.dev/tenant` label
+- **THEN** the `delivery` check refuses the tree and names the namespace
+
+#### Scenario: An object of another tenant
+
+- **WHEN** an object in a namespace labelled for one tenant carries another tenant's label
+- **THEN** the `delivery` check refuses the tree

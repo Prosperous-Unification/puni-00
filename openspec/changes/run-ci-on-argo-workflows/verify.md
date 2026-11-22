@@ -71,6 +71,32 @@ pinned.
 | 2026-11-22 | "let's keep in mind that all this has to be multitenant"; "all that must be orchestratable by the puni user platform, must be multitenant"                            | CI3, CI10       |
 | 2026-11-22 | "autoscaler is promising - maybe we can connect the AWS to provide additional scale?"; "dynamic environments are promising and interesting"                           | CI4, decision 7 |
 | 2026-11-22 | "i'll use tailscale for access"                                                                                                                                       | CI11            |
+| 2026-11-22 | "i want to use tailscale to safely access the services that run the platform without exposing them to the internet"                                                   | CI11            |
+
+## The pass of 2026-11-22 that removed the public path
+
+The owner was away and had set the goal of finalizing and merging the plan. Three points
+were settled for him, each an assumption he can overrule: no public path (CI11), a status
+written to GitHub (CI12), and a server of 12 vCPUs and 24 GiB (CI13). The two open
+questions of the first draft are closed by them.
+
+What changed: the GitHub event source, its webhook secret, the ingress route, and the units
+`ci-cert-manager`, `ci-traefik` and `ci-issuers` are gone; the unit `ci-tailscale-operator`
+is new, at C2; the nightly gate is started by a calendar event source and a Sensor instead
+of a CronWorkflow; a trigger workflow file on the provider's hosted runner starts the
+staging build. The ids C3 and C5 are not reused.
+
+| Read on 2026-11-22                                                                                                                                                                                                       | Where                                                                      |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------- |
+| The vendor's GitHub Action joins a tailnet as an ephemeral, tagged device, with a federated identity, an OAuth client or an auth key that is tagged, reusable and ephemeral; the device is removed when the job logs out | Tailscale documentation, "Tailscale GitHub Action"                         |
+| The Kubernetes operator's API server proxy has an `auth` mode that impersonates a tagged device as its name with its tags as Kubernetes groups, and a `noauth` mode                                                      | Tailscale documentation, "Access the Kubernetes API server over Tailscale" |
+| Tailnet Lock requires a signature for a new device, and an auth key can be signed beforehand                                                                                                                             | Tailscale documentation, "Tailnet Lock"                                    |
+| An auth key expires after at most 90 days                                                                                                                                                                                | Tailscale documentation, "Auth keys"                                       |
+| Argo Events v1.9.11 has a `calendar` event source with a `schedule`                                                                                                                                                      | `examples/event-sources/calendar.yaml` at the tag                          |
+
+Not found, and listed under "Not verified" in design.md: whether a federated identity can
+join under Tailnet Lock; the literal form of a tag as a Kubernetes group; whether a
+calendar event source opens a port.
 
 ## Checks run on this draft
 

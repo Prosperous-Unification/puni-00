@@ -1,5 +1,5 @@
 Agent slices (phases 1 to 3) change source and run tests; none touches a host. Attended steps
-(A1 to A23) each name who runs them, the command, the receipt, the stop condition and the
+(A1 to A24) each name who runs them, the command, the receipt, the stop condition and the
 rollback. Assumption and decision numbers refer to [design.md](design.md). Every slice that
 adds a safety check lands it with a production-path negative, watched failing with the check
 removed, and an adjacent `Proof:` comment. Nothing here has been done yet.
@@ -15,14 +15,15 @@ input directory. "Sync" of a platform unit means
 
 ## 0. Decisions
 
-- [ ] 0.1 Owner reads assumptions R1 to R35, R45 and R46 in design.md and overrules by id.
-      This change has no open question; the CI server's size is the CI change's. He may
-      overrule R34 (dev is delivered by a follow-up change) and R35 (the CI cluster is one
-      trust zone). Rows marked decided record his
+- [ ] 0.1 Owner reads assumptions R1 to R35 and R45 to R52 in design.md and overrules by id.
+      This change has no open question. He may overrule R34 (dev is delivered by a
+      follow-up change), R35 (the CI cluster is one trust zone), and R49 to R52, which the
+      planning session set on 2026-11-22 while he was away: no public SSH rule, the CI
+      server's size, no public webhook, Tailnet Lock with `sshd`. Rows marked decided record his
       answers of 2026-11-21 and 2026-11-22. Receipt: the overrules, dated and quoted, in verify.md. Until then only
       slices 1.1, 1.2 and 2.1 to 2.5 may start; the rehearsal 2.7 needs 2.1 to 2.5 and
       follows them.
-- [ ] 0.2 File the two decision records from design.md as ADRs under the next free numbers
+- [ ] 0.2 File the three decision records from design.md as ADRs under the next free numbers
       once pull requests #935 and #948 and the Harbor record have settled theirs, link them
       from proposal.md, and delete the quoted copies. Test:
       `env -u CLAUDECODE bun test tools/tool-devsync/src/adr-index.test.ts`.
@@ -68,6 +69,17 @@ input directory. "Sync" of a platform unit means
       and no rule against forced or deleting pushes; the fleet repository's `main` had no
       rule. Zero approvals and non-strict checks stay as they are and are listed under Risks
       in design.md.
+- [ ] 0.7 The tailnet's settings and its policy (design decision 12), before A1 and after
+      slice 1.8. Who: owner, in the vendor's admin console and from his own device.
+      Commands: create the tags of design decision 12; turn Tailnet Lock on from his device
+      and put the disablement secret in escrow; turn on names with certificates; make one
+      OAuth client per cluster for its operator, limited to that operator's tag, and one
+      credential that may write the policy file and nothing else, all into `$OPS` and
+      escrow; apply `infra/access/policy.hujson` through the API. Receipt: the policy read
+      back equals the file at its commit; the lock reads enabled and names his device as
+      the only signer; the tags listed; no value and no tailnet name. Stop: the policy read
+      back differs, or the lock is off. Rollback: apply the file's previous revision; the
+      lock is turned off only with the disablement secret, by the owner.
 
 ## 1. Fleet model and roles (agent slices)
 
@@ -118,8 +130,8 @@ input directory. "Sync" of a platform unit means
       `platform-services: 1`; later revisions add each node, raise the floor for its
       capability, and extend `puni_enrolled_private_addresses`. Add
       `infra/ansible/inventory/production-hosts.yml` with the same nodes, the reservations of
-      design decision 2, and `h8ci` under `gate_hosts` only. The jump of R17 is an input in
-      `$OPS`, not a line of the inventory. Extend `placement.test.ts` to bind this inventory
+      design decision 2, and `h8ci` under `gate_hosts` only. Each server's tailnet auth key is an input in
+      `$OPS`, not a line of the inventory, and there is no jump host (R17). Extend `placement.test.ts` to bind this inventory
       to `platform-2` beside the existing pair. Negatives: a machine id that differs between
       the two files is refused; a node present in one file only is refused. Fault to inject:
       compare node names only and watch the machine-id negative pass wrongly.
@@ -174,6 +186,27 @@ input directory. "Sync" of a platform unit means
       refused (fault: skip the placement check). Stop: k3s reverts a label the play set
       when the agent restarts. Then the play's rewrite of the configuration file is what
       holds it, and the restart is part of the test.
+- [ ] 1.8 Private access on hosts (design decision 12, R47, R49, R52). Lock the Tailscale
+      package and its repository key in `infra/versions/toolchain.json`. The `base` role
+      installs it and joins the host with the single-use key from `$OPS`, with the tag of
+      the host's trust class from the inventory, and reads back that the device is tagged
+      and its key does not expire; a second run joins nothing and prints `changed=0`. The
+      first run of a new server arrives over the public address with the admin key, as a
+      bootstrap does today; the same run closes that path, and every later run uses the
+      tailnet address. Add to the `network` role an input for the public ports a host may
+      serve; for the new inventories anything else on the public interface is dropped, SSH
+      and the Kubernetes API are admitted on the tailnet interface only, and the default
+      for existing inventories is today's behaviour. Create a local console account that
+      `sshd` refuses, its password from `$OPS` (R49). Add `infra/access/policy.hujson` and
+      a test that parses it. Tests: the rendered firewall of each new host; the policy
+      test. Negatives: a rendered firewall of a new host that admits port 22 on the public
+      interface is refused (fault: keep the "retain SSH recovery" rule); a host without
+      `ingress` that admits 80 or 443 is refused (fault: render the list for every host);
+      an old inventory's rendering is byte-equal to today's (fault: change the default); a
+      policy file in which a server tag may reach another device, or `tag:ci-trigger`
+      anything but the CI cluster's proxy, is refused (fault: compare tag names only); a
+      policy file that names a person is refused (fault: skip the check for groups); the
+      console account can log in over SSH (fault: drop the `DenyUsers` line).
 
 ## 2. Argo CD delivery (agent slices)
 
@@ -302,7 +335,15 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       template of an observability unit or of `mlflow` without the PriorityClass of slice
       2.8, and a pod template of a staging or dev Application that names any
       `priorityClassName`; negatives: one of each (faults: read the Prometheus stack's
-      templates only; allow the cluster's default class by name).
+      templates only; allow the cluster's default class by name). (q) No public route for
+      a platform or CI unit (design decision 12): an Ingress, an IngressRoute, a Gateway
+      route or a Service of type LoadBalancer or NodePort in a unit of the `platform` or
+      `ci` project is refused, except an Ingress of the Tailscale operator's class and the
+      `traefik` unit itself; negatives: one of each kind (fault: check Ingress only), and
+      an Ingress of the operator's class passes. (r) The tenant label (design decision 13):
+      a namespace of a `staging`, `production`, CI or database unit without
+      `puni.dev/tenant`, and an object in such a namespace that carries another tenant's
+      label; negatives: one of each (fault: read namespaces only).
 - [ ] 2.5 Bootstrap and sync playbooks, and the controller that runs them.
       `infra/ansible/playbooks/argocd.yml`: require the cluster id, the install digest and
       the secret file list; refuse a host that has a `flux-system` namespace or whose node
@@ -436,7 +477,8 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       every `$OPS` input, the escrow step for each new secret, the receipts of A1 to A8, how
       a change reaches staging, how production and a platform unit are synced and by whom,
       how a change is reverted, what the sync order does and does not cover, how drift is
-      seen, how to reach the Argo CD interface, the jump when the platform node is off,
+      seen, how to reach the Argo CD interface over the private access network, the console path
+      when that network cannot be used,
       removing a unit in two merges, and the break-glass procedure. Link it from
       `docs/infra/README.md`. Test: the `tool-devsync` document tests and `check-indexes`.
 - [ ] 2.10 Containment at admission, before A17 (design decision 3, R34). In the `policy`
@@ -634,6 +676,9 @@ The sixth draft's slice 3.9, the dev environment, is not in this change: it is t
       minimum, 175 GiB here (design decision 2); the same stop holds for every server this
       plan creates, each against its own minimum, whatever provider it comes from. Rollback: delete the server. A server used
       for the rehearsal of 2.7 is deleted first; this receipt is of the server that stays.
+      For this and every server the owner also makes its tailnet auth key, single-use,
+      tagged for its trust class and signed from his own device, into `$OPS` (design
+      decision 12).
 - [ ] A2 Make and escrow the new cluster's secrets (R6), after 0.5 and 0.6. Who: owner.
       Commands: two 64-hex k3s credentials, `age-keygen`, read-only deploy keys for the fleet
       repository and the WBS deploy repository, and the local account's password, into
@@ -647,7 +692,8 @@ The sixth draft's slice 3.9, the dev environment, is not in this change: it is t
       `fleet_ansible --limit h5plat playbooks/bootstrap.yml` twice (the second prints
       `changed=0`), `playbooks/validate-enrollment.yml`, then preflight with
       `puni_preflight_stage=after-enrollment`. Read both join tokens into `$OPS` and escrow.
-      Receipt: `kubectl get nodes -o wide` shows h5plat Ready with roles `control-plane,etcd`,
+      Receipt: the device is tagged `tag:platform` and its key does not expire; SSH answers on
+      the tailnet address and no public port answers; `kubectl get nodes -o wide` shows h5plat Ready with roles `control-plane,etcd`,
       the label `puni.dev/capability-platform-services=true`, the taint
       `CriticalAddonsOnly=true:NoSchedule` and no enrollment taint; CoreDNS, the metrics
       server and the volume provisioner Ready; CoreDNS still tolerates `CriticalAddonsOnly`.
@@ -656,10 +702,11 @@ The sixth draft's slice 3.9, the dev environment, is not in this change: it is t
 - [ ] A4 Argo CD and the units under OpenBao, after 0.6 and slices 2.1 to 2.6 and 2.9. Who:
       operator. Commands:
       `fleet_ansible --limit h5plat --extra-vars puni_cluster_id=platform-production --extra-vars @"$OPS/argocd.json" playbooks/argocd.yml`;
-      then sync `argocd`, `namespaces`, `policy`, `storage` and `cert-manager`.
+      then sync `argocd`, `namespaces`, `policy`, `storage`, `tailscale-operator` and
+      `cert-manager`.
       Receipt: `kubectl get applications -n argocd` shows the root and orders 0 to 3 Synced
       and Healthy; the root is in the project `root` and has no prune; every Argo CD and cert-manager pod is on h5plat; the interface answers
-      through `kubectl port-forward`; the local account logs in and is refused a sync of a
+      on its tailnet name and on no public address; the local account logs in and is refused a sync of a
       platform unit; `admin` cannot log in; no Service of type LoadBalancer or Ingress exists
       in `argocd`. Stop: a unit is not Healthy after 20 minutes. Rollback: delete the server.
 - [ ] A5 etcd snapshots. Who: operator. Commands: create the new snapshot bucket with
@@ -672,9 +719,9 @@ The sixth draft's slice 3.9, the dev environment, is not in this change: it is t
       needed.
 - [ ] A6 Restore drill, before OpenBao holds anything, after 2.6. Who: operator. `restore.yml`
       refuses a host whose k3s `node-name` is not the planned replacement or is a fenced
-      original, so the drill uses a second, temporary server. h5plat is the jump (R17) and is
-      off during the drill, so the controller's jump for this step is the temporary server's
-      own public SSH endpoint. Commands: power h5plat off and record that as fence evidence;
+      original, so the drill uses a second, temporary server. The controller reaches the
+      temporary server over the private access network, as it reaches any server (R17),
+      so h5plat being off costs no path; the temporary server gets an auth key as in A1. Commands: power h5plat off and record that as fence evidence;
       create a temporary server as in A1 under another name and prepare it with
       `bootstrap.yml`'s host roles and a k3s config that names it;
       `tool-fleet:recover verify-cold-restore` with the escrowed token; `playbooks/restore.yml`
@@ -700,14 +747,22 @@ The sixth draft's slice 3.9, the dev environment, is not in this change: it is t
       tree, read each container's working set and `memory.stat`. Receipt: the per-container
       table in verify.md and the limits kept or changed by a commit. Stop: a container was
       killed for memory. Rollback: raise that limit in Git and sync `argocd`.
+- [ ] A24 Break-glass drill (R49), after A3. Who: owner. Commands: on his device, turn
+      Tailscale off; confirm that h5plat answers on no public port; in the provider's
+      console open the server's console, log in as the console account with the password
+      from escrow, and read `tailscale status`; add one temporary firewall rule for his
+      current address, log in over SSH, remove the rule; turn Tailscale on. Receipt: the
+      four readings and the time taken; the rule gone from `nft list ruleset`; no value.
+      Stop: the console login fails, or a public port answered. Rollback: none needed; if
+      the rule cannot be removed over SSH, remove it from the console.
 - [ ] Harbor lands on h5plat by its own change, amended as design decision 9 lists, synced on
       command at order 14. It is not a step of this change. It is due before A18's WBS part.
 
 ### Stage 2: continuous integration
 
-- [ ] A9 Create the CI server, after its 1.3 revision. Who: owner creates as in A1, at the
-      size he answers to open question 1 of the change `run-ci-on-argo-workflows`; that
-      change's design decision 5 shows that one gate does not fit 16 GiB on paper. Receipt:
+- [ ] A9 Create the CI server, after its 1.3 revision. Who: owner creates as in A1, at 12
+      vCPUs and 24 GiB (R50): design decision 5 of the change `run-ci-on-argo-workflows`
+      shows that one gate does not fit 16 GiB on paper. Receipt:
       the server's memory and its disk, at or above 150 GiB. Stop: a smaller disk.
       Rollback: delete the server. The gate-host role is not applied: the server is not
       enrolled in the host pool (R31).

@@ -17,7 +17,8 @@ This change is the fourth of four that together are the new setup plan, beside
   no credential for the platform cluster. The platform cluster's Argo CD delivers it, on
   command.
 - Argo Workflows runs jobs there and admits them by their resource requests. Argo Events
-  receives one GitHub webhook, the only public path. Workflows are submitted from templates
+  starts the nightly gate. The cluster has no public path: a merge starts a job on the
+  provider's runner that joins the private access network. Workflows are submitted from templates
   that come from `main`, never from a pull request.
 - Dagger defines what a new job does. The staging build is written for it; the gate keeps
   its script inside a workflow and is ported later.

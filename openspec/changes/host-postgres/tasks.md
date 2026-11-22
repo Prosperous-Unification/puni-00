@@ -9,10 +9,11 @@ comment. Nothing here has been done yet.
 
 ## 0. Decisions
 
-- [ ] PG-0.1 Owner reads assumptions PG1 to PG8 and the two open questions in design.md and
-      overrules by id. He may overrule PG3 to PG6 (the shape of the PostgreSQL service and
-      its recovery targets) and the working-out of PG8; PG7, Harbor's database, is open
-      question 2. Receipt: the
+- [ ] PG-0.1 Owner reads assumptions PG1 to PG8 in design.md and overrules by id. He may
+      overrule PG3 to PG6 (the shape of the PostgreSQL service and its recovery targets),
+      the working-out of PG8, and PG7, that Harbor keeps its own database. Two things are
+      his to settle at a step and block nothing: when PG-A4 runs, and when PG-A1 does.
+      Receipt: the
       overrules, dated and quoted, in verify.md. No slice starts before the core change's
       task 0.1 has its receipt.
 - [ ] PG-0.2 File the decision record from design.md as an ADR under the next free number,

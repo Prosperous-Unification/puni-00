@@ -4,10 +4,10 @@ One host is the k3s server, the public edge, the product node, the registry host
 gate host. A gate holds the whole host, so Harbor does not fit, and the secret store would sit
 next to the public ingress. On 2026-11-21 the owner decided that the cluster is recreated and
 delivered by Argo CD, with OpenBao first, `main` deploying to staging, production on
-command, and a switch that may be unsafe while there are no users. On 2026-11-22 he asked
+command, and an unsafe switch while there are no users. On 2026-11-22 he asked
 for the smallest setup that can grow, with every old server retired.
 
-This change is the first of four that together are the new setup plan. The
+This is the first of four changes of the new setup plan. The
 others are [`host-postgres`](../host-postgres/proposal.md) (PostgreSQL hosting),
 [`add-agent-hosts`](../add-agent-hosts/proposal.md) (agent hosts)
 and [`run-ci-on-argo-workflows`](../run-ci-on-argo-workflows/proposal.md) (CI).
@@ -15,8 +15,7 @@ and [`run-ci-on-argo-workflows`](../run-ci-on-argo-workflows/proposal.md) (CI).
 ## What Changes
 
 - A new cluster is built on new servers. A host holds one trust class; workloads are
-  placed by capability under two profiles. The minimal one is built; it grows into the
-  full one by adding a server and moving a label.
+  placed by capability under two profiles, and the minimal one is built first.
 - The platform node is the k3s server, with Argo CD, OpenBao, Harbor.
 - The production apps node hosts Traefik, `puni-website`, `puni-request-app` and
   `puni-user-platform` (the WBS app).
@@ -24,9 +23,10 @@ and [`run-ci-on-argo-workflows`](../run-ci-on-argo-workflows/proposal.md) (CI).
   staging, which replaces the dev stacks.
 - The CI server carries its own cluster for gates and builds.
 - Argo CD delivers the cluster from its own tree, `infra/argocd`. A merge to `main`
-  reaches staging through a build that commits rendered manifests to a pins repository;
-  until it runs, today's poller stays. Production and platform units change only when a
-  person syncs them.
+  reaches staging through a build that commits rendered manifests to a pins repository.
+  Production and platform units change only when a person syncs them.
+- Platform services are reached over Tailscale only and are built per tenant, for the
+  `puni-user-platform` to drive.
 - Each app is stopped, backed up, restored and re-pointed; irreplaceable data is
   verified before its old host goes.
 
@@ -35,7 +35,7 @@ and [`run-ci-on-argo-workflows`](../run-ci-on-argo-workflows/proposal.md) (CI).
 No rename of WBS resources. No design of Harbor, OpenBao, the WBS overlays or the apps'
 build tools. No delivery of dev: a follow-up. No PostgreSQL, agents host or CI orchestration: the other
 three changes. Workers clusters and labs stay on Flux. No SQLite replication, no high
-availability. No host or cluster changes.
+availability. No tenant onboarding, no adapter. No host or cluster changes.
 
 ## Constraints
 
@@ -63,14 +63,15 @@ Node role: [glossary](../../../CONTEXT.md).
 ## Decisions Recorded
 
 ADR 0079 is claimed by open pull requests #935 and #948, and the Harbor record waits for the
-next number. Two records, node roles and delivery by Argo CD, stay in
+next number. Three records, node roles, delivery by Argo CD, and private access with
+tenancy, stay in
 [design.md](design.md#decision-records-become-adrs-at-merge) until they can be filed (task
 0.2).
 
 ## Impact
 
 `infra/fleet/desired.yaml`, a new production inventory, a new tree `infra/argocd`, a new
-bootstrap playbook and a sync playbook, `infra/versions/toolchain.json`, the `k3s_server` template, `tools/tool-fleet` (contracts, a `delivery` check, a promotion check, health, recovery, the observability source,
+bootstrap playbook and a sync playbook, `infra/versions/toolchain.json`, the `k3s_server` template, the `base` and `network` roles, an access policy file, `tools/tool-fleet` (contracts, a `delivery` check, a promotion check, health, recovery, the observability source,
 a lab profile), the controller image, the solver supervisor's caller list, rule decoder and
 role, admission policies for placement and names, Pod Security labels, the ACME issuers' solvers, a render step for staging builds, the SQLite backup tooling, and the infrastructure runbooks. Follow-ups in the Harbor change, the OpenBao design, the fleet repository, the gate
 pool, the WBS overlays and the release tooling are listed, not made.

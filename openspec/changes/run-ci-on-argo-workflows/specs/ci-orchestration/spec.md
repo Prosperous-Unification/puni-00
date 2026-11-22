@@ -60,27 +60,30 @@ Applications SHALL have automated sync off.
 - **WHEN** an Application of project `ci` names the in-cluster destination
 - **THEN** the `delivery` check fails and names it
 
-### Requirement: One public path
+### Requirement: No public path
 
-The CI cluster SHALL accept inbound traffic from the internet on one host and one path, the
-GitHub webhook, and on nothing else. The Argo Workflows server and the cluster's API SHALL
-be reachable over the private access network only.
+The CI cluster SHALL accept no inbound traffic from the internet. Its tree SHALL hold no
+Ingress, IngressRoute or Service of type LoadBalancer or NodePort other than an Ingress of
+the Tailscale operator's class, and no EventSource of a type other than `calendar`. The
+Argo Workflows server and the cluster's API SHALL be reachable over the private access
+network only.
 
 #### Scenario: Route list
 
 - **WHEN** the CI tree is rendered
-- **THEN** it holds exactly one ingress route, to the event source's Service
+- **THEN** it holds no route of an ingress controller and no public Service
 
-#### Scenario: Unsigned delivery
+#### Scenario: Listening event source
 
-- **WHEN** a delivery arrives without a valid signature for the webhook secret
-- **THEN** the event source refuses it and no Workflow starts
+- **WHEN** an EventSource under the tree is of a type that listens on a network
+- **THEN** the `delivery` check fails and names it
 
 ### Requirement: Only a push to main starts a job by itself
 
-An EventSource SHALL subscribe to `push` and to no other event, SHALL have a webhook secret
-and SHALL have no API token. Every Sensor SHALL filter on the repository and on
-`refs/heads/main`.
+A trigger workflow file SHALL start on `push` to `main` and on a manual dispatch on `main`
+and on no other event. The identity it joins the private access network with SHALL be
+bound to a Role that may create, get, list and watch Workflows in the tenant's namespace
+and nothing else. A `staging-build` SHALL fail unless its `sha` is on `main`.
 
 #### Scenario: Pull request
 
@@ -89,18 +92,25 @@ and SHALL have no API token. Every Sensor SHALL filter on the repository and on
 
 #### Scenario: Push to a branch
 
-- **WHEN** a push to a ref other than `refs/heads/main` is delivered
+- **WHEN** a commit is pushed to a ref other than `refs/heads/main`
 - **THEN** no Workflow starts
 
-#### Scenario: Event source that can manage hooks
+#### Scenario: Trigger file with another event
 
-- **WHEN** an EventSource under the tree sets `apiToken`
-- **THEN** the `delivery` check fails and names it
+- **WHEN** a trigger workflow file names `pull_request_target`
+- **THEN** the lint in `gate` fails, because the rule allows `push` to `main` and a manual
+  dispatch on `main` and refuses the rest
 
-#### Scenario: Event list by name
+#### Scenario: Trigger identity asking for more
 
-- **WHEN** an EventSource subscribes to `pull_request_target`
-- **THEN** the `delivery` check fails, because the rule allows `push` and refuses the rest
+- **WHEN** a device tagged `tag:ci-trigger` reads a Secret or creates an object outside the
+  tenant's namespace through the API server proxy
+- **THEN** the API refuses it
+
+#### Scenario: Build of a commit that is not on main
+
+- **WHEN** a `staging-build` is submitted with a `sha` that `main` does not contain
+- **THEN** its first step fails and nothing is pushed or committed
 
 ### Requirement: Jobs are submitted from templates that come from main
 
@@ -126,7 +136,7 @@ ClusterWorkflowTemplate SHALL exist under the CI tree.
 ### Requirement: Privilege is confined to build namespaces
 
 A privileged container, a host path or the host network SHALL appear only in a namespace
-whose name ends in `-build`, Traefik's host network excepted. A pod in a `-build` namespace
+whose name ends in `-build`. A pod in a `-build` namespace
 SHALL mount no Secret other than a registry pull configuration.
 
 #### Scenario: Privileged pod elsewhere

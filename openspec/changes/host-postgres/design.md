@@ -460,6 +460,15 @@ policies of slice 2.10; `secret-sync`, `storage`, `policy`, `cert-manager` and t
 Prometheus stack; the retention planner of slice 3.1 for the dumps; the sync playbook; the
 alert path to Slack. It gives back nothing the core's stages need.
 
+Two decisions of the core change bind this one. **Private access** (core decision 12): the
+clusters are administered with `kubectl` over the private access network; no Service of a
+database is exposed to the tailnet or to the internet, and the core rule 2.4(q) refuses
+one. **Tenancy** (core decision 13): a tenant here is a database and its owner role, and a
+cluster of its own for a large tenant; the namespaces carry the tenant label; the
+`puni-user-platform` would drive it through the CloudNativePG resources in Git. A
+point-in-time restore rewinds every tenant of a cluster, which is the reason for the
+per-tenant cluster.
+
 **Pull request #935 (OpenBao).** A path, a policy and a role per database namespace, and a
 way to generate a password at a path (decision 3).
 
@@ -576,12 +585,13 @@ It stays here until a number is free, as the core change's two do (task PG-0.2).
 
 ## Open questions for the owner
 
+None blocks a step of the core change or the merge. Two are his to settle at a step:
+
 1. When to start `platform-db` (PG8), and later when to give it a server (PG2). He said he
-   will evaluate the options. In the minimal profile it needs no server to start; nothing
-   waits for it.
-2. Whether Harbor keeps its bundled database (PG7, the planning session's recommendation) or
-   uses `platform-db`, which the words "everybody" could cover. Decision 5 lists what the
-   Harbor change would need.
+   will evaluate the options. It can wait until PG-A4, and the server until PG-A1; nothing waits for either.
+2. Whether Harbor keeps its bundled database. Assumed: it does (PG7, the planning session's
+   recommendation), although the words "everybody" could cover it. It can wait until the
+   Harbor change's install step; decision 5 lists what that change would need.
 
 Not questions, but his to overrule by id: PG3 to PG6, the shape of the PostgreSQL service
 and its recovery targets, and the working-out of PG8: the starting limit, the bounded

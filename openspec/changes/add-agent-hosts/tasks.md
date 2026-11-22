@@ -22,7 +22,8 @@ with a production-path negative, watched failing with the check removed, and an 
       and for no other group. The play sets an empty capability list and applies the
       `base` role; turns `PasswordAuthentication` and `KbdInteractiveAuthentication` off in
       an `sshd` drop-in and validates the configuration before reloading; and installs a
-      firewall whose inbound policy is drop, with SSH admitted. For a host in
+      firewall whose inbound policy is drop, with SSH admitted on the tailnet interface only
+      (core slice 1.8). For a host in
       `workstation_hosts` it first asserts, before any task that changes the host, that an
       input list of automation public keys was given and that none of them, compared by
       key body, is among the operator keys it is about to install; the list holds the
@@ -86,8 +87,8 @@ retires h1claw (AH3).
       the owner moves his sessions and credentials; the shared host's inventory revision
       takes it out of the workstation group. Receipt: as the
       core change's A1; the second run prints `changed=0`; its authorized keys as read on
-      the host, which are operator keys only; password login refused; only SSH answers
-      from outside; no gate launcher, no runner and no OpenClaw unit on it. Stop: the
+      the host, which are operator keys only; password login refused; SSH answers on the
+      tailnet address and no public port answers; `herdr` connects over it; no gate launcher, no runner and no OpenClaw unit on it. Stop: the
       play's assert fails, or a key of the CI host, the agents host or a cluster workload
       is authorized there. Rollback: delete the server. Tooling, accounts and `herdr` are
       the owner's. If he moves the controller there (R17), that is recorded in verify.md

@@ -876,3 +876,67 @@ below were run again on this revision, on 2026-11-22.
   and 8; `tools/tool-deploy/src/k8s/first-start-source.ts`; the kubelet arguments in both k3s
   templates; `docs/infra/gate-hosts.md` on the controller's jump; the k3s manifests and
   documentation listed under "k3s behaviour".
+
+## The pass of 2026-11-22 for private access, tenancy and close-out
+
+The owner was away and had set the goal "finalize the plans for the new infra move; push and
+merge the plan". This pass applies two decisions of his and settles what was left open, so
+that nothing blocks stage 0 or the merge.
+
+**His words, recorded.**
+
+- "let's make the plan account for (1) all that must be 'orchestratable' by the puni user
+  platform, must be multitenant (2) i'll use tailscale for access" (R47, R48).
+- "i want to use tailscale to safely access the services that run the platform without
+  exposing them to the internet" (R47).
+
+**Set for him by the planning session, for him to overrule by id.**
+
+| Id        | What                                                              | Why it was not left open                                                 |
+| --------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| R49       | break-glass is the provider's console; no public SSH rule         | a rule had to be chosen for the firewall slice                           |
+| R50, CI13 | the CI server is 12 vCPUs and 24 GiB                              | it blocked A9 and CI-A1                                                  |
+| R51, CI11 | no public webhook; a trigger job joins the private access network | recommended to him on 2026-11-22 and unanswered; it is what R47 asks for |
+| R52       | Tailnet Lock on, key expiry off for servers, login by `sshd`      | the join and the trigger depend on it                                    |
+| CI12      | a result is written to GitHub as a commit status                  | it was the CI change's second open question                              |
+
+**New in this change.** Decisions 12 and 13; a third decision record; assumptions R47 to
+R52; task 0.7; slice 1.8; rules 2.4(q) and (r); the unit `tailscale-operator` at order 2;
+step A24; three requirements. Slices are now 25 and attended steps A1 to A24. R17 has no
+jump host any more; R2, R23, R31 and R45 are reworded. The risk "losing the platform node
+loses the jump" is replaced.
+
+**Read in Tailscale's documentation on 2026-11-22.**
+
+| Read                                                                                                                                                                                                      | Page                                              |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| A device that is tagged when it first authenticates has key expiry disabled by default                                                                                                                    | "Tags"                                            |
+| Tailnet Lock: a new device needs a signature from a trusted device, so the coordination service alone cannot add one; an auth key can be signed beforehand; disabling the lock needs a disablement secret | "Tailnet Lock"                                    |
+| With Tailscale SSH on, Tailscale takes port 22 for connections that arrive from the tailnet; it is not enabled here, so `sshd` and its keys decide a login                                                | "Tailscale SSH"                                   |
+| The Kubernetes operator exposes cluster workloads to the tailnet and the Kubernetes control plane over it, without a public endpoint                                                                      | "Tailscale Kubernetes Operator"                   |
+| The API server proxy's `auth` mode impersonates a user as the Tailscale user and a tagged device as its name with its tags as Kubernetes groups; grants may add groups                                    | "Access the Kubernetes API server over Tailscale" |
+| Enabling certificates publishes machine names and the tailnet's DNS name on a public ledger                                                                                                               | "Enabling HTTPS"                                  |
+| Sharing gives a recipient outside the tailnet one device and nothing else                                                                                                                                 | "Share your machines with other users"            |
+| Funnel proxies a device's resource from the internet through the vendor's relays                                                                                                                          | "Tailscale Funnel"                                |
+| The policy file can be managed from a Git repository, validated and applied automatically                                                                                                                 | "GitOps for Tailscale"                            |
+| OAuth clients with the `auth_keys` scope are limited to chosen tags; an auth key expires after at most 90 days                                                                                            | "OAuth clients", "Auth keys"                      |
+| The vendor's GitHub Action creates an ephemeral, tagged device per job                                                                                                                                    | "Tailscale GitHub Action"                         |
+
+**Not verified.** The package version to lock, which slice 1.8 records. Tailscale's UDP port
+for direct connections, from memory. Whether the policy file's own `tests` section covers
+what the repository's test asserts. The operator's chart values for the API server proxy
+and for exposing a Service by Ingress. How a k3s server's certificate takes a tailnet name
+beside its private address. That a provider's console gives a login when the network path
+is closed, which A24 tests. Prices: the vendor charges per user, and no plan was checked.
+
+**Tenancy read in source.** `infra/platform/policy/namespaces.yaml` carries Pod Security
+labels and `puni.dev/trusted-hostpath`, and no tenant label; `CONTEXT.md` has no term
+"tenant" and lists it as a word to avoid for an organization, so no term is added: decision
+13 uses the word in its plain sense, for the unit a platform service isolates.
+
+**Open items, and why none blocks.** Core: none. `host-postgres`: when `platform-db`
+starts and when it gets a server wait for PG-A4 and PG-A1; Harbor's database is assumed
+(PG7). `add-agent-hosts`: the host's region waits for AH-A1, and OpenClaw's state for
+AH-A3. `run-ci-on-argo-workflows`: none; the tenant's repository list waits for CI-A3.
+
+**Checks on this pass** are listed with the commit in the pull request's body.
