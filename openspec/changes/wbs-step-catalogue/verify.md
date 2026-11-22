@@ -2340,3 +2340,16 @@ Nx typecheck passed.
   result killed a single wrapper at 310 seconds while it shared that
   watchdog across both cases. The split preserves the original bounds per
   case.
+
+### Historical access audit and Chromium package selection
+
+- The focused uncached backend Nx target passed all 31 access-audit
+  migration tests. It uses the original pre-rename vocabulary and exact
+  historical migration prefix. The separate core assertion still compares
+  the complete current vocabulary, including the subsequent project terms.
+- The hosted dark-mode Chromium trace recorded a successful create and
+  then an Add work item command on the outgoing package, leaving the new
+  package empty. The test now waits for the created package's editor by
+  exact ID before adding rows. All 14 Chromium runs passed across two
+  repetitions of `name-markdown.spec.ts` using the normal three-server
+  configuration. The rendering and interaction assertions are unchanged.

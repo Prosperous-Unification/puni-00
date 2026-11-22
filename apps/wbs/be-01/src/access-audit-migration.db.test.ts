@@ -12,6 +12,7 @@ import { OPEN } from '@wbs/store-sqlite/gate';
 import { MachineTokenAuditRepository } from '@wbs/store-sqlite/machine-token-audit';
 import { runMigrations } from '@wbs/store-sqlite/migrate';
 import { duplicateMigrationStamps, rollbackTo } from '@wbs/store-sqlite/migrate-down';
+import { copyRecoveryPrefix } from '@wbs/store-sqlite/testing/recovery-state';
 import type { Database } from 'bun:sqlite';
 import { afterEach, beforeEach, expect, it } from 'bun:test';
 
@@ -31,7 +32,7 @@ const NEW_ACTIONS = [
 const NEW_KINDS = ['access_grant', 'access_group', 'organization_member'] as const;
 /** The outgoing release's vocabulary is fixed independently of the widening's catalogue. */
 const OLD_ACTIONS = [
-  'restricted_work_package_recovery',
+  'restricted_project_recovery',
   'sso_connection_created',
   'sso_connection_updated',
   'sso_connection_deleted',
@@ -62,7 +63,7 @@ const OLD_ACTIONS = [
   'directory_capacity_changed',
 ] as const;
 const OLD_KINDS = [
-  'work_package',
+  'project',
   'sso_connection',
   'provisioning_token',
   'scim_user',
@@ -115,17 +116,10 @@ function readLedger() {
 beforeEach(() => {
   directory = mkdtempSync(join(tmpdir(), 'wbs-access-audit-'));
   path = join(directory, 'plan.db');
-  migrationFolder = join(directory, 'candidate');
-  cpSync(FOLDER, migrationFolder, { recursive: true });
-  for (const name of readdirSync(migrationFolder))
-    if (name > MIGRATION) rmSync(join(migrationFolder, name), { recursive: true, force: true });
-  const baseline = join(directory, 'drizzle');
-  cpSync(FOLDER, baseline, { recursive: true });
-  rmSync(join(baseline, MIGRATION), { recursive: true, force: true });
-  rmSync(join(baseline, '20261103110000_add_initial_access_offers'), {
-    recursive: true,
-    force: true,
-  });
+  migrationFolder = copyRecoveryPrefix(directory, MIGRATION);
+  const baseline = join(directory, 'baseline');
+  cpSync(migrationFolder, baseline, { recursive: true });
+  rmSync(join(baseline, MIGRATION), { recursive: true });
   runMigrations(path, baseline);
   readStore((sqlite) => {
     sqlite.run("INSERT INTO users(id,username,created_at) VALUES ('actor','actor',1)");
@@ -146,8 +140,20 @@ it('places the access audit widening immediately after access grants without sta
 });
 
 it('publishes the full current-vocabulary access audit catalogue', () => {
-  expect([...ORGANIZATION_AUDIT_ACTIONS]).toEqual([...OLD_ACTIONS, ...NEW_ACTIONS]);
-  expect([...ORGANIZATION_AUDIT_SUBJECT_KINDS]).toEqual([...OLD_KINDS, ...NEW_KINDS]);
+  expect([...ORGANIZATION_AUDIT_ACTIONS]).toEqual([
+    'restricted_work_package_recovery',
+    'project_created',
+    'project_renamed',
+    'project_deleted',
+    'work_package_moved',
+    ...OLD_ACTIONS.slice(1),
+    ...NEW_ACTIONS,
+  ]);
+  expect([...ORGANIZATION_AUDIT_SUBJECT_KINDS]).toEqual([
+    'work_package',
+    ...OLD_KINDS,
+    ...NEW_KINDS,
+  ]);
 });
 
 for (const action of NEW_ACTIONS) {
@@ -160,16 +166,16 @@ for (const action of NEW_ACTIONS) {
 for (const kind of NEW_KINDS) {
   it('admits the access audit subject ' + kind, () => {
     runMigrations(path, migrationFolder);
-    appendAudit('new', 'restricted_work_package_recovery', kind);
+    appendAudit('new', 'restricted_project_recovery', kind);
     expect(readAuditRows()).toMatchObject([{ id: 'new', subject_kind: kind }]);
   });
 }
 
 it('preserves all outgoing audit rows, actions, subjects, indexes and append-only triggers', () => {
   for (const [index, action] of OLD_ACTIONS.entries())
-    appendAudit('a' + String(index), action, 'work_package');
+    appendAudit('a' + String(index), action, 'project');
   for (const [index, kind] of OLD_KINDS.entries())
-    appendAudit('k' + String(index), 'restricted_work_package_recovery', kind);
+    appendAudit('k' + String(index), 'restricted_project_recovery', kind);
   const rows = readAuditRows();
   const structures = readAuditSchema().filter(({ type }) => type !== 'table');
   expect(structures.filter(({ type, sql }) => type === 'index' && sql !== null)).toHaveLength(3);
@@ -178,9 +184,9 @@ it('preserves all outgoing audit rows, actions, subjects, indexes and append-onl
   expect(readAuditRows()).toEqual(rows);
   expect(readAuditSchema().filter(({ type }) => type !== 'table')).toEqual(structures);
   for (const [index, action] of OLD_ACTIONS.entries())
-    appendAudit('out-a' + String(index), action, 'work_package');
+    appendAudit('out-a' + String(index), action, 'project');
   for (const [index, kind] of OLD_KINDS.entries())
-    appendAudit('out-k' + String(index), 'restricted_work_package_recovery', kind);
+    appendAudit('out-k' + String(index), 'restricted_project_recovery', kind);
   expect(readAuditRows()).toHaveLength(2 * (OLD_ACTIONS.length + OLD_KINDS.length));
   expect(() =>
     readStore((sqlite) => sqlite.run("UPDATE organization_audit SET detail='changed'")),
@@ -191,7 +197,7 @@ it('preserves all outgoing audit rows, actions, subjects, indexes and append-onl
 });
 
 it('restores the complete outgoing audit schema byte for byte on a clean rollback', () => {
-  appendAudit('old', 'restricted_work_package_recovery', 'work_package');
+  appendAudit('old', 'restricted_project_recovery', 'project');
   const schema = readAuditSchema();
   const rows = readAuditRows();
   const before = readLedger();
@@ -204,8 +210,8 @@ it('restores the complete outgoing audit schema byte for byte on a clean rollbac
 });
 
 for (const [action, kind, label] of [
-  ...NEW_ACTIONS.map((action) => [action, 'work_package', action]),
-  ...NEW_KINDS.map((kind) => ['restricted_work_package_recovery', kind, kind]),
+  ...NEW_ACTIONS.map((action) => [action, 'project', action]),
+  ...NEW_KINDS.map((kind) => ['restricted_project_recovery', kind, kind]),
 ]) {
   it('refuses rollback before changing any evidence for ' + label, () => {
     runMigrations(path, migrationFolder);
@@ -223,10 +229,10 @@ for (const [action, kind, label] of [
 it('refuses unknown audit actions and subjects after widening', () => {
   runMigrations(path, migrationFolder);
   expect(() => {
-    appendAudit('unknown-action', 'access_guessed', 'work_package');
+    appendAudit('unknown-action', 'access_guessed', 'project');
   }).toThrow(/CHECK/);
   expect(() => {
-    appendAudit('unknown-kind', 'restricted_work_package_recovery', 'access_guess');
+    appendAudit('unknown-kind', 'restricted_project_recovery', 'access_guess');
   }).toThrow(/CHECK/);
   expect(readAuditRows()).toEqual([]);
 });
@@ -265,7 +271,7 @@ it('refuses an audit rebuild that would commit broken organization references', 
   readStore((sqlite) => {
     sqlite.run('PRAGMA foreign_keys = OFF');
     sqlite.run(
-      "INSERT INTO organization_audit(id,organization_id,actor_id,action,subject_kind,subject_id,detail,created_at) VALUES ('broken','missing','actor','restricted_work_package_recovery','work_package','subject','{}',1)",
+      "INSERT INTO organization_audit(id,organization_id,actor_id,action,subject_kind,subject_id,detail,created_at) VALUES ('broken','missing','actor','restricted_project_recovery','project','subject','{}',1)",
     );
     sqlite.run('PRAGMA foreign_keys = ON');
   });
