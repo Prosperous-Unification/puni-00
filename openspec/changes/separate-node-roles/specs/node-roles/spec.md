@@ -288,6 +288,17 @@ version certifies for a cluster that hosts it.
   than the platform node
 - **THEN** `tool-fleet:health` fails and names the pod and the node
 
+#### Scenario: A browser shell
+
+- **WHEN** a pod named with the prefix `dashboard-shell-` is created in `cattle-system`
+- **THEN** admission denies it
+
+#### Scenario: A Rancher pod asks for another node
+
+- **WHEN** a pod in an annotated `cattle-` namespace selects a capability other than
+  `platform-services`
+- **THEN** admission refuses it
+
 #### Scenario: An upgrade plan
 
 - **WHEN** a `plans.upgrade.cattle.io` object exists, or a node's kubelet version is not
@@ -965,8 +976,10 @@ firewall SHALL NOT change.
 ### Requirement: The cluster's ports admit enrolled nodes alone
 
 A server of the new inventories SHALL admit the cluster's own ports on its private
-interface from enrolled node addresses alone, of which the bastion is never one, and
-SHALL admit from the bastion's address TCP 22 and nothing else.
+interface from enrolled node addresses alone, of which the bastion is never one. Before
+destination NAT it SHALL drop traffic from a non-enrolled private address to the cluster
+CIDR, the service CIDR or a NodePort, except named exceptions, and everything from the
+bastion's address but TCP 22 to the host itself.
 
 #### Scenario: The bastion reaches a cluster port
 
@@ -978,6 +991,12 @@ SHALL admit from the bastion's address TCP 22 and nothing else.
 
 - **WHEN** the rendered firewall admits from the bastion's address any port but TCP 22
 - **THEN** the role's test fails
+
+#### Scenario: A routed host reaches a pod
+
+- **WHEN** a host on the private network that is not an enrolled node routes the cluster
+  CIDR and the service CIDR via a node and sends to a pod address and a ClusterIP
+- **THEN** neither answers
 
 ### Requirement: The bastion forwards SSH and holds nothing
 

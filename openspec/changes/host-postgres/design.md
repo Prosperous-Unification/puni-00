@@ -173,7 +173,8 @@ PostgreSQL stops and the host does not. An attended drill's throwaway volume is 
 server's root filesystem, on the packaged `local-path` class: until the first port it holds
 two canary databases, megabytes, and the drill's 65% guard refuses a restore that would be
 larger than the room. The platform node's minimum disk in core decision 2 counts the
-bounded 30 GiB and 30 more for a drill.
+bounded 30 GiB and 30 more for a drill, or 20 for a drill if the platform server's disk
+takes the exit core decision 2 names; the drill's 65% guard then refuses sooner.
 
 What the bounded filesystem does not separate: it is a loop device on the root filesystem,
 so its writes share the root's journal and device with etcd. A full database cannot fill

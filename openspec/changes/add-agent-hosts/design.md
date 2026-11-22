@@ -85,8 +85,7 @@ The core change's placement table names both roles and leaves them to this chang
     operator's groups and not in a container-runtime group, and whose sessions' credentials
     are its own;
   - the operator's home is mode 0700 and what he keeps there is readable by his user only;
-  - inbound traffic is SSH by key, on the private access network only (core decision
-    12), and no key of the CI host or a cluster workload is
+  - inbound traffic is SSH by key, through the bastion only (core R55, decision 12), and no key of the CI host or a cluster workload is
     authorized for either user;
   - the host still has no interface on the cluster's private network, no k3s token and no
     object storage key of the cluster's backups, unless the owner puts one in his own home.
@@ -111,8 +110,8 @@ The core change's placement table names both roles and leaves them to this chang
 - **The workstation is an extension of the operator's laptop** (AH2) and is trusted as the
   laptop is. Unlike the CI host and the agents host it may hold what the owner puts there:
   SSH keys, a kubeconfig, Git credentials and logged-in account sessions. That makes it
-  one of the most sensitive hosts. It accepts inbound SSH by key over the private access
-  network only, which is how `herdr` reaches it, and serves nothing public. It runs no gate, no
+  one of the most sensitive hosts. It accepts inbound SSH by key through the bastion
+  only (core R55), which is how `herdr` reaches it, and serves nothing public. It runs no gate, no
   build and no OpenClaw. No automation of the cluster, the CI host or the agents host may
   log in to it: no key of theirs is among its authorized keys.
 - **The controller may run on a workstation of its own**, which is the full profile. R17 of the core change puts the Ansible
@@ -249,7 +248,7 @@ It stays here until a number is free, as the core change's two do (task AH-0.2).
 - **The agents host is contained, OpenClaw is not designed** (AH1). What the sessions do
   with their own credentials is outside this plan.
 - **The workstation holds operator credentials on a rented server** (AH2). Its guards are
-  SSH by key over the private access network, no public port and no login from automation.
+  SSH by key through the bastion, no public port and no login from automation.
 - **A workstation of its own is small** (AH2, full profile). It holds few heavy sessions at
   once, and the laptop's disk was what filled first.
 - **On the shared host an agent that escalates locally reaches the operator's credentials**

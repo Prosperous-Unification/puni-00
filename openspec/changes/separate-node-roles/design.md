@@ -157,7 +157,7 @@ rest moved to the changes `host-postgres` and `add-agent-hosts` under ids of the
 | R52 | Assumed: Tailnet Lock is on, key expiry is off for tagged servers, and login stays `sshd` with operator keys, admitted from the bastion's private address alone (R55); Tailscale SSH is not enabled                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | Tailscale SSH. Cost: who may log in is then decided by the coordination service's policy alone, without a key the operator holds                                                                                                                                                                                                                                                                                                                                                  |
 | R53 | Assumed by the planning session on 2026-11-22 while the owner was away, for him to overrule: a schema change reaches WBS staging with no command, through a hook Job of the staging Application that captures, migrates and reverses with the candidate image's own CLIs while the old backend keeps serving, as the old colour does in the Compose swap. The website API applies its own migrations at start, read from source, so its staging needs no hook (decision 9, slice 3.9)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | Keep every schema change on the attended path, as production's is. Cost: R20 would not hold for a WBS merge that carries a migration                                                                                                                                                                                                                                                                                                                                              |
 | R54 | **Decided** by the owner on 2026-11-22: Rancher Manager is in the plan. It runs on the platform node's k3s cluster, as that cluster's own ("local") cluster, as an interface for looking at and managing the cluster, and it deploys nothing: Argo CD stays the one delivery path. Assumed by the planning session, as the working-out of that: chart v2.15.3, the newest that SUSE certifies for k3s v1.36 on a cluster that hosts Rancher (verify.md); one replica; delivered by Argo CD as the unit `rancher` at order 7, synced on command; no public route, reached over the tailnet through an Ingress of the Tailscale operator's class (decision 12); its bootstrap password from OpenBao; the Fleet it bundles run without its GitOps part and with no `GitRepo`, which checks hold; Rancher's own k3s version management off; 4,096 MiB until A28 measures it (decision 14)                                                                                                                                                                                                                                        | Headlamp, a read-only-capable Kubernetes interface. Cost: about a tenth of the memory and no second GitOps engine in the cluster, and none of Rancher's cluster management. No interface beyond Argo CD's. Cost: nothing to run, and only Argo CD's view of what it delivers, not of the cluster as a whole                                                                                                                                                                       |
-| R55 | Assumed by the planning session on 2026-11-22, for the owner to overrule: one SSH rule. The bastion m2bast1, which he set up that day, is the one SSH path: every SSH session to every server, the operator's and the controller's, goes through it, and the hosts of `add-agent-hosts` follow the same rule. The tailnet carries the platform interfaces and the Kubernetes APIs and no SSH; Tailscale SSH stays off (R47, R52). A login takes two keys: the jump key, which the bastion's `jump` user accepts, and the server's admin key, which only the server accepts; the two are separate and escrowed separately. The bastion does not join the tailnet, holds no key, and is probed from outside like every node (R16). There is no interim forward of the Kubernetes API: until the tailnet is set up, `kubectl` runs on the server itself, reached through the bastion                                                                                                                                                                                                                                            | SSH over the tailnet as well, beside the bastion. Cost: two SSH paths with two firewall rules, and a login that then rests on tailnet membership and one key. Tailscale for SSH, with the bastion removed. Cost: no way in that does not depend on the vendor's service, short of the console. The bastion for everything, without Tailscale. Cost: a forward per interface in `PermitOpen`, no names with certificates, and no identity mapping for the CI trigger (decision 12) |
+| R55 | Assumed by the planning session on 2026-11-22, for the owner to overrule: one SSH rule. The bastion m2bast1, which he set up that day, is the one SSH path: every SSH session to every server, the operator's and the controller's, goes through it, and the hosts of `add-agent-hosts` follow the same rule. The tailnet carries the platform interfaces and the Kubernetes APIs and no SSH; Tailscale SSH stays off (R47, R52). Three keys, each distinct and escrowed apart: the jump key, which only the bastion's `jump` user accepts; the servers' admin key, which only the servers accept; and the bastion's own admin key, for the operator's shell on the bastion. A login to a server takes the first two. The bastion does not join the tailnet, holds no key, and is probed from outside like every node (R16). There is no interim forward of the Kubernetes API: until the tailnet is set up, `kubectl` runs on the server itself, reached through the bastion                                                                                                                                                | SSH over the tailnet as well, beside the bastion. Cost: two SSH paths with two firewall rules, and a login that then rests on tailnet membership and one key. Tailscale for SSH, with the bastion removed. Cost: no way in that does not depend on the vendor's service, short of the console. The bastion for everything, without Tailscale. Cost: a forward per interface in `PermitOpen`, no names with certificates, and no identity mapping for the CI trigger (decision 12) |
 
 ## Decisions
 
@@ -733,37 +733,37 @@ holds back `secret-sync` and what needs it.
 Order and needs are derived from what each unit reads and from the Flux `dependsOn` graph,
 not from the Flux stage names. A need is always of a lower order.
 
-| Order | Unit                         | Project    | Needs                                                                                                          | First synced                         |
-| ----: | ---------------------------- | ---------- | -------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
-|     0 | `argocd`                     | platform   | none                                                                                                           | A4                                   |
-|     1 | `namespaces`                 | platform   | none; the playbook applied them already                                                                        | A4                                   |
-|     2 | `policy`, `storage`          | platform   | `namespaces`                                                                                                   | A4                                   |
-|     2 | `tailscale-operator`         | platform   | `namespaces`; its OAuth client Secret from the playbook (decision 12)                                          |
-|     3 | `cert-manager`               | platform   | `namespaces`                                                                                                   | A4                                   |
-|     4 | `openbao`                    | platform   | `storage`; `cert-manager`, for its server certificate; the seal key and the server CA Secret from the playbook | A7                                   |
-|     5 | `external-secrets`           | platform   | `policy`                                                                                                       | A7                                   |
-|     6 | `secret-sync`                | platform   | `openbao`, `external-secrets`                                                                                  | A7                                   |
-|     7 | `issuers`                    | platform   | `secret-sync`, for `registry-ca`; `cert-manager`                                                               | A7                                   |
-|     7 | `rancher`                    | platform   | `secret-sync`, for `bootstrap-secret`; `tailscale-operator`, for its Ingress (decision 14)                     | A27                                  |
-|     8 | `otel-certificates`          | platform   | `secret-sync`, for `otel-server-ca`; `cert-manager`                                                            | A14                                  |
-|     8 | `eck-operator`               | platform   | `policy`                                                                                                       | A14                                  |
-|     8 | `prometheus-stack`           | platform   | `secret-sync`; `storage`                                                                                       | A14                                  |
-|     9 | `elasticsearch`              | platform   | `eck-operator`; `storage`; `secret-sync`                                                                       | A14                                  |
-|    10 | `kibana`, `elastic-settings` | platform   | `elasticsearch` and the Secrets ECK makes for it                                                               | A14                                  |
-|    10 | `otel-collector`             | platform   | `elasticsearch`; `otel-certificates`                                                                           | A14                                  |
-|    10 | `signals`                    | platform   | `elasticsearch`; `otel-certificates`; `prometheus-stack`                                                       | A14                                  |
-|    11 | `alerts`, `probes`           | platform   | `prometheus-stack`                                                                                             | A14                                  |
-|    12 | `velero`                     | platform   | `alerts`, as the Flux `backup` stage does; `secret-sync`                                                       | A14                                  |
-|    12 | `elastic-snapshots`          | platform   | `alerts`; `elasticsearch`                                                                                      | A14                                  |
-|    12 | `mlflow`                     | platform   | `alerts`; `secret-sync`; `storage`                                                                             | A15                                  |
-|    12 | `sqlite-custody`             | platform   | `alerts`; `secret-sync`                                                                                        | A18                                  |
-|    13 | `traefik`                    | platform   | `policy`; a node that carries `ingress`                                                                        | A17                                  |
-|    14 | `harbor`                     | platform   | `secret-sync`; `storage`; `issuers`                                                                            | Harbor's change, before any WBS unit |
-|    15 | `public-issuers`             | platform   | `traefik`; `cert-manager`                                                                                      | A18                                  |
-|    16 | `website-staging`            | staging    | `policy`; `public-issuers`; `secret-sync`                                                                      | A18                                  |
-|    16 | `wbs-staging`                | staging    | `policy`; `public-issuers`; `secret-sync`; `harbor`                                                            | A18                                  |
-|    17 | `website`                    | production | `policy`; `public-issuers`; `secret-sync`                                                                      | A19                                  |
-|    17 | `wbs`                        | production | `policy`; `public-issuers`; `secret-sync`; `harbor`                                                            | A20                                  |
+| Order | Unit                         | Project    | Needs                                                                                                                                                                                                  | First synced                         |
+| ----: | ---------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------ |
+|     0 | `argocd`                     | platform   | none                                                                                                                                                                                                   | A4                                   |
+|     1 | `namespaces`                 | platform   | none; the playbook applied them already                                                                                                                                                                | A4                                   |
+|     2 | `policy`, `storage`          | platform   | `namespaces`                                                                                                                                                                                           | A4                                   |
+|     2 | `tailscale-operator`         | platform   | `namespaces`; its OAuth client Secret from the playbook (decision 12)                                                                                                                                  |
+|     3 | `cert-manager`               | platform   | `namespaces`                                                                                                                                                                                           | A4                                   |
+|     4 | `openbao`                    | platform   | `storage`; `cert-manager`, for its server certificate; the seal key and the server CA Secret from the playbook                                                                                         | A7                                   |
+|     5 | `external-secrets`           | platform   | `policy`                                                                                                                                                                                               | A7                                   |
+|     6 | `secret-sync`                | platform   | `openbao`, `external-secrets`                                                                                                                                                                          | A7                                   |
+|     7 | `issuers`                    | platform   | `secret-sync`, for `registry-ca`; `cert-manager`                                                                                                                                                       | A7                                   |
+|     7 | `rancher`                    | platform   | `namespaces`, for the annotated `cattle-` namespaces; `policy`, for its PriorityClass and the shell denial; `secret-sync`, for `bootstrap-secret`; `tailscale-operator`, for its Ingress (decision 14) | A27                                  |
+|     8 | `otel-certificates`          | platform   | `secret-sync`, for `otel-server-ca`; `cert-manager`                                                                                                                                                    | A14                                  |
+|     8 | `eck-operator`               | platform   | `policy`                                                                                                                                                                                               | A14                                  |
+|     8 | `prometheus-stack`           | platform   | `secret-sync`; `storage`                                                                                                                                                                               | A14                                  |
+|     9 | `elasticsearch`              | platform   | `eck-operator`; `storage`; `secret-sync`                                                                                                                                                               | A14                                  |
+|    10 | `kibana`, `elastic-settings` | platform   | `elasticsearch` and the Secrets ECK makes for it                                                                                                                                                       | A14                                  |
+|    10 | `otel-collector`             | platform   | `elasticsearch`; `otel-certificates`                                                                                                                                                                   | A14                                  |
+|    10 | `signals`                    | platform   | `elasticsearch`; `otel-certificates`; `prometheus-stack`                                                                                                                                               | A14                                  |
+|    11 | `alerts`, `probes`           | platform   | `prometheus-stack`                                                                                                                                                                                     | A14                                  |
+|    12 | `velero`                     | platform   | `alerts`, as the Flux `backup` stage does; `secret-sync`                                                                                                                                               | A14                                  |
+|    12 | `elastic-snapshots`          | platform   | `alerts`; `elasticsearch`                                                                                                                                                                              | A14                                  |
+|    12 | `mlflow`                     | platform   | `alerts`; `secret-sync`; `storage`                                                                                                                                                                     | A15                                  |
+|    12 | `sqlite-custody`             | platform   | `alerts`; `secret-sync`                                                                                                                                                                                | A18                                  |
+|    13 | `traefik`                    | platform   | `policy`; a node that carries `ingress`                                                                                                                                                                | A17                                  |
+|    14 | `harbor`                     | platform   | `secret-sync`; `storage`; `issuers`                                                                                                                                                                    | Harbor's change, before any WBS unit |
+|    15 | `public-issuers`             | platform   | `traefik`; `cert-manager`                                                                                                                                                                              | A18                                  |
+|    16 | `website-staging`            | staging    | `policy`; `public-issuers`; `secret-sync`                                                                                                                                                              | A18                                  |
+|    16 | `wbs-staging`                | staging    | `policy`; `public-issuers`; `secret-sync`; `harbor`                                                                                                                                                    | A18                                  |
+|    17 | `website`                    | production | `policy`; `public-issuers`; `secret-sync`                                                                                                                                                              | A19                                  |
+|    17 | `wbs`                        | production | `policy`; `public-issuers`; `secret-sync`; `harbor`                                                                                                                                                    | A20                                  |
 
 - **OpenBao is first among the services** (R22). The four units before it are Argo CD, the
   namespaces, policy and storage it runs under, and cert-manager, which is there only because
@@ -1635,7 +1635,8 @@ slice 1.3 that records it, are taken from the server created after that, so no m
 deleted server reaches `main`. Whether the provider's servers offer `/dev/kvm` was not checked,
 so the QEMU lab is not assumed there.
 
-**The controller is the operator's laptop.** The new age identity, the admin key and
+**The controller is the operator's laptop.** The new age identity, the admin key, the
+jump key with its `ProxyJump` setting, and
 `$OPS` are held and used there and nowhere else. They never go to h2puni, where the
 controller runs today, to the CI cluster or to the shared operator host: on each of those,
 code in a gate or an agent's session is or may become root, and it would then hold the
@@ -1702,15 +1703,15 @@ restore with that app stopped, and a rescale stops everything on the server.
   follow the inventory (slice 1.7);
 - every claim is `Retain` with a verified backup under its own prefix (guard 3).
 
-| Growth step                           | Trigger                                                                                                                                                                                               | Procedure, in existing slices and steps                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Non-production to a server of its own | A14's sum does not hold (decision 2); the node's available memory falls under 1,024 MiB or a monitoring gap is traced to staging; the dev follow-up needs room or a solver; the first production user | Create and join `h9stg` as A16 and A17 do for a node, with `nonproduction` and `ingress` in its 1.3 revision; `solver.yml` on it. Then, in this order, so that nothing re-created can land on h7obs while both nodes carry the label: stop every non-production app and `nonproduction-db` (zero replicas, jobs suspended); take each final backup and check it as guard 1 asks; delete their claims and the released volumes on h7obs; run slice 1.7's play, which takes `nonproduction` from h7obs once no pod but a DaemonSet's selects it there and no `Retain` volume of a non-production namespace is bound there; sync, so that each claim binds on `h9stg`, the only node that now carries the label; restore each store as A18 does; point the names at `h9stg`; then the play takes `ingress` from h7obs and re-applies its host settings. **Cost:** staging as a whole, the agents' tracker included, is down from the first stop to the last restore, and its names move |
-| Database to a server of its own       | the change `host-postgres` names it: an instance that needs more memory than the platform node's margin allows, etcd latency that follows the database's load, or the first app's data                | That change's steps for the database server; a replica and a switchover if the operator places one on a volume of the server's static class there, otherwise a restore; slice 1.7 then takes `database` from m1plat1. **Cost:** that change plans for the restore, with the ported apps' writers stopped for its length                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| Observability to the next class       | A14's stop conditions, at any of its three readings; a pod killed for memory                                                                                                                          | The provider's rescale of memory and CPU with the disk kept, which stays reversible. **Cost:** the server is off for it, so monitoring is blind and staging, dev and the agents' tracker are down; R16's probe and a quiet hour                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| CI to the next class                  | gates or builds wait on each other long enough that the owner says so                                                                                                                                 | The same rescale; the limits file of the CI change is then raised by hand. **Cost:** no gate and no staging build while the server is off. More nodes and a second provider are that change's phases 4 and 5                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| Production apps to the full size      | the node's available memory under 1,024 MiB at rest, in a backup or in a solve; a pod killed for memory (decision 2); both are alerts                                                                 | The provider's rescale of memory and CPU with the disk kept. **Cost:** production is down while the server is off, so the owner picks the hour                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| A second apps node                    | an app that has been ported to PostgreSQL needs a second replica or more memory than the node has                                                                                                     | Create and join as A16 and A17 with `product` and, if it takes traffic, `ingress`. Not available to an app still on SQLite, whose claim is node-local, nor to the WBS backend while its solver supervisor is one per node. **Cost:** that app's port comes first                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| The operator host split in two        | the change `add-agent-hosts` names it                                                                                                                                                                 | That change's step for the second host                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| Growth step                           | Trigger                                                                                                                                                                                                   | Procedure, in existing slices and steps                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Non-production to a server of its own | A14's sum does not hold (decision 2); the node's available memory falls under 1,024 MiB or a monitoring gap is traced to staging; the dev follow-up needs room or a solver; the first production user     | Create and join `h9stg` as A16 and A17 do for a node, with `nonproduction` and `ingress` in its 1.3 revision; `solver.yml` on it. Then, in this order, so that nothing re-created can land on h7obs while both nodes carry the label: stop every non-production app and `nonproduction-db` (zero replicas, jobs suspended); take each final backup and check it as guard 1 asks; delete their claims and the released volumes on h7obs; run slice 1.7's play, which takes `nonproduction` from h7obs once no pod but a DaemonSet's selects it there and no `Retain` volume of a non-production namespace is bound there; sync, so that each claim binds on `h9stg`, the only node that now carries the label; restore each store as A18 does; point the names at `h9stg`; then the play takes `ingress` from h7obs and re-applies its host settings. **Cost:** staging as a whole, the agents' tracker included, is down from the first stop to the last restore, and its names move |
+| Database to a server of its own       | the change `host-postgres` names it: an instance that needs more than 3,072 MiB, below the 4,096 MiB the database server gives it, etcd latency that follows the database's load, or the first app's data | That change's steps for the database server; a replica and a switchover if the operator places one on a volume of the server's static class there, otherwise a restore; slice 1.7 then takes `database` from m1plat1. **Cost:** that change plans for the restore, with the ported apps' writers stopped for its length                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Observability to the next class       | A14's stop conditions, at any of its three readings; a pod killed for memory                                                                                                                              | The provider's rescale of memory and CPU with the disk kept, which stays reversible. **Cost:** the server is off for it, so monitoring is blind and staging, dev and the agents' tracker are down; R16's probe and a quiet hour                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| CI to the next class                  | gates or builds wait on each other long enough that the owner says so                                                                                                                                     | The same rescale; the limits file of the CI change is then raised by hand. **Cost:** no gate and no staging build while the server is off. More nodes and a second provider are that change's phases 4 and 5                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| Production apps to the full size      | the node's available memory under 1,024 MiB at rest, in a backup or in a solve; a pod killed for memory (decision 2); both are alerts                                                                     | The provider's rescale of memory and CPU with the disk kept. **Cost:** production is down while the server is off, so the owner picks the hour                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| A second apps node                    | an app that has been ported to PostgreSQL needs a second replica or more memory than the node has                                                                                                         | Create and join as A16 and A17 with `product` and, if it takes traffic, `ingress`. Not available to an app still on SQLite, whose claim is node-local, nor to the WBS backend while its solver supervisor is one per node. **Cost:** that app's port comes first                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| The operator host split in two        | the change `add-agent-hosts` names it                                                                                                                                                                     | That change's step for the second host                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 
 Not a growth step of this kind: a second k3s server. The fleet model's `controlPlane: single`
 and two-member etcd rule it out, and three servers are a change of their own.
@@ -1764,8 +1765,9 @@ it first authenticates has key expiry disabled by default, which is what a serve
 the play reads it back. Login stays `sshd` with the operator's keys (R52), and arrives
 only through the bastion (R55). Tailnet membership no longer guards a login; two keys do:
 the jump key, which the bastion's `jump` user accepts, and the server's admin key, which
-only the servers accept. They are separate keys, escrowed separately, so either alone
-reaches nothing; a stolen pair does, from anywhere (Risks).
+only the servers accept. A third key, the bastion's own admin key, opens a shell on the
+bastion and nothing else. The three are distinct and escrowed apart, so neither of the
+first two alone reaches a server; a stolen pair does, from anywhere (Risks).
 
 **Firewall.** The fleet firewall (`roles/network/templates/k3s.nft.j2`) accepts by default
 today and admits SSH from anywhere, under the comment "retain SSH recovery". For the
@@ -1778,15 +1780,26 @@ bastion's address (10.10.1.12) alone, and on no other interface. The cluster's o
 today: from the set of enrolled private addresses alone, of which the bastion is never a
 member. 8472 is VXLAN with no authentication, so a member of that set can inject pod
 traffic; the bastion, which has public SSH, is kept out of it, and so is any host that is
-not a node. The input chain's policy stays accept, so a port it does not name (the node
-exporter's, Traefik's 80 and 443 on a node that carries `ingress`, Tailscale's UDP port)
-would answer any private address; for the new inventories one more rule drops everything
-from the bastion's address on the private interface except TCP 22, so all the bastion can
-reach on a server is `sshd`. Tailscale's own UDP port
+not a node. Those rules sit in the input hook, which sees only traffic for the host
+itself. Traffic for a pod address, a ClusterIP or a NodePort is forwarded or rewritten
+before it, so a host on 10.10.1.0/24 that routes the cluster CIDR or the service CIDR via
+a node's private address would reach pods and Services past every input rule; and the
+input chain's policy stays accept, so a port it does not name (the node exporter's,
+Traefik's 80 and 443 on a node that carries `ingress`, Tailscale's UDP port) answers any
+private address. So for the new inventories two more rules sit in the prerouting hook,
+before destination NAT, beside the public drop of slice 1.8: from the bastion's address on
+the private interface, everything is dropped but TCP 22 to the host's own address; and
+from any private address that is not an enrolled node, traffic to the cluster CIDR, to the
+service CIDR or to a NodePort is dropped, except the two named exceptions, the
+`otel-gateway` NodePorts for the CI server and the store's private listener (decision 9).
+Then all the bastion can reach on a server is `sshd`, and a host that is not a node reaches
+no pod and no Service. Tailscale's own UDP port
 stays open so that connections are direct and not relayed. The existing inventories keep
 today's behaviour by default, so no old host changes. The bastion has a group of its own
-(slice 1.9): its firewall admits SSH on the public interface and nothing else inbound, and
-sends anything out. In front of every server the provider's panel firewall refuses, once
+(slice 1.9): its firewall admits SSH on the public interface, new connections limited
+per source address, nothing else inbound but SSH on the private interface from the
+observability node's prober alone, so that R16's probe has a target, and sends anything
+out. In front of every server the provider's panel firewall refuses, once
 it is attached, any outbound traffic it does not allow, so each server's rule set there
 allows outbound explicitly; package mirrors, registries, the object store and the
 tailnet's coordination service are reached that way. m1plat1 has no host firewall until
@@ -1968,8 +1981,8 @@ same pull request or an earlier one**, and the toolchain check refuses a k3s pin
 minor the Rancher lock does not list (slice 2.11). Before each Rancher minor upgrade the
 operator reads Rancher's upgrade page for the path it allows; that a minor may not be
 skipped is from memory. Rancher itself never upgrades k3s here:
-`CATTLE_IMPORTED_CLUSTER_VERSION_MANAGEMENT=false` turns its version management off, which
-also keeps the system-upgrade-controller chart from being installed on the local cluster
+`CATTLE_IMPORTED_CLUSTER_VERSION_MANAGEMENT=false` turns its version management off, and
+with it the system-upgrade-controller chart is not installed on the local cluster
 (`pkg/controllers/dashboard/systemcharts`), and health fails on any
 `plans.upgrade.cattle.io` object and on a node whose kubelet version is not the pin.
 
@@ -1991,10 +2004,12 @@ because the chart renders objects that its values cannot place or remove:
   instead, a class of the `policy` unit whose value, −10, lies below the default 0 that
   OpenBao and `platform-db` run at, so that under memory pressure Rancher goes first;
 - the ConfigMap `rancher-config`, through which Rancher hands values to the charts it
-  installs itself. The chart writes keys for `rancher-webhook` and `fleet` only; the unit
-  adds the keys `remotedialer-proxy` and `system-upgrade-controller`, by chart name, with
-  the same placement. A chart that takes no placement values ignores its key, and health
-  finds its pod (below).
+  installs itself, needs nothing added: the chart's keys for `rancher-webhook` and `fleet` are the
+  only two that matter here. The remote dialer proxy is never installed, because the
+  chart sets `IMPERATIVE_API_DIRECT="true"` (`templates/deployment.yaml`) and Rancher runs
+  it only when that variable is not "true" (`pkg/ext/rdp.go`); the system-upgrade-
+  controller is not installed while version management is off (below). Rule 2.4(y)
+  refuses a render whose `IMPERATIVE_API_DIRECT` is not "true".
 
 Values:
 
@@ -2009,12 +2024,17 @@ Values:
   still fetched, by tag;
 - `features: continuous-delivery=false,turtles=false`: Fleet's GitOps controllers are not
   run, so a `GitRepo` is prevented rather than only found; Turtles, Rancher's Cluster API
-  integration, is not installed;
+  integration, is not installed. Rancher warns at start that without Turtles cluster
+  provisioning will not work (`pkg/rancher/rancher.go`); this plan provisions no cluster
+  through Rancher, and importing the CI cluster later means turning Turtles back on;
 - `extraEnv`: `CATTLE_BOOTSTRAP_PASSWORD` from the Secret `bootstrap-secret` by
   `secretKeyRef`; `CATTLE_IMPORTED_CLUSTER_VERSION_MANAGEMENT=false`;
-  `CATTLE_AUTH_TOKEN_MAX_TTL_MINUTES=720` and
-  `CATTLE_KUBECONFIG_DEFAULT_TOKEN_TTL_MINUTES=720`, so every API key and every kubeconfig
-  Rancher issues expires within 12 hours (its settings read `CATTLE_` and the setting's
+  `CATTLE_AUTH_TOKEN_MAX_TTL_MINUTES=720`,
+  `CATTLE_KUBECONFIG_DEFAULT_TOKEN_TTL_MINUTES=720`,
+  `CATTLE_AUTH_USER_SESSION_TTL_MINUTES=720` and
+  `CATTLE_AUTH_USER_SESSION_IDLE_TTL_MINUTES=720`, so every API key, every kubeconfig and
+  every login session Rancher issues expires within 12 hours;
+  `CATTLE_FLEET_AGENT_DEFAULT_AFFINITY` (below) (its settings read `CATTLE_` and the setting's
   name from the environment, `pkg/settings`). No tool of this plan uses a Rancher token:
   `kubectl` uses the cluster's admin kubeconfig;
 - `extraTolerations` for `CriticalAddonsOnly=true:NoSchedule` (R25) and
@@ -2049,30 +2069,51 @@ Rancher's Apps or by hand. A27 reads Rancher's own bundles and releases, and tho
 are kept beside the check.
 
 **What Rancher starts itself is outside the tree.** The webhook, Fleet's controller, the
-remote dialer proxy, the local cluster's Fleet agent, the pods of a Helm operation that
+local cluster's Fleet agent, the pods of a Helm operation that
 installs one of those charts, and a shell pod for each browser shell. None of them is
 rendered by Argo CD, so rule 2.4(f) and the namespace rules of decision 3 do not see them,
 and the admission policies of slice 2.10, which key on the environment label, do not bind
 them. What places them:
 
-- the `rancher-config` keys and the `webhook` and `fleet` values, above;
-- the local Fleet agent's tolerations and affinity come from the management cluster object
-  `local` (`fleetAgentDeploymentCustomization`); A27 sets them there by hand, since
-  Rancher creates that object, and health reads them back;
-- a Helm operation's pod takes the chart's own tolerations and the control-plane taints
-  (`pkg/catalogv2/helmop/operation.go`), not `CriticalAddonsOnly`; whether it can run on the tainted
-  server alone is what the rehearsal of slice 2.11 shows first, on a cluster with no
-  other node;
-- the shell pod tolerates a fixed list that does not hold `CriticalAddonsOnly`
-  (`pkg/api/steve/clusters/shell.go`), so on m1plat1 alone it stays Pending, and on a later node it
-  would run there with the administrator's rights. Decided by the planning session: the
-  browser shell is not used and is recorded as unavailable; the operator uses `kubectl`
-  from the laptop. Health fails on a shell pod anywhere.
+- the `webhook` and `fleet` values, above;
+- the local Fleet agent: its tolerations are the control-plane node's taints, which
+  Rancher adds for the local cluster (`fleetcluster.go` under
+  `pkg/controllers/provisioningv2`), so it tolerates `CriticalAddonsOnly` on m1plat1; its affinity is the
+  setting `fleet-agent-default-affinity` unless a cluster object overrides it
+  (`pkg/cluster/agent_customization.go`), and the unit sets that setting through
+  `CATTLE_FLEET_AGENT_DEFAULT_AFFINITY` to the `platform-services` capability, so no
+  object of Rancher's is edited by hand;
+- a Helm operation's pod: Rancher sets `AutomaticCPTolerations` for every system chart and
+  adds the control-plane nodes' taints as tolerations
+  (`pkg/catalogv2/system/system.go`, `pkg/catalogv2/helmop/operation.go`), so on m1plat1 it
+  tolerates `CriticalAddonsOnly`; its node selector comes from the namespace (below);
+- the shell pod: it tolerates a fixed list that does not hold `CriticalAddonsOnly`
+  (`pkg/api/steve/clusters/shell.go`) and would run with the administrator's rights.
+  Decided by the planning session: the browser shell is not used; the operator uses
+  `kubectl` from the laptop. It is refused, not only found: an admission policy of the
+  `policy` unit denies a pod in `cattle-system` whose name begins `dashboard-shell-`, the
+  prefix Rancher generates.
 
-What holds all of them is `tool-fleet:health`: any pod in a `cattle-` namespace or in a
-namespace Rancher made that runs on a node other than the platform node fails. While
-m1plat1 is the only node that reading cannot fail, so it is read again after A13 and A17,
-when the first other nodes join, and the rehearsal runs with a second, untainted node.
+**Placement forced at admission.** A pod's tolerations decide where it may run, not where
+it must. So the API server's `PodNodeSelector` admission plugin is enabled, through the
+k3s server's `kube-apiserver-arg` (`enable-admission-plugins`, with `NodeRestriction`,
+which k3s enables itself, kept in the list), and each namespace in which Rancher runs pods,
+`cattle-system`, `cattle-fleet-system` and `cattle-fleet-local-system`, is created by the
+`namespaces` unit with the annotation `scheduler.alpha.kubernetes.io/node-selector` set to
+the `platform-services` capability. The plugin merges that selector into every pod of the
+namespace and refuses a pod whose own selector conflicts with it (Kubernetes'
+admission-controllers page, read 2026-11-22; alpha since v1.5, disabled by default, no
+deprecation). Whether k3s v1.36 accepts the flag with that list is not read; the
+rehearsal of slice 2.11 shows it, and if not the fallback is a mutating admission policy
+of the `policy` unit that sets the same selector. A namespace Rancher makes that is not in
+that list is not bound.
+
+What checks all of it is `tool-fleet:health`: any pod in a `cattle-` namespace or in a
+namespace Rancher made that runs on a node other than the platform node fails, and an alert
+from kube-state-metrics fires for a pod with one of those namespace prefixes on another
+node. While m1plat1 is the only node that reading cannot fail, so it is read again after
+A13 and A17, when the first other nodes join, and the rehearsal runs with a second,
+untainted node.
 
 **The webhook is a fail-closed dependency.** `rancher-webhook` registers validating
 webhooks with the failure policy `Fail`, among them creates and updates of Namespace
@@ -2283,11 +2324,11 @@ change `host-postgres`, and the one for the agents' hosts in `add-agent-hosts`.
 - **Rancher ties the k3s version to its support matrix.** A k3s minor bump waits for a
   Rancher release that certifies it, and Rancher upgrades by its own path; the toolchain
   check holds the pair (slice 2.11).
-- **What Rancher starts itself is outside the tree**: the webhook, Fleet, the remote dialer
-  proxy, the local Fleet agent, Helm operation pods and shell pods, with their namespaces
-  and images by tag. Placement is by values and by one hand-set object, and is checked by
-  health, which cannot fail while m1plat1 is the only node; it is read again after A13 and
-  A17. The shell is not used, since its pod cannot be placed on the platform node.
+- **What Rancher starts itself is outside the tree**: the webhook, Fleet, the local Fleet
+  agent and Helm operation pods, with their namespaces and images by tag. Placement is
+  forced at admission in the three namespaces Rancher runs pods in, and checked by health
+  and an alert; health cannot fail while m1plat1 is the only node and is read again after
+  A13 and A17. `PodNodeSelector` is an alpha plugin. The shell is refused at admission.
 - **The bastion is the one public SSH port and the path to every server** (R55). It admits
   keys only; its `jump` user has no shell and may forward to each server's port 22 alone;
   the operator's own login there, with a shell and `sudo`, is on the same public port, by
@@ -2297,8 +2338,14 @@ change `host-postgres`, and the one for the agents' hosts in `add-agent-hosts`.
   outside like every node (R16).
 - **A key pair alone now admits.** Before R55 a login needed tailnet membership and a key.
   Now it needs the jump key and a server's admin key, from anywhere on the internet. The two
-  are separate and escrowed apart, and the bastion's `sshd` refuses passwords, but a laptop
-  that holds both is enough.
+  are distinct from each other and from the bastion's own admin key, escrowed apart, and
+  the bastion's `sshd` refuses passwords, but a laptop that holds both is enough.
+- **The bastion's public port can be flooded.** New connections are limited per source
+  address, which slows one address and not many. A flood from many addresses can deny the
+  operator SSH to every server for its length; the tailnet still carries the interfaces
+  and the APIs, and the console stays.
+- **The bastion is unprobed until stage 3.** Its probe runs from the observability node,
+  which joins in A13; until then nothing reports its loss but a failed login.
 - **OpenBao is on the path of everything after it.** A sealed or lost store stops every later
   first sync and every Secret change, and its design is not merged. The store, Harbor and the
   control plane share one node.
@@ -2491,9 +2538,7 @@ users.
   182 GiB in bytes, or the 169 GiB exit of decision 2 applies.
 - That `useBundledSystemChart` covers the webhook and Fleet charts on 2.15; that the
   Tailscale Ingress carries Rancher's interface, websockets included, to its port 80; that
-  a Helm operation's pod can run on the tainted server alone; the field names of
-  `fleetAgentDeploymentCustomization` (from memory); whether the remote dialer proxy's
-  chart takes placement values; that a PriorityClass may have a negative value; and
-  Rancher's memory. Slice 2.11's rehearsal and A27 and A28 show each.
+  k3s v1.36 enables `PodNodeSelector` through `kube-apiserver-arg` with `NodeRestriction`
+  kept; that a PriorityClass may have a negative value; and Rancher's memory. Slice 2.11's rehearsal and A27 and A28 show each.
 - That k3s v1.36.4+k3s1 itself, and not only its minor, runs Rancher v2.15.3; the matrix
   names minors only.
