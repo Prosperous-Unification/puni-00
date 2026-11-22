@@ -3,6 +3,7 @@ import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-ac
 import { afterEach, expect, it, spyOn } from 'bun:test';
 
 import { OrganizationHarness } from '../testing/organization-harness';
+import { createFixturePackage, readFixturePackage } from '../testing/space-rollup';
 
 const opened: OrganizationHarness[] = [];
 afterEach(() => {
@@ -28,16 +29,16 @@ async function fixture(push?: () => Promise<Response>) {
   harness.bind('ada', 'org-a');
   harness.activate();
   const create = async (name: string) => {
-    const answer = await harness.call('ada', 'POST', '/api/work-packages', { name });
-    expect(answer.status).toBe(200);
-    const body = answer.body as { workPackage: { id: string }; steps: { id: string }[] };
-    const step = body.steps.at(0);
+    const id = await createFixturePackage(harness, 'ada', name);
+    const { steps } = await readFixturePackage(harness, 'ada', id);
+    const step = steps.at(0);
     if (step === undefined) throw new Error('work package fixture omitted step');
+    const rowId = `${id}-row`;
     harness.sqlite.run(
       "INSERT INTO work_item (id, work_package_id, position, name, readiness) VALUES (?, ?, 10, ?, 'ready')",
-      [`${body.workPackage.id}-row`, body.workPackage.id, name],
+      [rowId, id, name],
     );
-    return { id: body.workPackage.id, rowId: `${body.workPackage.id}-row`, stepId: step.id };
+    return { id, rowId, stepId: step.id };
   };
   const upstream = await create('Upstream');
   const downstream = await create('Downstream');

@@ -4,6 +4,7 @@ import { WorkItemRepository } from '@wbs/store-sqlite/work-item';
 import { describe, expect, it, spyOn } from 'bun:test';
 
 import { OrganizationHarness } from '../testing/organization-harness';
+import { createFixturePackage, readFixturePackage } from '../testing/space-rollup';
 
 for (const endpoint of ['single', 'batch']) {
   describe(`delete sparse preservation through ${endpoint} command`, () => {
@@ -25,14 +26,8 @@ for (const endpoint of ['single', 'batch']) {
         h.bind('viewer', 'org');
         h.bind('outsider', 'foreign');
         h.activate();
-        const created = await h.call('owner', 'POST', '/api/work-packages', {
-          name: 'Preserve sparse nodes',
-        });
-        expect(created.status).toBe(200);
-        const workPackageId = (created.body as { workPackage: { id: string } }).workPackage.id;
-        const steps = h.sqlite
-          .query('SELECT id FROM step WHERE work_package_id = ? ORDER BY position,id')
-          .all(workPackageId) as { id: string }[];
+        const workPackageId = await createFixturePackage(h, 'owner', 'Preserve sparse nodes');
+        const { steps } = await readFixturePackage(h, 'owner', workPackageId);
         const first = steps.at(0);
         if (first === undefined) throw new Error('work package has no fixture steps');
         h.sqlite.run(
@@ -176,15 +171,9 @@ for (const operation of ['redo-leaf', 'redo-cascade', 'undo-create', 'undo-dupli
         h.grantPermissions('org', 'owner', ['organization.create_project']);
         h.bind('owner', 'org');
         h.activate();
-        const created = await h.call('owner', 'POST', '/api/work-packages', {
-          name: 'Delete replay',
-        });
-        expect(created.status).toBe(200);
-        const workPackageId = (created.body as { workPackage: { id: string } }).workPackage.id;
-        const step = h.sqlite
-          .query('SELECT id FROM step WHERE work_package_id = ? ORDER BY position,id LIMIT 1')
-          .get(workPackageId) as { id: string } | null;
-        if (step === null) throw new Error('fixture step absent');
+        const workPackageId = await createFixturePackage(h, 'owner', 'Delete replay');
+        const step = (await readFixturePackage(h, 'owner', workPackageId)).steps.at(0);
+        if (step === undefined) throw new Error('fixture step absent');
         for (const id of ['root', 'unrelated'])
           h.sqlite.run(
             'INSERT INTO work_item (id,work_package_id,name,position,revision) VALUES (?,?,?,1,0)',
@@ -355,13 +344,9 @@ it('promote delete and redo retain surviving child sparse policy', async () => {
     h.grantPermissions('org', 'owner', ['organization.create_project']);
     h.bind('owner', 'org');
     h.activate();
-    const created = await h.call('owner', 'POST', '/api/work-packages', { name: 'Promote policy' });
-    expect(created.status).toBe(200);
-    const workPackageId = (created.body as { workPackage: { id: string } }).workPackage.id;
-    const step = h.sqlite
-      .query('SELECT id FROM step WHERE work_package_id = ? LIMIT 1')
-      .get(workPackageId) as { id: string } | null;
-    if (step === null) throw new Error('fixture step absent');
+    const workPackageId = await createFixturePackage(h, 'owner', 'Promote policy');
+    const step = (await readFixturePackage(h, 'owner', workPackageId)).steps.at(0);
+    if (step === undefined) throw new Error('fixture step absent');
     h.sqlite.run(
       "INSERT INTO work_item (id,work_package_id,name,parent_id,position,revision) VALUES ('root',?,'Root',NULL,1,0),('child',?,'Child','root',1,0),('unrelated',?,'Unrelated',NULL,2,0)",
       [workPackageId, workPackageId, workPackageId],

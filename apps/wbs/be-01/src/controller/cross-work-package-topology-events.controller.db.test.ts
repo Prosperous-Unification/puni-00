@@ -2,6 +2,7 @@ import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-ac
 import { afterEach, expect, it } from 'bun:test';
 
 import { OrganizationHarness } from '../testing/organization-harness';
+import { createFixturePackage } from '../testing/space-rollup';
 
 let harness: OrganizationHarness | undefined;
 afterEach(async () => {
@@ -27,9 +28,7 @@ it('mounted topology replacement refreshes separate old and new components atomi
   opened.bind('ada', 'org-a');
   opened.activate();
   const create = async (name: string) => {
-    const answer = await opened.call('ada', 'POST', '/api/work-packages', { name });
-    expect(answer.status).toBe(200);
-    const workPackageId = (answer.body as { workPackage: { id: string } }).workPackage.id;
+    const workPackageId = await createFixturePackage(opened, 'ada', name);
     const workItemId = `${workPackageId}-row`;
     opened.sqlite.run(
       'INSERT INTO work_item (id, work_package_id, position, name) VALUES (?, ?, 10, ?)',
