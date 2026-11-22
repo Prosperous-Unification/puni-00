@@ -185,6 +185,7 @@ export function writeFirstChildIn(
     links,
     relationships.detachedFacts,
   );
+  const sourceId = write.kind === 'replay' && write.direction === 'up' ? child.id : child.parentId;
   const decision = decideFirstChildWrite(
     captured.packages,
     captured.bindings,
@@ -192,6 +193,9 @@ export function writeFirstChildIn(
     write,
     actualParent,
     actualChild,
+    db.all<{ stepId: unknown; blockedAt: unknown }>(
+      sql`SELECT step_id AS stepId, blocked_at AS blockedAt FROM step_blockage WHERE work_item_id=${sourceId}`,
+    ),
   );
   if (decision.kind !== 'ready') return decision;
   // Proof: omission made actual SQLite first-child-inspection commit changes to the complete stored row snapshot.

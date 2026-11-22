@@ -1,7 +1,7 @@
 import { isHold, isReadiness } from '@wbs/domain';
 
 import type { Repositioned } from '../ports/work-item-store';
-import type { FirstChildRecord } from './first-child';
+import type { FirstChildBlockage, FirstChildRecord } from './first-child';
 
 function readClosedRecord(
   value: unknown,
@@ -42,6 +42,24 @@ function readStatements(value: unknown): FirstChildRecord['parentStatements'] {
   return { readiness: row['readiness'], hold: row['hold'] };
 }
 
+/** Validates exact sparse facts at the journal and adapter boundaries and orders them by step identity. */
+export function readFirstChildBlockages(value: unknown): FirstChildBlockage[] {
+  if (!Array.isArray(value)) throw new Error('first child blockages are not an array');
+  const entries: readonly unknown[] = value;
+  const seen = new Set<string>();
+  // Proof: map skipped an empty slot and the malformed direct Source history did not throw.
+  return Array.from(entries, (entry) => {
+    const row = readClosedRecord(entry, ['stepId', 'blockedAt'], 'blockage');
+    const stepId = readId(row['stepId']);
+    if (seen.has(stepId)) throw new Error('first child history duplicates a blockage');
+    seen.add(stepId);
+    const blockedAt = row['blockedAt'];
+    if (typeof blockedAt !== 'number' || !Number.isSafeInteger(blockedAt))
+      throw new Error('first child blocked time is malformed');
+    return { stepId, blockedAt };
+  }).sort((left, right) => (left.stepId < right.stepId ? -1 : left.stepId > right.stepId ? 1 : 0));
+}
+
 /**
  * Closed current journal boundary. Only the scalar shape a fresh first child
  * actually receives can be replayed: no labels, deadlines or copied type are
@@ -49,12 +67,12 @@ function readStatements(value: unknown): FirstChildRecord['parentStatements'] {
  * keep their separate historical decoder and never receive this descriptor.
  */
 export function readFirstChildRecord(value: unknown): FirstChildRecord {
-  const record = readClosedRecord(
-    value,
-    ['version', 'child', 'parentStatements', 'stepIds'],
-    'record',
-  );
-  if (record['version'] !== 1) throw new Error('first child history version is unknown');
+  const version =
+    typeof value === 'object' && value !== null && 'version' in value ? value.version : undefined;
+  if (version !== 1 && version !== 2) throw new Error('first child history version is unknown');
+  const fields = ['version', 'child', 'parentStatements', 'stepIds'];
+  if (version === 2) fields.push('blockages');
+  const record = readClosedRecord(value, fields, 'record');
   const row = readClosedRecord(
     record['child'],
     [
@@ -110,14 +128,18 @@ export function readFirstChildRecord(value: unknown): FirstChildRecord {
   if (!Array.isArray(record['stepIds']))
     throw new Error('first child history has no step identities');
   const rawStepIds: readonly unknown[] = record['stepIds'];
-  const stepIds = rawStepIds.map(readId);
-  if (new Set(stepIds).size !== stepIds.length)
-    throw new Error('first child history duplicates a step');
+  // Proof: map skipped a missing step identity and accepted the sparse direct v1 record.
+  const stepIds = Array.from(rawStepIds, readId);
+  const transferred = new Set(stepIds);
+  if (transferred.size !== stepIds.length) throw new Error('first child history duplicates a step');
   const childId = readId(row['id']),
     parentId = readId(row['parentId']);
   if (childId === parentId) throw new Error('first child history names itself as parent');
+  const blockages = version === 2 ? readFirstChildBlockages(record['blockages']) : [];
+  if (blockages.some(({ stepId }) => !transferred.has(stepId)))
+    throw new Error('first child blockage references an untransferred step');
   return {
-    version: 1,
+    ...(version === 1 ? { version: 1 as const } : { version: 2 as const, blockages }),
     parentStatements,
     stepIds,
     child: {

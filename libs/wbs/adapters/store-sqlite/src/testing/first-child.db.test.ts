@@ -308,6 +308,50 @@ test('sqlite first child moves live point tuples and retained allocator through 
   });
 }, 30000);
 
+test('SQLite first-child writer rechecks blockages after inspection and preserves v1 live transfer', async () => {
+  await withinFixture(async (fixture) => {
+    await prepare(fixture);
+    const { source, seed } = fixture;
+    const child = childOf(fixture, 'sqlite-first-child-guarded');
+    const placement = { respaced: [], localDependencies: [], detachedIncidents: [] };
+    const subtrees = source.stores.subtrees;
+    const created = await subtrees.writeFirstChild(
+      { kind: 'fresh', child, ...placement },
+      seed.stamp,
+    );
+    if (created.kind !== 'written' || created.record.version !== 2)
+      throw new Error('expected a v2 first-child record');
+    const replay = {
+      kind: 'replay' as const,
+      direction: 'up' as const,
+      record: created.record,
+      ...placement,
+    };
+    expect((await subtrees.inspectFirstChild(replay, seed.stamp)).kind).toBe('ready');
+    source.db.run(
+      sql`UPDATE step_blockage SET blocked_at=456 WHERE work_item_id=${child.id} AND step_id=${stepId}`,
+    );
+    const before = fixture.readEvidence();
+    expect(await subtrees.writeFirstChild(replay, seed.stamp)).toEqual({
+      kind: 'stale_transition',
+    });
+    expect(fixture.readEvidence()).toEqual(before);
+    const legacy = {
+      version: 1 as const,
+      child: created.record.child,
+      parentStatements: created.record.parentStatements,
+      stepIds: created.record.stepIds,
+    };
+    expect(await subtrees.writeFirstChild({ ...replay, record: legacy }, seed.stamp)).toEqual({
+      kind: 'written',
+      record: legacy,
+    });
+    expect(source.db.all('SELECT work_item_id,step_id,blocked_at FROM step_blockage')).toEqual([
+      { work_item_id: parentId, step_id: stepId, blocked_at: 456 },
+    ]);
+  });
+}, 30000);
+
 test('sqlite first child native failure rolls back locally while an unrelated outer write commits', async () => {
   await withinFixture(async (fixture) => {
     const physicalBefore = await prepare(fixture);

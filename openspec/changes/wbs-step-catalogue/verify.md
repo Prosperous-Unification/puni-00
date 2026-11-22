@@ -2404,3 +2404,20 @@ Nx typecheck passed.
   package owners and closes the inspected writer. The Source still refuses
   malformed capability evidence before opening SQLite and binds the durable
   receipt to an admitted writer.
+
+### First-child blockage replay evidence
+
+- New first-child commands retain the exact blockage steps and timestamps
+  in version 2 journal records. Both stores compare that evidence on the
+  actual replay writer before making changes, and use the existing 409
+  stale-history response for a mismatch. Version 1 still decodes and
+  replays with its established live-transfer behavior.
+- Bypassing the comparison reproduced six failures, including both
+  mounted 200 responses that should have been 409. The final restored
+  five-owner run passed all 190 cases and 979 assertions. Both mounted
+  refusal controls passed within a four-case mounted run. The exact core
+  and both adapter Nx typechecks passed, including the core module target.
+- Direct JavaScript records with holes in either identity or blockage
+  arrays previously reached the parser as if they were valid. The dense
+  parser rejects both before a writer accepts the record. Astra reproduced
+  both omissions and verified the final parser and writer behavior.

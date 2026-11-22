@@ -3,6 +3,7 @@ import { resolveSteps, type StepBinding } from '@wbs/domain';
 import { STEP_FACT_KINDS, type StepFactKind } from '../ports/step-catalogue';
 import type { WorkItem } from '../ports/work-item-store';
 import type { FirstChildRecord, FirstChildWrite, FirstChildWriteOutcome } from './first-child';
+import { readFirstChildBlockages } from './first-child-history';
 import {
   projectStepNodesInUse,
   type StepUsageFact,
@@ -39,6 +40,7 @@ export function decideFirstChildWrite(
   write: FirstChildWrite,
   actualParent: WorkItem | null,
   actualChild: WorkItem | null,
+  sourceBlockages: readonly { readonly stepId: unknown; readonly blockedAt: unknown }[],
 ): FirstChildDecision {
   const child = write.kind === 'fresh' ? write.child : write.record.child;
   const direction = write.kind === 'fresh' ? 'down' : write.direction;
@@ -172,14 +174,30 @@ export function decideFirstChildWrite(
     });
     return { kind: 'step_nodes_in_use', count: pairs.length, pairs: pairs.slice(0, 200) };
   }
-  const record: FirstChildRecord = {
-    version: 1,
-    child: structuredClone(child),
-    parentStatements:
-      write.kind === 'fresh'
-        ? { readiness: actualParent.readiness, hold: actualParent.hold }
-        : { ...write.record.parentStatements },
-    stepIds: before.filter((stepId) => after.has(stepId)),
-  };
+  const blockages = readFirstChildBlockages(sourceBlockages);
+  // Proof: bypassing this comparison returned 200 for both mounted timestamp faults,
+  // admitted all three Memory changes and let SQLite write after a successful earlier inspection.
+  if (write.kind === 'replay' && write.record.version === 2) {
+    const expected = write.record.blockages;
+    if (
+      blockages.length !== expected.length ||
+      blockages.some(
+        (row, index) =>
+          row.stepId !== expected[index]?.stepId || row.blockedAt !== expected[index]?.blockedAt,
+      )
+    )
+      return { kind: 'stale_transition' };
+  }
+  const stepIds = before.filter((stepId) => after.has(stepId));
+  const record: FirstChildRecord =
+    write.kind === 'replay'
+      ? { ...structuredClone(write.record), stepIds }
+      : {
+          version: 2,
+          child: structuredClone(child),
+          parentStatements: { readiness: actualParent.readiness, hold: actualParent.hold },
+          stepIds,
+          blockages,
+        };
   return { kind: 'ready', direction, fromWorkItemId: from.id, toWorkItemId: to.id, record };
 }

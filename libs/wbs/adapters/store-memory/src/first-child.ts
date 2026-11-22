@@ -148,6 +148,7 @@ export function applyMemoryFirstChildIn(
     ...captured.facts,
     ...readStepUsageFacts(captured.packages, identities, links, relationships.detachedFacts),
   ];
+  const sourceId = write.kind === 'replay' && write.direction === 'up' ? child.id : child.parentId;
   const decision = decideFirstChildWrite(
     captured.packages,
     bindings,
@@ -155,6 +156,9 @@ export function applyMemoryFirstChildIn(
     write,
     actualParent,
     actualChild,
+    tables.blockages.rows
+      .filter(({ workItemId }) => workItemId === sourceId)
+      .map(({ stepId, blockedAt }) => ({ stepId, blockedAt })),
   );
   if (decision.kind !== 'ready') return decision;
   // Proof: omission made actual Memory first-child-inspection mutate the complete stored row snapshot.

@@ -11,12 +11,23 @@ import { readFirstChildRecord } from './first-child-history';
  * The command's ordinary revision/permission checks still admit replay; this
  * descriptor grants neither authority nor permission to replace another child.
  */
-export interface FirstChildRecord {
-  readonly version: 1;
+interface FirstChildIdentity {
   readonly child: WorkItem & { readonly parentId: string };
   readonly parentStatements: Pick<WorkItem, 'readiness' | 'hold'>;
   readonly stepIds: readonly string[];
 }
+
+export interface FirstChildBlockage {
+  readonly stepId: string;
+  readonly blockedAt: number;
+}
+
+/** V1 carries no blockage evidence. V2 records the exact transferable facts, including an empty set. */
+export type FirstChildRecord = FirstChildIdentity &
+  (
+    | { readonly version: 1 }
+    | { readonly version: 2; readonly blockages: readonly FirstChildBlockage[] }
+  );
 
 /**
  * One structural write after the existing local/remote relationship admission.
@@ -60,6 +71,10 @@ export function retainFirstChildWrite(write: FirstChildWrite, stamp: WriteStamp)
       parentStatements: { readiness: retained.child.readiness, hold: retained.child.hold },
       stepIds: [],
     });
-  }
+  } else
+    return {
+      write: { ...retained, record: readFirstChildRecord(retained.record) },
+      stamp: { ...stamp },
+    };
   return { write: retained, stamp: { ...stamp } };
 }

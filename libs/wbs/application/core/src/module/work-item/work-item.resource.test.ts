@@ -22,6 +22,7 @@ import { INACTIVE_EXTERNAL_DEPENDENCIES } from '../../ports/external-dependency-
 import { createLocalDependencyContext } from '../../service/dependency-context';
 import { resolveDependencyGraph } from '../../service/dependency-graph';
 import { workPackageNodeReadings } from '../../service/node-readings';
+import { readFirstChildRecord } from '../../step-catalogue/first-child-history';
 import { AvailableWorkItemService as WorkItemService } from '../../testing/available-work-item-service';
 import { bindFixtureSteps, createBoundFixturePackage } from '../../testing/bound-package-fixture';
 import { type RecordingBroadcaster } from '../../testing/broadcast-fixture';
@@ -480,6 +481,86 @@ describe('creating work items', () => {
     ).toEqual([{ workItemId: parent, state: 'in_progress' }]);
     expect((await service.redo(workPackageId, OWNER)).ok).toBe(true);
     expect(await facts()).toEqual([{ workItemId: child, stepId, blockedAt: 123 }]);
+  });
+
+  it.each(['added', 'removed', 'changed'] as const)(
+    'Memory refuses a first-child replay after its sparse blockage was %s and still replays v1 using live facts',
+    async (fault) => {
+      const parent = await add('Strip');
+      const child = {
+        ...workItemRow({ id: 'guarded-child', workPackageId, parentId: parent }),
+        parentId: parent,
+      };
+      const { subtrees, blockages } = fixture.source.stores;
+      if (fault !== 'added')
+        await blockages.set({ workItemId: parent, stepId, blockedAt: 123 }, WROTE);
+      const placement = { respaced: [], localDependencies: [], detachedIncidents: [] };
+      const written = await subtrees.writeFirstChild({ kind: 'fresh', child, ...placement }, WROTE);
+      if (written.kind !== 'written' || written.record.version !== 2)
+        throw new Error('missing first-child v2 record');
+      expect(written.record.blockages).toEqual(
+        fault === 'added' ? [] : [{ stepId, blockedAt: 123 }],
+      );
+      if (fault === 'removed') await blockages.remove(child.id, stepId, WROTE);
+      else await blockages.set({ workItemId: child.id, stepId, blockedAt: 456 }, WROTE);
+      const replay = {
+        kind: 'replay' as const,
+        direction: 'up' as const,
+        record: written.record,
+        ...placement,
+      };
+      const before = fixture.fixture.stepCatalogueEvidence();
+      expect(await subtrees.inspectFirstChild(replay, WROTE)).toEqual({ kind: 'stale_transition' });
+      expect(await subtrees.writeFirstChild(replay, WROTE)).toEqual({ kind: 'stale_transition' });
+      expect(fixture.fixture.stepCatalogueEvidence()).toEqual(before);
+
+      const legacy = {
+        version: 1 as const,
+        child: written.record.child,
+        parentStatements: written.record.parentStatements,
+        stepIds: written.record.stepIds,
+      };
+      expect(await subtrees.writeFirstChild({ ...replay, record: legacy }, WROTE)).toEqual({
+        kind: 'written',
+        record: legacy,
+      });
+      expect(await blockages.listByWorkPackage(workPackageId)).toEqual(
+        fault === 'removed' ? [] : [{ workItemId: parent, stepId, blockedAt: 456 }],
+      );
+    },
+  );
+
+  it('decodes closed v1 and v2 first-child records without inventing a blockage witness', () => {
+    const parentId = 'parent';
+    const legacy = {
+      version: 1 as const,
+      child: { ...workItemRow({ id: 'child', workPackageId, parentId }), parentId },
+      parentStatements: { readiness: null, hold: null },
+      stepIds: [stepId],
+    };
+    const fact = { stepId, blockedAt: 123 };
+    expect(readFirstChildRecord(legacy)).toEqual(legacy);
+    expect(() => readFirstChildRecord({ ...legacy, stepIds: Array<unknown>(1) })).toThrow(
+      'invalid identity',
+    );
+    expect(() => readFirstChildRecord({ ...legacy, blockages: [] })).toThrow(
+      'unknown or missing fields',
+    );
+    const current = { ...legacy, version: 2 as const, blockages: [fact] };
+    expect(readFirstChildRecord(current)).toEqual(current);
+    expect(() => readFirstChildRecord({ ...legacy, version: 2 })).toThrow(
+      'unknown or missing fields',
+    );
+    for (const blockages of [
+      null,
+      Array<unknown>(1),
+      [fact, fact],
+      [{ ...fact, blockedAt: 0.5 }],
+      [{ ...fact, stepId: 'unknown' }],
+      [{ ...fact, extra: true }],
+    ])
+      expect(() => readFirstChildRecord({ ...current, blockages })).toThrow();
+    expect(() => readFirstChildRecord({ ...current, version: 3 })).toThrow('version is unknown');
   });
 
   it('propagates a failed atomic first-child capability without publishing or changing stored work', async () => {
