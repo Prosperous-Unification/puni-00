@@ -240,7 +240,10 @@ describe('inline proposal card', () => {
 describe('limit refusals', () => {
   test.each([
     ['rate_limited', 42, 'Too many requests right now. Try again in 42 s.'],
-    ['rate_limited', null, 'Too many requests right now. Try again in a minute.'],
+    ['rate_limited', 119, 'Too many requests right now. Try again in 119 s.'],
+    ['rate_limited', 121, 'Too many requests right now. Try again in 3 min.'],
+    ['rate_limited', 86_172, 'Too many requests right now. Try again in 24 h.'],
+    ['rate_limited', null, 'Too many requests right now. Try again later.'],
     [
       'draft_source_limit',
       3_600,

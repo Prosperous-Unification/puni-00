@@ -115,11 +115,13 @@ export async function runGatedPayload(
   let phase: Phase = 'starting',
     hasStart = false,
     hasDone = false,
+    hasKill = false,
     hasEof = false,
     fault = false,
     pending = '';
   let epoch = new AbortController(),
     pump: Promise<void> = Promise.resolve();
+  let requestKill: (() => void) | undefined;
   // Observe an early signal rejection while descriptors load; execute still awaits the original promise.
   void start.promise.catch(() => undefined);
   function hasFault(): boolean {
@@ -176,7 +178,21 @@ export async function runGatedPayload(
         hasStart = true;
         start.resolve(undefined);
       } else if (line === 'done' && !hasDone && phase === 'acknowledgement') hasDone = true;
-      else refuse();
+      // Proof: removing kill admission returned125 instead of137 in private retained-child
+      // kill running. Removing the one-kill latch separately admitted duplicate-running137
+      // and duplicate-late37 instead of125; allowing post-done kill admitted37 instead of125.
+      // Accepting startup kill admitted a real child37 instead of125 in each early-* case.
+      else if (
+        line === 'kill' &&
+        hasStart &&
+        !hasKill &&
+        !hasDone &&
+        phase !== 'starting' &&
+        requestKill !== undefined
+      ) {
+        hasKill = true;
+        requestKill();
+      } else refuse();
     }
   }
   function observeEof(): void {
@@ -212,7 +228,7 @@ export async function runGatedPayload(
   // Proof: omitting the final poll accepts a known queued pre-transition frame in the
   // `native gated payload queued-before-transition`. The exclusive observed phase is not
   // cross-FD atomicity or wall-clock peer-send-before-EOF ordering.
-  function drainControl(reader: GateReader): void {
+  function drainControl(reader: GateReader, allowsKillPrefix = false): void {
     while (!hasEof) {
       const next = reader.poll();
       if (next.kind === 'empty') break;
@@ -223,7 +239,21 @@ export async function runGatedPayload(
       consume(next.bytes);
       if (fault) break;
     }
-    if (pending !== '') refuse();
+    // Proof: removing this narrow post-native prefix allowance returned125 instead of37
+    // in private retained-child kill prefix-kill; prefix-other and prefix-truncated still125.
+    if (
+      pending !== '' &&
+      !(
+        allowsKillPrefix &&
+        hasStart &&
+        !hasKill &&
+        !hasDone &&
+        phase !== 'starting' &&
+        requestKill !== undefined &&
+        'kill'.startsWith(pending)
+      )
+    )
+      refuse();
   }
   async function execute(): Promise<number> {
     try {
@@ -311,6 +341,13 @@ export async function runGatedPayload(
         }
         // No native child exists for these qualified executable refusals.
       }
+      const spawned = child;
+      // Proof: removing the native-qualified no-op invoked the original kill after actual
+      // native37 in private retained-child kill late; its zero-kill assertion failed.
+      requestKill = () => {
+        // The retained native child is the sole target. A first late request never signals again.
+        if (spawned !== undefined && !hasNativeAuthority()) spawned.kill('SIGKILL');
+      };
       resumeControl(owned.control);
       // Proof: skipping concurrent numeric-rejection or missing-callback diagnosis
       // separately fails the matching native authority observers; a later genuine
@@ -353,7 +390,7 @@ export async function runGatedPayload(
       if (sampled.kind !== 'absent' && (sampled.kind !== 'numeric' || sampled.status !== status))
         refuse();
       await pauseControl();
-      drainControl(owned.control);
+      drainControl(owned.control, true);
       resumeControl(owned.control);
       if (!hasFault()) {
         try {
@@ -368,7 +405,7 @@ export async function runGatedPayload(
         }
       }
       await pauseControl();
-      drainControl(owned.control);
+      drainControl(owned.control, true);
       // The joined reader's final NONBLOCK observation defines this phase boundary. FD3 and
       // FD4 are separate syscalls; this does not certify when the peer sent a concurrent frame.
       statusCloseAttempted = true;

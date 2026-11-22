@@ -177,6 +177,8 @@ const WORK_PACKAGE_API_OPERATIONS = {
   createWorkItem: 'postApiWorkPackagesByIdCommands',
   patchWorkItem: 'postApiWorkPackagesByIdCommands',
   setStatus: 'postApiWorkPackagesByIdCommands',
+  setProgress: 'postApiWorkPackagesByIdCommands',
+  clearProgress: 'postApiWorkPackagesByIdCommands',
   setStepBlocked: 'postApiWorkPackagesByIdCommands',
   startAttempt: 'postApiWorkPackagesByIdCommands',
   endAttempt: 'postApiWorkPackagesByIdCommands',

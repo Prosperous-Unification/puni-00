@@ -89,7 +89,8 @@ test('JOB-CATALOGUE refuses this repository catalogue the day after its estimate
     expect(
       verdict.findings.map(({ ruleId, subject, effect }) => [ruleId, subject, effect]),
     ).toEqual(
-      ['gate', 'release-build', 'test-queued', 'solver-image-publish'].map((id) => [
+      // `gate` is calibrated since Dash task 6.25 and does not expire.
+      ['release-build', 'test-queued', 'solver-image-publish'].map((id) => [
         'JOB-CATALOGUE',
         id,
         'refusal',

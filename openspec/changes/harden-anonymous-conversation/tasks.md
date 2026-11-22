@@ -8,7 +8,7 @@
 
 ## 3. Forwarded-source boundary and deployment
 
-- [ ] 3.1 Implement trusted-socket validation and private gateway/runtime/network policy wiring. Tests: valid gateway, untrusted/missing/malformed peer, forged forwarded source, alternate IPv6 spellings, actual gateway/cluster isolation and configuration checks. Negative: bypass the peer/header/network guard and observe the applicable test fail.
+- [x] 3.1 Implement trusted-socket validation and private gateway/runtime/network policy wiring. Tests: valid gateway, untrusted/missing/malformed peer, forged forwarded source, alternate IPv6 spellings, actual gateway/cluster isolation and configuration checks. Negative: bypass the peer/header/network guard and observe the applicable test fail.
 
 ## 4. Verification and release
 

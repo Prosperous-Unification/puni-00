@@ -111,7 +111,7 @@ at the gate, it SHALL exit 70 before the payload starts, naming the fix.
 
 #### Scenario: A one-second job is still measured
 
-- **WHEN** `ops job run --type test-queued -- true` runs
+- **WHEN** `ops job run --type <id> -- true` runs for a type whose argument profile is `""`
 - **THEN** the record holds the gate sample and the exit sample, and the scope was not torn down
   before the exit sample was read
 
@@ -337,3 +337,360 @@ launcher death alone.
 - **WHEN** a gate's payload exits 0 but leaves the tree with an untracked file
 - **THEN** CPU and memory settle, the `gate_tree` unit stays `blocked` naming the file, and no
   gate is admitted on that tree until an operator resolves it
+
+### Requirement: The audit names a throttled run first
+
+`ops job audit` SHALL name a `throttled` drift for every ordinary run record of a catalogued
+type, ended or still running, whose scope sampled `memory.events high` above zero. Each drift
+SHALL be one line naming the type, the job id, the largest event count, the envelope `memoryGib`
+the run ran under and its peak `memoryGib`. The line SHALL give the remedy: calibrate the type
+(`ops job calibrate --type <id>`) and `ops job propose --type <id>`. `throttled` drifts SHALL print
+before every other kind. A calibration record SHALL never be `throttled`. A run still in
+progress SHALL stay drift until it ends. An ended run SHALL stay drift until the HEAD entry's
+`memoryGib` is above the envelope the run was throttled under.
+
+#### Scenario: A throttled gate is the first drift
+
+- **WHEN** a `gate` run under an envelope of 6 GiB sampled `memory.events high` 3360000 and
+  another run overran its CPU
+- **THEN** `audit` exits 1, printing the `throttled` line naming 3360000, 6 and the peak first
+  and the `overrun` line after it
+
+#### Scenario: A raised envelope clears it once the run has ended
+
+- **WHEN** the catalogue at HEAD raises `gate`'s `memoryGib` from 6 to 8
+- **THEN** an ended run throttled under 6 GiB is no longer drift, and a run still in progress
+  under 6 GiB still is
+
+### Requirement: Status marks a throttled job
+
+`ops job status` SHALL print `throttled (memory.events high <n>)` after the peak on the line of a
+running job whose run record has sampled `memory.events high` above zero. `<n>` SHALL be the
+largest count sampled. A job with no such sample SHALL print no marker.
+
+#### Scenario: The throttled gate is visible while it runs
+
+- **WHEN** a running gate's run record has an interval sample with `memory.events high` 3360000
+- **THEN** its `status` line reads `peak 6.0 GiB throttled (memory.events high 3360000)`
+
+### Requirement: A job type may bound its runtime
+
+A catalogue entry MAY declare `maxRuntimeMinutes`, a positive whole number. An entry without it
+SHALL have no runtime bound. When a payload of a bounded type has run longer than the bound at a
+sample, `ops job run` SHALL send SIGTERM to the payload's session. If the payload has not ended
+within the settle budget, it SHALL request SIGKILL of the original native payload child through
+the retained keeper's private FD3 control. Actual native termination and numeric correspondence
+SHALL qualify the raw FD4 payload status; a leader status or runtime policy SHALL NOT substitute
+for it. The keeper SHALL retire through the existing ACK and actual native join before scope
+leftovers are killed. On qualified completion without protocol failure, `ops job run` SHALL exit 124
+and record 124 in the ledger and the run record. The run record SHALL keep the actual payload
+signal and the reason `exceeded maxRuntimeMinutes <n>: ended by the launcher`. Unconfirmed private
+kill delivery SHALL refuse 70 and mark attribution incomplete, including when a qualified raw
+status allows the runtime 124 policy in the ledger. Actual session, container and tmp evidence
+SHALL independently authorize ordinary settlement and shell lock release. A run record written
+without the reason field SHALL still be read.
+
+The keeper SHALL accept at most one private kill after startup and before done. A first request
+after genuine native completion SHALL be a no-op retaining the actual status. Startup, duplicate
+and post-done kills SHALL refuse. Only a prefix of the exact kill word MAY cross the post-native
+exclusive FD3/FD4 observation; startup and EOF checks SHALL still refuse truncated or other words.
+Simultaneous kill-delivery and native-observation failures SHALL retain both original causes; a
+single failure SHALL keep its original cause identity.
+
+#### Scenario: A gate past its bound is ended
+
+- **WHEN** a `bounded` job with `maxRuntimeMinutes: 1` is still running at a sample two minutes
+  after its gate opened
+- **THEN** the launcher ends it with SIGTERM, exits 124, records exit 124, signal `SIGTERM` and
+  the reason, and the job is released
+
+#### Scenario: A payload that ignores SIGTERM
+
+- **WHEN** the payload ignores SIGTERM and the settle budget passes
+- **THEN** the launcher sends SIGKILL, exits 124 and the run record names `SIGKILL`
+
+#### Scenario: A clean runtime-bound payload survives missing or failing systemctl
+
+- **WHEN** the original native payload ignores TERM and no descendant remains after its private
+  kill, while systemctl is absent or fails
+- **THEN** actual native/FD4 status qualifies SIGKILL, the caller returns 124 and the clean job
+  releases through ordinary settlement, with the failed MemoryHigh lift reported
+
+#### Scenario: A first private kill races with completed native status
+
+- **WHEN** a first kill, including a fragmented kill prefix spanning the private phase boundary,
+  arrives after actual payload exit 37
+- **THEN** no native kill is forwarded, raw 37 remains authoritative and ordinary ACK completes
+- **AND** a duplicate or post-done kill refuses, as does a truncated kill at EOF
+
+#### Scenario: Kill delivery fails after the actual native kill
+
+- **WHEN** actual private kill delivery kills the original payload and the write callback reports
+  failure, while raw 137, ACK and actual keeper join qualify
+- **THEN** the caller refuses 70 and attribution is incomplete, with actual raw SIGKILL and policy 124
+  retained separately and clean resources released only by ordinary evidence
+- **AND** a simultaneous native-observation error retains both original causes
+
+#### Scenario: Failed post-keeper scope kill leaves an actual escaped descendant charged
+
+- **WHEN** the owned payload ends at its bound but an actual escaped descendant holds its tmp
+  directory and the subsequent scope kill fails
+- **THEN** the keeper has already joined, the actual payload signal and policy 124 remain recorded,
+  and the descendant's failed kill is reported while its tmp charge remains blocked
+
+#### Scenario: An unbounded type runs on
+
+- **WHEN** a type without `maxRuntimeMinutes` runs under the same clock
+- **THEN** its payload's own exit 0 is returned and no reason is recorded
+
+### Requirement: A test-queued job runs pinned in a gate tree
+
+`bin/test-queued.sh` SHALL take exactly one argument, resolve it to a commit in its own checkout
+and refuse exit 64, before any lock or admission, when it is absent, accompanied by another, or
+names no commit. It SHALL run `bin/test-queued-payload.sh <sha>` through `run_heavy_job` as type
+`test-queued`, labelled `test-queued:<sha8>`. The catalogue's `test-queued` SHALL name the
+argument profile `<sha>` and the exclusive unit `gate_tree`, so it shares the gate's trees. The
+payload SHALL choose its tree as the gate payload does: on an enrolled host only the
+`DASH_JOB_UNIT_GATE_TREE` its admission handed it, refusing 64 without one; on an unenrolled host
+the launcher's checkout, refusing 64 an inherited `DASH_JOB_UNIT_GATE_TREE`. It SHALL check the
+commit out there, refuse a tree whose bytes are not that commit's, run the frozen install and
+`nx run-many -t test`, and, when enrolled, return the tree to its resting commit pass or fail.
+Started inside an admitted job, `test-queued` SHALL be refused 70 as a type with a unit.
+
+#### Scenario: Tests run in an admitted gate tree
+
+- **WHEN** `bin/test-queued.sh HEAD` runs on an enrolled host with two `gate_tree` units
+- **THEN** Dash runs `--type test-queued --label test-queued:<sha8>` with the payload and the
+  full sha, the install and the tests run in one unit at that sha, and the unit is back at its
+  resting commit with `gate_tree` released
+
+#### Scenario: An enrolled payload without an admission is refused
+
+- **WHEN** `bin/test-queued-payload.sh <sha>` runs on an enrolled host without
+  `DASH_JOB_UNIT_GATE_TREE`
+- **THEN** it exits 64 naming the variable and `bin/test-queued.sh <sha>`, and no test runs
+
+#### Scenario: An inherited unit on an unenrolled host is refused
+
+- **WHEN** `bin/test-queued-payload.sh <sha>` runs on an unenrolled host with
+  `DASH_JOB_UNIT_GATE_TREE` set
+- **THEN** it exits 64 saying no admission handed it out, and no test runs
+
+#### Scenario: A launcher without its sha is refused
+
+- **WHEN** `bin/test-queued.sh` runs with no argument, with two, or with one naming no commit
+- **THEN** it exits 64 before any lock or admission
+
+### Requirement: A declared, bounded host-service container beside a job is attributed
+
+During a host job's container watch, a container created without `puni.job` that carries
+`puni.host-service=<name>` with a non-empty name SHALL be recorded as verdict `host-service`
+with its name, `--memory` bytes and `--cpus` cores when both bounds were given, and SHALL NOT
+make the run's attribution incomplete. Without either bound, or with an empty name, it SHALL be
+recorded `unlabelled` with a reason naming what is missing. A container carrying `puni.job`
+SHALL be judged by the job-container rules whatever its `puni.host-service` label.
+`ops job propose` SHALL count such a run as complete, and `ops job audit` SHALL print a note
+listing the run's host services with their declared bounds and counts, adding nothing to the
+job's envelope. A run that saw only host-service containers SHALL NOT clear an earlier
+`attribution_incomplete`.
+
+#### Scenario: A bounded host service beside a gate
+
+- **WHEN** a gate is running and a cron starts a container three times with
+  `--label puni.host-service=goaccess-reports --memory 512m --cpus 1`
+- **THEN** the run record holds three `host-service` verdicts naming goaccess-reports with
+  536870912 bytes and 1 core, the run's attribution is complete, `ops job propose` uses it, and
+  `ops job audit` prints `note: host services beside run` followed by the job id and
+  `goaccess-reports (512 MiB, 1 cpu) ×3`
+
+#### Scenario: An unbounded host service
+
+- **WHEN** a container labelled `puni.host-service=goaccess-reports` starts during a job without
+  `--cpus`
+- **THEN** it is recorded `unlabelled` with a reason naming `--cpus`, and the run's attribution
+  is incomplete
+
+#### Scenario: Both labels
+
+- **WHEN** a container labelled `puni.job` with the running job's id and
+  `puni.host-service=goaccess-reports` starts with memory above the type's declared bound
+- **THEN** it is recorded `unbounded` by the job-container rules
+
+### Requirement: An unreadable subtree under a job's tmp directory is a listed tmp lower bound
+
+Each sample of a host job SHALL walk the job's tmp directory past any subtree its user may not
+read (EACCES or EPERM) and past entries that vanish mid-walk, recording the readable bytes as a
+lower bound and the unreadable paths, relative to the tmp directory, deduplicated and at most
+32 with a count of the rest. Such a sample SHALL NOT be a telemetry failure; the tmp directory
+itself absent or unreadable SHALL be. A record whose only defect is unreadable tmp subtrees
+SHALL be complete for memory, CPU and duration, and a lower bound for tmp disk: `ops job
+propose` SHALL name it `tmp lower bound only` and leave it out of tmp disk, taking tmp disk from
+lower bounds only when fewer than three records measured it, then never below the entry's
+current `tmpDiskGib`, naming those records `used as a lower bound` and not `excluded`, saying
+how many tmp records were measured, and marking the proposed provenance
+`tmpDiskGibLowerBound: true`. `ops job audit` SHALL print one note per such run listing the
+paths, SHALL NOT count its tmp figure toward `waste`, and SHALL NOT judge tmp waste for an entry
+whose provenance carries that marker, printing a note that says so.
+
+#### Scenario: A mode-0 test fixture under TMPDIR
+
+- **WHEN** a gate's payload creates `wbs-shared-process-XYrBbJ/inaccessible` under `TMPDIR`
+  with mode 0 and reopens it later
+- **THEN** the samples taken meanwhile list `wbs-shared-process-XYrBbJ/inaccessible`, their
+  tmp bytes count the rest of the directory, and the run records no telemetry failure
+
+#### Scenario: Three calibrations whose only defect is unreadable tmp subtrees
+
+- **WHEN** `ops job propose --type gate` reads three such calibration records
+- **THEN** it proposes memory, CPU and duration from them, prints `tmp lower bound only` for
+  each, and proposes tmp disk as a lower bound only, at least the entry's current figure, with
+  `tmpDiskGibLowerBound: true` in the provenance
+
+#### Scenario: An accepted lower-bound tmp entry
+
+- **WHEN** the catalogue's entry carries `tmpDiskGibLowerBound: true` and ten complete runs
+  measured tmp disk below half its `tmpDiskGib`
+- **THEN** `ops job audit` names no tmp waste and prints a note that the tmp entry is a lower
+  bound and waste cannot fire for tmpDiskGib
+
+#### Scenario: The tmp directory itself unreadable
+
+- **WHEN** a sample finds the job's tmp directory unreadable or absent
+- **THEN** the sample's failure names the tmp directory, and the run records a telemetry
+  failure that leaves it out of every dimension
+
+### Requirement: A proposal never exceeds the pool's allocatable, and says when it is clamped
+
+`ops job propose` SHALL clamp each of `cpuCores`, `memoryGib` and `tmpDiskGib` whose heuristic
+figure exceeds the largest envelope its pool admits (allocatable cores and memory, and the
+whole GiB its disk units hold) to that figure, SHALL print `clamped to allocatable` with the
+heuristic on that dimension's line, and SHALL record the clamped dimensions in
+`clampedToAllocatable` and their unclamped figures in `heuristic`. A figure equal to
+allocatable SHALL NOT be clamped. `JOB-CATALOGUE` SHALL refuse `clampedToAllocatable` naming an
+unknown or repeated dimension, either field without the other, and an envelope above its
+heuristic, and SHALL judge a clamped dimension's heuristic against the p95 in place of its
+envelope. `ops job audit` SHALL keep an overrun in a clamped dimension as drift, marked
+expected when its peak is at most that dimension's heuristic, SHALL print a note for each
+clamped dimension, and SHALL NOT judge it for waste. When its only drift is such an expected
+overrun it SHALL exit 0; an overrun above the heuristic and any other drift SHALL exit 1. An
+ordinary run of a type with a clamped dimension SHALL reserve the pool's whole allocatable in
+that dimension, and Dash SHALL refuse such a type in `concurrencyEligible`. A clamped `memoryGib`
+SHALL run its scope with `MemoryHigh` at the lower of `heuristic.memoryGib` and the pool's
+memory budget less `memoryBoundHeadroomGib` (2 when absent), never below the envelope, reporting
+the figure that set it and recording `memoryBoundGib` in the descriptor and the run record.
+`JOB-CATALOGUE` and `ops job run` SHALL refuse `cap` enforcement on a clamped `memoryGib`,
+naming the clamp and the p95.
+
+#### Scenario: A heuristic above allocatable
+
+- **WHEN** `ops job propose --type gate` on a pool of 7 cores and 10 GiB reads calibrations with
+  p95 10.01 GiB and 6.88 cores
+- **THEN** it proposes `memoryGib` 10 and `cpuCores` 7, prints
+  `memoryGib: 10 (clamped to allocatable 10 GiB; heuristic 13 from p95 10.01 GiB …`, and the
+  provenance carries `clampedToAllocatable: ["cpuCores", "memoryGib"]` and
+  `heuristic: { cpuCores: 9, memoryGib: 13 }`
+
+#### Scenario: An overrun of a clamped envelope
+
+- **WHEN** a gate run peaks at 10 GiB under the clamped 9 GiB entry
+- **THEN** `ops job audit` names the overrun, its line ending
+  `expected: the HEAD entry is clamped to the pool`, exits 0 when nothing else drifted, and
+  prints the note
+  `gate memoryGib overruns a clamped envelope: p95 10.01 GiB measured, entry 9 clamped to the pool`
+
+#### Scenario: Only an expected overrun
+
+- **WHEN** the only drift `ops job audit` finds is an overrun of a clamped dimension, up to its
+  heuristic
+- **THEN** it prints the overrun and its note and exits 0; with an overrun in an unclamped
+  dimension beside it, or a 14 GiB peak on a heuristic of 13, it exits 1
+
+#### Scenario: A clamped gate runs under its heuristic
+
+- **WHEN** `ops job run --type gate` launches the entry clamped to 6 cores and 9 GiB with
+  heuristic 13 GiB on h4claw's pool (budget 15 GiB, allocatable 7 cores and 10 GiB)
+- **THEN** admission reserves 7 cores and 10 GiB, the scope gets `-p MemoryHigh=13G`, the
+  launcher names the heuristic as the figure that set it, and the descriptor and the run record
+  carry `memoryBoundGib: 13`; on h2puni's 14 GiB budget the pool's 12 GiB sets it
+
+#### Scenario: Nothing runs beside a clamped gate
+
+- **WHEN** a 1-core, 1-GiB job arrives while a clamped gate is held, or the gate arrives while
+  that job is held
+- **THEN** the newcomer does not fit and waits, though the gate's envelope would leave room
+
+#### Scenario: Cap on a clamped memory
+
+- **WHEN** an entry with `memoryGib` in `clampedToAllocatable` declares `enforcement: cap`
+- **THEN** `JOB-CATALOGUE` names it, and `ops job run` refuses 64 before admission, naming the
+  clamp and the p95
+
+#### Scenario: A bad clamp marker
+
+- **WHEN** an entry's `clampedToAllocatable` names `swapGib`, or its `memoryGib` is 14 under a
+  heuristic of 13
+- **THEN** `JOB-CATALOGUE` names the entry malformed
+
+### Requirement: Processes left in a job's scope are ended before tmp settlement
+
+Once a host job's leader has exited and its launched session has no live member, `ops job
+run` and `ops job calibrate` SHALL end every process still in the job's own scope
+`dash-job-<id>.scope` before settling the job. They SHALL first record the payload's end:
+the run record's `endedAt` (so its wall time) and the ledger's exit SHALL be taken at the
+leader's exit, never after the leftover ending. They SHALL read only the job's own scope and the
+cgroups nested below it, never the parent slice or another job's scope (a `j19-holder-*` scope
+the gate's tests start is a sibling under the slice, not below the job's scope); they SHALL
+count the subtree's processes, describe up to eight of the scope's own (pid, comm, command line
+truncated to 120 characters), send SIGTERM to the whole scope through `systemctl --user kill`,
+SIGKILL after a bounded grace, and SHALL then wait, bounded, until the subtree has no member.
+The run record SHALL keep `leftoverProcesses` with `count`, `examples` and `endedWith`:
+`none`, `SIGTERM`, `SIGKILL`, `timeout`, or, with the `failure` text, `signal-failed` when a
+`systemctl --user kill` call failed (no wait follows, and a leftover that exits on its own
+afterwards SHALL NOT be labelled with the signal) or `unverified` when the members became
+unreadable during a wait. A record written before this requirement SHALL load without it.
+`ops job status` and `ops job audit` SHALL print a note naming how many leftovers were ended,
+with which signal, or that no signal was delivered, and their command lines by count. Every
+outcome other than `none`, `SIGTERM` and `SIGKILL` SHALL leave the tmp directory charged and be
+reported; none SHALL be reported as released. While a member of the payload's own session
+lives, the launcher SHALL NOT signal anything in the scope.
+
+#### Scenario: A leftover is ended before tmp settlement
+
+- **WHEN** a gate's payload exits 0 and leaves a `setsid`'d `node serve.cjs` with its working
+  directory under `TMPDIR` in the job's scope
+- **THEN** the launcher sends SIGTERM to the scope, the server exits, the run record keeps
+  `leftoverProcesses` `{ count: 1, endedWith: SIGTERM }` with its command line, the tmp entry is
+  released, and `ops job audit` notes `run <id> ended 1 leftover processes with SIGTERM (node
+serve.cjs ×1)`
+
+#### Scenario: The leftover ending is not the job's wall time
+
+- **WHEN** a leftover ignores SIGTERM and is SIGKILLed after the grace
+- **THEN** the run record's wall time ends at the leader's exit, below the grace, and the
+  ledger's exit precedes the leftover ending's first report line
+
+#### Scenario: A leftover survives the SIGKILL wait
+
+- **WHEN** a process in the job's scope is still a member after the SIGKILL wait
+- **THEN** the run record keeps `endedWith: timeout`, the launcher reports that the scope still
+  has members, the tmp entry stays `blocked`, and `ops job status` prints the note under the
+  job's line
+
+#### Scenario: The scope kill fails
+
+- **WHEN** `systemctl --user kill --signal=SIGTERM` fails for the job's scope
+- **THEN** the run record keeps `endedWith: signal-failed` with the diagnostic, nothing is waited
+  for, the tmp entry stays `blocked`, and the note says no signal was delivered
+
+#### Scenario: A nested cgroup is counted and awaited, never described
+
+- **WHEN** a cgroup below the job's scope holds a process
+- **THEN** the leftover count and the wait include it, the record's examples come from the job
+  scope's own `cgroup.procs` only, and a cgroup that is not the job's own scope (its parent
+  slice, another job's scope) is refused
+
+#### Scenario: A member of the payload's session is the job's own work
+
+- **WHEN** the payload exits leaving a plain background child in its session
+- **THEN** nothing in the scope is signalled, the run record has no `leftoverProcesses`, and the
+  job settles once the child ends

@@ -160,3 +160,119 @@ with zero failures. Original stdout, stderr, native exits and before/after sourc
 hashes are retained in local capture receipts under
 `.superpowers/sdd/runtime-write-delivery-20261101/ci-allowance-task1-attempt17-*`;
 the implementation report indexes the exact receipts.
+
+## Workspace lint at parallelism one, 2026-11-20
+
+Workspace lint now runs at `--parallel=1`
+([R5-32](checks-that-cannot-fail.md#a-lost-hosted-runner-leaves-no-step-conclusion-and-no-log),
+A-CI-WORKSPACE-MEMORY-1). In full mode it is now a separate `run-many -t lint` after
+`test typecheck build`, which keep parallelism two. In affected mode lint already ran as its
+own phase after the tests, so only its parallelism changes. The other shards are unchanged.
+This is a cheap narrowing lever: the timings do not place the runner losses in lint.
+
+These are the measurements the estimate starts from:
+
+| Run                                                       | Phase                               | Time     | Task time summed |
+| --------------------------------------------------------- | ----------------------------------- | -------- | ---------------- |
+| Full, main `d40d0aee8`, run 44496836205, job 135466352451 | one `run-many`, 185 tasks           | 71m21s   | 137.5 min        |
+| same                                                      | its 49 lint tasks                   | (inside) | 12.2 min         |
+| Affected, PR #955 run 44684301175 attempt 2               | `test typecheck build`, 50 projects | 68m24s   | not summed       |
+| same                                                      | `affected -t lint`, 12 projects     | 7m04s    | 11.6 min         |
+
+The full run's critical path was 40m56s (`tool-fleet:test`). The affected lint summary said
+"Increase parallelism to recover up to 3m 56s". Its largest tasks were `wbs-fe-01:lint` (3m06s)
+and `wbs-be-01:lint` (2m04s). That pull request's whole gate step took 76m12s.
+
+These are estimates, not measurements. In full mode the remaining 125.3 minutes of non-lint
+task time take at least 62.7 minutes at two, and likely close to the 71 minutes measured. Lint
+then adds about 12 to 13 minutes. That gives 75 to 84 minutes against the 105-minute phase,
+which is up to 13 minutes more than before. In affected mode lint takes about 11.6 minutes
+instead of 7, so a full-scope pull request would take about 81 minutes instead of 76.
+
+`--parallel=1` for every phase was rejected. The full run's 137.5 minutes of task time already
+exceed the 105-minute phase. Even if serial tasks ran a quarter faster without contention, the
+run would leave almost no reserve. The next five hosted workspace runs should confirm or
+correct these figures.
+
+The workspace gate step now records its runner in `nx-gate.log`. The first record, from the
+#957 workspace job at `ab1607590`, was `ubuntu-24.04` image 20261116.376.1 on Ubuntu 24.04.5 LTS
+with a Node `heap_size_limit` of 4345298944 bytes (about 4144 MiB). Per-run image versions now
+let a duration change be matched against an image roll.
+
+## Heavy bun test shard, 2026-11-20
+
+`gate workspace-heavy` (A-CI-WORKSPACE-MEMORY-2,
+[R5-32](checks-that-cannot-fail.md#a-lost-hosted-runner-leaves-no-step-conclusion-and-no-log))
+owns `tool-fleet`, `tool-devsync`, `wbs-store-sqlite` and `wbs-core` and runs them at
+`--parallel=1`. `wbs-core` is there for memory, not time: its 4-minute test suite peaked at 7.3
+GiB RSS in CI and 5.7 GiB locally. The fix at the source is #959.
+
+These are estimates from the full-mode run 44496836205 above, not measurements:
+
+| Shard     | Task time moved or kept                               | Estimated wall time | Phase   |
+| --------- | ----------------------------------------------------- | ------------------- | ------- |
+| heavy     | tests 85.2 min, lint 4.2 min, typecheck 3.9 min, deps | about 93 min        | 135 min |
+| workspace | about 36 min non-lint at two, about 8 min lint at one | about 26 to 30 min  | 105 min |
+
+The heavy shard's 41-minute `tool-fleet:test` is now its single largest task. About 93
+minutes of task time at parallel-2 timings would have left only about 12 minutes of a
+105-minute phase. So `gate_heavy` has its own finite budget: a 135-minute phase in a 150-minute
+job. The workspace shard stays at 105 of 120. Parallel-1 timings are unknown until the first
+full-mode heavy logs. Both shards start together, so the slowest
+required shard sets the gate's wall time. That is the heavy shard or Twilight, not the
+workspace shard.
+
+## One job per heavy project, 2026-11-21
+
+The single heavy job was lost on main `982f36697` (job 136597156506, [R5-32](checks-that-cannot-fail.md#a-lost-hosted-runner-leaves-no-step-conclusion-and-no-log)).
+`gate workspace-heavy` is now one matrix leaf per project (A-CI-WORKSPACE-MEMORY-3), each at
+`--parallel=1`.
+
+The task times below are per project from the full-mode run 44496836205, measured at
+parallelism two. Each budget adds a finite allowance and a 15-minute reserve:
+
+| Leaf               | test     | lint    | typecheck (+ module) | Total    | Phase  | Job    |
+| ------------------ | -------- | ------- | -------------------- | -------- | ------ | ------ |
+| `tool-fleet`       | 40.9 min | 1.6 min | 0.3 min              | 42.9 min | 75 min | 90 min |
+| `tool-devsync`     | 22.0 min | 0.3 min | 0.03 min             | 22.4 min | 45 min | 60 min |
+| `wbs-store-sqlite` | 18.5 min | 0.8 min | 0.4 min              | 19.7 min | 45 min | 60 min |
+| `wbs-core`         | 3.8 min  | 1.4 min | 0.5 + 2.6 min        | 8.2 min  | 30 min | 45 min |
+
+Dependency builds come on top of these figures. The first hosted heavy run (#958, job 136558782678) ran only `tool-devsync`:
+
+- The phase took 17m06s (`elapsedSeconds=1031`).
+- `tool-devsync:test` alone took 16m59s at parallelism one, against 22.0 minutes at parallelism
+  two.
+- Its 14 dependency builds totalled 4.5 seconds.
+- Setup to phase start took 55 to 63 seconds, and the registry fixtures took 2 seconds.
+
+The leaves start together with the other shards, so the gate's wall time is now set by the
+`tool-fleet` leaf or by Twilight.
+
+## Memory-capped leaves, 2026-11-21
+
+The first full-mode run with one job per heavy project (run 44859286080, main `e8e568784`) took:
+
+| Job                | Wall time | Outcome             |
+| ------------------ | --------- | ------------------- |
+| `workspace`        | 20m42s    | passed              |
+| `wbs-core`         | 5m31s     | passed              |
+| `wbs-store-sqlite` | 11m16s    | passed              |
+| `tool-devsync`     | 17m29s    | passed              |
+| `tool-fleet`       | 67m03s    | runner lost, no log |
+
+The `tool-fleet` estimate was 42.9 minutes of task time at parallelism two. The loss was declared
+about 24 minutes past it, inside the 75-minute phase. That overrun is the slowdown
+[R5-32](checks-that-cannot-fail.md#a-lost-hosted-runner-leaves-no-step-conclusion-and-no-log)
+attributes to memory thrashing, and the suite's fix is tracked in #963.
+
+A-CI-LEAF-MEMORYMAX-1 runs the workspace and heavy Nx phases under a 12 GiB `MemoryMax` scope with
+no swap. It changes no budget. A suite that would have thrashed now fails when the kernel kills it
+inside the scope, so its job ends early with a log instead of running into the phase limit or
+losing the runner.
+
+The cap's first hosted run (#964, job 136732392386) failed `gate workspace` after 23m31s
+(`elapsedSeconds=1411`). Three lints (`twilight-dash`, `wbs-be-01` and `wbs-fe-01`) ran out of
+Node heap. Inside the 12 GiB scope Node defaults to a 2240 MB heap. The steps therefore pin
+`--max-old-space-size=4096`, as the gate hosts have done since #956 (A-NODE-HEAP-1). That is the
+uncapped runner's default figure, so lint durations should match the earlier uncapped runs.

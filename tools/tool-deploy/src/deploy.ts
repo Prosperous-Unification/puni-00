@@ -1,15 +1,8 @@
-// The deploy orchestrator. It answers two questions before anything touches
-// the server: which tiers should move, and is it safe to blue/green them —
-// then, for --execute, drives the real per-tier swap over SSH.
-//
-// It does not build or publish images itself: `nx run tool-dagger:publish-all`
-// (Task 4) is a separate, explicit step that writes `release.json`. This CLI
-// only reads that file, so a stale or missing release entry fails loudly
-// rather than silently deploying an old image.
 import {
   APP_NAME,
   bundleFilesFor,
   type Color,
+  IMAGE_NAME,
   PORT,
   SOLVER_SUPERVISOR_BUN,
   SOLVER_SUPERVISOR_BUNDLE,
@@ -26,30 +19,21 @@ import {
   hasNewMigrations,
   migrationsAtSha,
 } from './migrations';
+import { assertDeploymentVerification, assertReleaseImages, type ReleaseImage } from './provenance';
+import { githubVerificationProvider } from './provenance-github';
+import { verifyImageProvenance } from './provenance-images';
+import { readReleaseRecord, type ReleaseRecord, selectReleaseImage } from './release-record';
 import { readRemoteState, type RemoteTierState } from './remote-state';
+
+export type { ReleaseEntry, ReleaseRecord } from './release-record';
 
 export const DEFAULT_HOST = 'h2puni';
 export const DEFAULT_RELEASE_PATH = 'dist/tool-dagger/release.json';
 
-export interface ReleaseEntry {
-  sha: string;
-  digest: string;
-  /** The tagged ref the image was pushed to. Traceability only. */
-  ref: string;
-  /**
-   * The digest-pinned ref, registry address included, exactly as
-   * `tool-dagger` recorded it. Passed through to `swap.js` verbatim — this
-   * CLI is the only thing that talks to both sides, so it is the one place
-   * the address could have been lost, and it used to be: only `--digest` and
-   * `--sha` crossed the SSH boundary, with no env passthrough, leaving the
-   * server to rebuild the ref from its own `REGISTRY` default. See
-   * tools/tool-dagger/src/lib/publish.ts's ReleaseEntry.image.
-   */
-  image: string;
-}
-export type ReleaseRecord = Partial<Record<Tier, ReleaseEntry>>;
-
 export interface DeployPlan {
+  /** Source and selected publication claims captured once while planning. */
+  revision: string;
+  images: readonly ReleaseImage[];
   tiers: Tier[];
   steps: string[];
   /**
@@ -145,22 +129,10 @@ function assertCleanWorktree(dirty: string[]): void {
   );
 }
 
-async function defaultReadRelease(path: string): Promise<ReleaseRecord> {
-  const text = await Bun.file(path)
-    .text()
-    .catch(() => null);
-  if (text === null) {
-    throw new Error(
-      `release manifest not found at ${path} — run "nx run tool-dagger:publish-all" first`,
-    );
-  }
-  return JSON.parse(text) as ReleaseRecord;
-}
-
 export const defaultDeployPlanDeps: DeployPlanDeps = {
   readRemoteState,
   listMigrations: migrationsAtSha,
-  readRelease: defaultReadRelease,
+  readRelease: readReleaseRecord,
   dirtyPaths: defaultDirtyPaths,
 };
 
@@ -208,6 +180,7 @@ export async function buildDeployPlan(
   const commands: string[] = [];
   const preflightCommands: string[] = [];
   const imageArgs: string[] = [];
+  const images: ReleaseImage[] = [];
   let solverSupervisorPreflight = '';
 
   const remote = await deps.readRemoteState(host, args.layout.stateDir);
@@ -299,6 +272,7 @@ export async function buildDeployPlan(
 
     // `--image-<tier>` carries the whole publish address; nothing on the far
     // side reconstructs it (see ReleaseEntry.image).
+    images.push(selectReleaseImage(t, entry));
     imageArgs.push(`--image-${t}=${entry.image}`);
     if (t === 'be' && args.layout.env === 'prod') {
       solverSupervisorPreflight = prodSolverSupervisorPreflightCommand(
@@ -344,6 +318,8 @@ export async function buildDeployPlan(
   }
 
   return {
+    revision: headSha,
+    images,
     tiers,
     steps,
     commands,
@@ -541,6 +517,25 @@ function currentHeadSha(): string {
   return p.stdout.toString('utf8').trim();
 }
 
+/**
+ * Accepts source/check and digest-linked image evidence before any remote preflight or swap.
+ * @throws when source discovery, policy admission or digest-linked registry verification fails.
+ */
+async function acceptDeploymentProvenance(plan: DeployPlan): Promise<void> {
+  const invocation = Bun.spawnSync(['git', 'remote', 'get-url', 'origin']);
+  // Proof: missing-origin refuses before actual remote preflight/swap in provenance-cli.test.ts.
+  if (invocation.exitCode !== 0) throw new Error('Cannot discover deployment source origin');
+  const provider = githubVerificationProvider(
+    invocation.stdout.toString('utf8').trim(),
+    plan.revision,
+  );
+  const verification = await provider.observe();
+  assertDeploymentVerification(provider.policy, verification);
+  assertReleaseImages(plan.revision, plan.images, IMAGE_NAME);
+  const images = await verifyImageProvenance(plan.revision, plan.images);
+  console.log(`[tool-deploy] provenance ${JSON.stringify({ verification, images })}`);
+}
+
 async function main(): Promise<void> {
   const argv = process.argv.slice(2);
   const headSha = currentHeadSha();
@@ -552,6 +547,9 @@ async function main(): Promise<void> {
   for (const s of plan.steps) console.log(s);
 
   if (plan.dryRun) {
+    console.log(
+      '[tool-deploy] dry-run: deployment verification and image provenance are unverified.',
+    );
     console.log('[tool-deploy] dry-run only. re-run with --execute to perform a live deploy.');
     return;
   }
@@ -559,6 +557,10 @@ async function main(): Promise<void> {
   // Before any registry or tier check: refuse to drive a deploy against a
   // stale or missing bin/swap.js or bin/smoke.js. See assertBundleInstalled.
   await assertBundleInstalled(plan.host, plan.layout);
+
+  // Proof: removing this call admitted wrong/missing labels, corrupt OCI bytes and
+  // failed/mismatched verification through actual SSH swaps in provenance-cli.test.ts.
+  await acceptDeploymentProvenance(plan);
 
   // Every tier's registry check first, then every tier's swap. Decision 10
   // requires a registry/auth problem to abort "before anything starts", which

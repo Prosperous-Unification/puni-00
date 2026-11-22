@@ -12,6 +12,7 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 
+import { createStepBoardAction } from '@/components/board/step-board-action';
 import { StepBoardView } from '@/components/board/step-board-view';
 import { AppHeader } from '@/components/chrome/app-header';
 import { LifetimeFault } from '@/components/chrome/lifetime-fault';
@@ -197,6 +198,10 @@ function WorkPackageViews({
   // runtime is withdrawn` restore p2's draft in the next runtime. Watched
   // 2026-10-06.
   const [interaction] = useState(() => new PlanInteractionScope());
+  // Proof: keying this action by `view` recreated it on Board remount; the mounted
+  // `keeps a Board step move admitted across Board remount and a Plan write`
+  // test found its second move button enabled while the first request was held.
+  const boardAction = useMemo(() => createStepBoardAction(workPackage), [workPackage]);
   const movesFocus = useRef(false);
   /** Ref callbacks run after DOM mutations; null means the old selector detached. */
   const focusSelector = (selector: HTMLButtonElement | null, selected: 'plan' | 'board'): void => {
@@ -220,6 +225,7 @@ function WorkPackageViews({
     [interaction],
   );
   const selectView = (next: 'plan' | 'board'): void => {
+    if (next === 'plan') boardAction.cancel();
     interaction.select(next);
     movesFocus.current = next !== view;
     onSelect(workPackage, next);
@@ -291,6 +297,7 @@ function WorkPackageViews({
       {view === 'board' && (
         <StepBoardView
           workPackage={workPackage}
+          action={boardAction}
           onReturnToPlan={() => {
             selectView('plan');
           }}

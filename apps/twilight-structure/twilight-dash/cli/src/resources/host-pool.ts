@@ -31,6 +31,17 @@ export const jobTypeDescriptor = type({
     ),
   ),
   enforcement: "'observe' | 'cap'",
+  /**
+   * The dimensions the catalogue entry clamped to a pool's allocatable (task 6.25): the job
+   * measurably uses the whole pool there, so admission reserves all of the pool's allocatable in
+   * each, whatever the envelope says (S25-A7). Absent when nothing is clamped.
+   */
+  'clampedToAllocatable?': "('cpuCores' | 'memoryGib' | 'tmpDiskGib')[]",
+  /**
+   * The scope's `MemoryHigh` in GiB when it is not the envelope's `memoryGib`: a clamped
+   * `memoryGib` runs under its heuristic, capped by the pool (`scopeMemoryBound`, S25-A6).
+   */
+  'memoryBoundGib?': 'number.integer > 0',
 }).onUndeclaredKey('reject');
 export type JobTypeDescriptor = typeof jobTypeDescriptor.infer;
 

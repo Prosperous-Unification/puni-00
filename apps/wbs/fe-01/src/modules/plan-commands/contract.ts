@@ -43,6 +43,8 @@ export const WORK_PACKAGE_COMMAND_ROUTES = [
 export const WORK_ITEM_COMMAND_ROUTES = [
   'patchWorkItem',
   'setStatus',
+  'setProgress',
+  'clearProgress',
   'setStepBlocked',
   'startAttempt',
   'endAttempt',

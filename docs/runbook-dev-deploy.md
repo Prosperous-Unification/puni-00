@@ -450,12 +450,11 @@ before any prod deploy; dev will not catch a regression in that path.
 
 ## Gate workspace safety
 
-Run `bin/h2puni-gate.sh <sha>` from a clean isolated h2 worktree, using the script
-inside that worktree. Never use `/home/puni1/wbs-dev/src` as the gate tree. The
-gate derives its repository root from its own script path, and its canonical
-heavy lock does not exclude the dev poller's checkout reset. Keep the worktree
-reserved for the gate; let the wrapper check out the requested SHA under its
-lock rather than checking it out beforehand.
+Run `bin/h2puni-gate.sh <sha>` from `~/puni-00-gate-launcher`; since the host's enrollment in the
+Dash host pool (2026-11-17) the pool hands the gate one of its two gate trees. Never use
+`/home/puni1/wbs-dev/src` as a gate tree: the dev poller resets that checkout independently of the
+heavy lock. Let the wrapper check out the requested SHA in the tree it is given rather than
+checking it out beforehand.
 
 Observed 2026-10-17: a gate in the dev source checkout started on `b1ce4e74` at
 07:39:10 UTC; the poller reset that checkout at 07:40:02 UTC. Prettier then reported

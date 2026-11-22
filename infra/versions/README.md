@@ -6,6 +6,12 @@ The controller digest is the OCI manifest produced from `infra/controller/Contai
 
 Only Ubuntu 24.04 amd64 hosts are supported initially. Another architecture needs its own binary, chart-image, controller, and local-VM locks.
 
+`binaries.crane` pins the go-containerregistry crane client v0.22.1 because the registry
+tooling and release copy steps need a hash-pinned crane. Its archive `sha256` matches the
+publisher's release `checksums.txt` and the GitHub release-asset digest; `executableSha256` is
+the hash of the `crane` member extracted from that archive, which `installLockedCrane` checks
+before returning the client.
+
 The Kubernetes baseline is k3s v1.36.4+k3s1 with kubectl v1.36.4.
 [cert-manager's release table](https://cert-manager.io/docs/releases/) lists
 Kubernetes 1.33 through 1.36 for v1.21, so this baseline is inside its published

@@ -119,7 +119,9 @@ resolve_tool_wiki_modules() {
 }
 
 # The tree the gate payload checks out and gates, given the launcher's checkout `$1` and the
-# host's enrollment `$2` (`dash-host-jobs` J15).
+# host's enrollment `$2` (`dash-host-jobs` J15). `$3` names the launcher the enrolled refusal
+# sends its caller to, `bin/h2puni-gate.sh` when omitted: the `test-queued` payload shares the
+# gate's trees (task 6.12) and names `bin/test-queued.sh`.
 #
 # On an enrolled host it is the gate tree the admission handed the job as
 # `DASH_JOB_UNIT_GATE_TREE`, and nothing else: 64 without it, because gating the launcher's
@@ -138,6 +140,7 @@ resolve_tool_wiki_modules() {
 resolve_gate_tree() {
   local checkout=${1:?checkout is required}
   local enrollment=${2:?enrollment is required}
+  local launcher=${3:-bin/h2puni-gate.sh}
   local admitted=${DASH_JOB_UNIT_GATE_TREE:-}
   if [[ $enrollment == unenrolled ]]; then
     if [[ -n $admitted ]]; then
@@ -155,7 +158,8 @@ resolve_gate_tree() {
     return 64
   fi
   if [[ -z $admitted ]]; then
-    printf 'h2puni gate: this host is enrolled and DASH_JOB_UNIT_GATE_TREE is not set; the gate runs only in the gate tree its admission hands it, so launch bin/h2puni-gate.sh <sha> rather than its payload\n' >&2
+    printf 'h2puni gate: this host is enrolled and DASH_JOB_UNIT_GATE_TREE is not set; the payload runs only in the gate tree its admission hands it, so launch %s <sha> rather than its payload\n' \
+      "$launcher" >&2
     return 64
   fi
   local canonical

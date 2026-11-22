@@ -15,7 +15,7 @@ const source = await compiled.outputs[0].text();
 const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
 let cases = 0;
 try {
-  for (const host of ['dev.puni.dev', 'dev.app.puni.dev']) {
+  for (const host of ['dev.puni.dev', 'dev.request.puni.dev']) {
     const context = await browser.newContext();
     try {
       await context.addCookies([

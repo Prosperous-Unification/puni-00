@@ -7,6 +7,7 @@ import {
   committedCatalogue,
   type FixtureRun,
   HOST_CLASS,
+  ROOMY_POOL,
   runRecord,
   TOOLCHAIN,
 } from './run-record.test.fixture';
@@ -25,12 +26,13 @@ const catalogue = committedCatalogue([
 ]);
 const partition: Partition = { argumentProfile: '', hostClass: HOST_CLASS, toolchain: TOOLCHAIN };
 
-function propose(type: string, runs: readonly FixtureRun[]) {
+function propose(type: string, runs: readonly FixtureRun[], allocatable = ROOMY_POOL) {
   return proposeEnvelope(
     type,
     catalogue,
     runs.map((run) => runRecord(catalogue, { type, ...run })),
     partition,
+    allocatable,
     NOW,
   );
 }
@@ -116,6 +118,7 @@ describe('ops job propose (task 4.1, J9)', () => {
       catalogue,
       [...records.slice(0, 3), { ...unsized, peakTmpBytes: null }],
       partition,
+      ROOMY_POOL,
       NOW,
     );
     if (proposal.kind !== 'proposed') throw new Error(proposal.reason);
@@ -215,6 +218,31 @@ describe('ops job propose (task 4.1, J9)', () => {
     ]);
   });
 
+  test('a record whose only other container is a bounded host service is complete (task 6.22)', () => {
+    const proposal = propose('gate', [
+      ...calibrations(4, 4),
+      {
+        id: 'beside-goaccess',
+        calibration: true,
+        memoryGib: 4,
+        containers: [
+          { id: 'beef', verdict: 'bounded', reason: 'labelled, bounded' },
+          {
+            id: 'cafe',
+            verdict: 'host-service',
+            reason: 'host service goaccess-reports',
+            hostService: { name: 'goaccess-reports', memoryBytes: 512 * 1024 ** 2, cpuCores: 1 },
+          },
+        ],
+      },
+    ]);
+    if (proposal.kind !== 'proposed') throw new Error(proposal.reason);
+    expect(proposal.lines.filter((line) => line.startsWith('excluded'))).toEqual([]);
+    expect(proposal.entry.provenance).toMatchObject({
+      recordIds: ['calibration-1', 'calibration-2', 'beside-goaccess'],
+    });
+  });
+
   test('CPU is the peak rate over a ten-second window, or the whole of a shorter run', () => {
     const sample = (second: number, usec: number): RunSample => ({
       kind: 'interval',
@@ -229,6 +257,8 @@ describe('ops job propose (task 4.1, J9)', () => {
         memoryHighEvents: 0,
       },
       tmpBytes: 0,
+      tmpUnreadable: [],
+      tmpUnreadableOmitted: 0,
       containers: null,
       failure: null,
     });
@@ -238,5 +268,232 @@ describe('ops job propose (task 4.1, J9)', () => {
     );
     expect(peakCpuCores([sample(0, 0), sample(4, 6e6)])).toBe(1.5);
     expect(peakCpuCores([sample(0, 0)])).toBeNull();
+  });
+});
+
+describe('ops job propose with tmp lower bounds (task 6.23, A-TMP-TELEMETRY-1)', () => {
+  const PATH = 'wbs-shared-process-XYrBbJ/inaccessible';
+  const lowerBounds = (runs: FixtureRun[]): FixtureRun[] =>
+    runs.map((run) => ({ ...run, tmpUnreadable: [PATH] }));
+
+  test('three records whose only defect is unreadable tmp subtrees propose memory, cpu and duration; tmp is a lower bound only', () => {
+    const proposal = propose('gate', lowerBounds(calibrations(4.1, 4.4, 4.3)));
+    if (proposal.kind !== 'proposed') throw new Error(proposal.reason);
+    // 600, 660 and 720 s of ten-second samples, each after the gate sample.
+    for (const [id, samples] of [
+      ['calibration-1', 60],
+      ['calibration-2', 66],
+      ['calibration-3', 72],
+    ] as const)
+      expect(proposal.lines).toContain(
+        `used as a lower bound calibration ${id} in tmpDiskGib: tmp lower bound only: ${String(samples)} samples saw unreadable subtrees (${PATH})`,
+      );
+    expect(proposal.lines).not.toContainEqual(expect.stringContaining('excluded'));
+    expect(proposal.lines).toContain(
+      'memoryGib: 6 (p95 4.4 GiB over 3 uncapped, unthrottled records: calibration-1, calibration-2, calibration-3)',
+    );
+    expect(proposal.lines).toContain(
+      'cpuCores: 4 (p95 3 cores over 3 calibration records: calibration-1, calibration-2, calibration-3)',
+    );
+    expect(proposal.lines).toContain(
+      'durationSeconds: reported only, the catalogue has no duration field (p95 720 s over 3 calibration records: calibration-1, calibration-2, calibration-3)',
+    );
+    // The lower bounds' 4 GiB would lower the entry's 8: it stays.
+    expect(proposal.lines).toContain(
+      "tmpDiskGib: 8 (lower bound only, at least the entry's 8, provenance tmpDiskGibLowerBound: p95 3 GiB over 3 records: calibration-1, calibration-2, calibration-3)",
+    );
+    expect(proposal.entry.envelope).toEqual({
+      cpuCores: 4,
+      memoryGib: 6,
+      tmpDiskGib: 8,
+      exclusive: ['gate_tree'],
+    });
+    expect(proposal.entry.provenance).toMatchObject({
+      recordCount: 3,
+      recordIds: ['calibration-1', 'calibration-2', 'calibration-3'],
+      tmpDiskGibLowerBound: true,
+    });
+  });
+
+  test('two measured records and one lower bound make a mixed lower bound', () => {
+    const runs = calibrations(4.1, 4.4, 4.3);
+    const proposal = propose('gate', [...runs.slice(0, 2), ...lowerBounds(runs.slice(2))]);
+    if (proposal.kind !== 'proposed') throw new Error(proposal.reason);
+    expect(proposal.lines).toContain(
+      "tmpDiskGib: 8 (lower bound from 2 measured + 1 lower bounds, at least the entry's 8, provenance tmpDiskGibLowerBound: p95 3 GiB over 3 records: calibration-1, calibration-2, calibration-3)",
+    );
+    expect(proposal.entry.provenance).toMatchObject({ tmpDiskGibLowerBound: true });
+  });
+
+  test('a lower bound above the entry raises its tmp disk', () => {
+    // release-build declares 2 GiB; the lower bounds' p95 of 3 GiB needs at least 4.
+    const proposal = propose('release-build', lowerBounds(calibrations(1, 1, 1)));
+    if (proposal.kind !== 'proposed') throw new Error(proposal.reason);
+    expect(proposal.entry.envelope.tmpDiskGib).toBe(4);
+  });
+
+  test('two records do not propose from lower bounds either', () => {
+    const proposal = propose('gate', lowerBounds(calibrations(4.1, 4.4)));
+    expect(proposal.kind).toBe('refused');
+  });
+
+  test('a record with unreadable tmp subtrees beside three measured ones is not cited', () => {
+    const proposal = propose('gate', [
+      ...calibrations(4.1, 4.4, 4.3),
+      ...lowerBounds([
+        {
+          id: 'fixture-run',
+          calibration: true,
+          memoryGib: 4,
+          cpuCores: 2,
+          tmpGib: 9,
+          seconds: 600,
+        },
+      ]),
+    ]);
+    if (proposal.kind !== 'proposed') throw new Error(proposal.reason);
+    expect(proposal.lines).toContain(
+      'tmpDiskGib: 4 (p95 3 GiB over 3 records: calibration-1, calibration-2, calibration-3)',
+    );
+    expect(proposal.lines).toContain(
+      `excluded calibration fixture-run from tmpDiskGib: tmp lower bound only: 60 samples saw unreadable subtrees (${PATH})`,
+    );
+    expect(proposal.entry.provenance).toMatchObject({
+      recordIds: ['calibration-1', 'calibration-2', 'calibration-3'],
+    });
+    expect(proposal.entry.provenance).not.toHaveProperty('tmpDiskGibLowerBound');
+  });
+});
+
+describe('ops job propose clamps to the pool (task 6.25, A-ENVELOPE-CLAMP-1)', () => {
+  /** Three calibrations shaped like h4claw's gate: p95 10.01 GiB, 6.88 cores, 8.01 GiB tmp. */
+  const measured: FixtureRun[] = [
+    {
+      id: 'calibration-1',
+      calibration: true,
+      memoryGib: 9.5,
+      cpuCores: 6.5,
+      tmpGib: 7.5,
+      seconds: 600,
+    },
+    {
+      id: 'calibration-2',
+      calibration: true,
+      memoryGib: 10.01,
+      cpuCores: 6.88,
+      tmpGib: 8.01,
+      seconds: 660,
+    },
+    {
+      id: 'calibration-3',
+      calibration: true,
+      memoryGib: 9.8,
+      cpuCores: 6.7,
+      tmpGib: 7.9,
+      seconds: 720,
+    },
+  ];
+  const IDS = 'calibration-1, calibration-2, calibration-3';
+
+  test("a heuristic above the pool's allocatable is clamped to it, and marked", () => {
+    // h4claw's pool: 7 cores, 10 GiB, 48 GiB of disk units.
+    const proposal = propose('gate', measured, { cpuCores: 7, memoryGib: 10, tmpDiskGib: 48 });
+    if (proposal.kind !== 'proposed') throw new Error(proposal.reason);
+    expect(proposal.lines).toContain(
+      `memoryGib: 10 (clamped to allocatable 10 GiB; heuristic 13 from p95 10.01 GiB over 3 uncapped, unthrottled records: ${IDS})`,
+    );
+    expect(proposal.lines).toContain(
+      `cpuCores: 7 (clamped to allocatable 7 cores; heuristic 9 from p95 6.88 cores over 3 calibration records: ${IDS})`,
+    );
+    expect(proposal.lines).toContain(`tmpDiskGib: 11 (p95 8.01 GiB over 3 records: ${IDS})`);
+    expect(proposal.entry.envelope).toEqual({
+      cpuCores: 7,
+      memoryGib: 10,
+      tmpDiskGib: 11,
+      exclusive: ['gate_tree'],
+    });
+    expect(proposal.entry.provenance).toMatchObject({
+      p95: { cpuCores: 6.88, memoryGib: 10.01, tmpDiskGib: 8.01 },
+      clampedToAllocatable: ['cpuCores', 'memoryGib'],
+      heuristic: { cpuCores: 9, memoryGib: 13 },
+    });
+  });
+
+  test("h2puni's smaller pool clamps further, as the landed entry is clamped by hand", () => {
+    const proposal = propose('gate', measured, { cpuCores: 6, memoryGib: 9, tmpDiskGib: 12 });
+    if (proposal.kind !== 'proposed') throw new Error(proposal.reason);
+    expect(proposal.entry.envelope).toMatchObject({ cpuCores: 6, memoryGib: 9, tmpDiskGib: 11 });
+    expect(proposal.entry.provenance).toMatchObject({
+      clampedToAllocatable: ['cpuCores', 'memoryGib'],
+      heuristic: { cpuCores: 9, memoryGib: 13 },
+    });
+  });
+
+  test('a heuristic equal to allocatable is not clamped', () => {
+    const proposal = propose('gate', measured, { cpuCores: 9, memoryGib: 13, tmpDiskGib: 11 });
+    if (proposal.kind !== 'proposed') throw new Error(proposal.reason);
+    expect(proposal.entry.envelope).toMatchObject({ cpuCores: 9, memoryGib: 13, tmpDiskGib: 11 });
+    expect(proposal.entry.provenance).not.toHaveProperty('clampedToAllocatable');
+    expect(proposal.entry.provenance).not.toHaveProperty('heuristic');
+    expect(proposal.lines).not.toContainEqual(expect.stringContaining('clamped'));
+  });
+
+  test("tmp disk clamps to the whole GiB the pool's disk units hold", () => {
+    const proposal = propose('gate', measured, { cpuCores: 9, memoryGib: 13, tmpDiskGib: 10 });
+    if (proposal.kind !== 'proposed') throw new Error(proposal.reason);
+    expect(proposal.lines).toContain(
+      `tmpDiskGib: 10 (clamped to allocatable 10 GiB; heuristic 11 from p95 8.01 GiB over 3 records: ${IDS})`,
+    );
+    expect(proposal.entry.envelope.tmpDiskGib).toBe(10);
+    expect(proposal.entry.provenance).toMatchObject({
+      clampedToAllocatable: ['tmpDiskGib'],
+      heuristic: { tmpDiskGib: 11 },
+    });
+  });
+
+  test("a tmp lower bound clamps after it is raised to the entry's figure", () => {
+    // Lower bounds only: the 8.01 GiB p95 needs 11, the entry holds 8, the pool 9.
+    const lower = measured.map((run) => ({ ...run, tmpUnreadable: ['fixture/inaccessible'] }));
+    const proposal = propose('gate', lower, { cpuCores: 9, memoryGib: 13, tmpDiskGib: 9 });
+    if (proposal.kind !== 'proposed') throw new Error(proposal.reason);
+    expect(proposal.lines).toContain(
+      `tmpDiskGib: 9 (clamped to allocatable 9 GiB; heuristic 11 from lower bound only, at least the entry's 8, provenance tmpDiskGibLowerBound: p95 8.01 GiB over 3 records: ${IDS})`,
+    );
+    expect(proposal.entry.provenance).toMatchObject({
+      tmpDiskGibLowerBound: true,
+      clampedToAllocatable: ['tmpDiskGib'],
+      heuristic: { tmpDiskGib: 11 },
+    });
+  });
+
+  test("a calibrated entry's notes carry into its replacement", () => {
+    const noted = committedCatalogue(
+      [{ id: 'gate', cpuCores: 4, memoryGib: 6, tmpDiskGib: 8, exclusive: ['gate_tree'] }],
+      (jobs) =>
+        jobs.map((job) => ({
+          ...job,
+          provenance: {
+            kind: 'calibrated',
+            hostClass: HOST_CLASS,
+            calibratedAt: '2026-11-20T04:05:14.759Z',
+            recordCount: 3,
+            p95: { cpuCores: 3, memoryGib: 4.4, tmpDiskGib: 3 },
+            recordIds: ['c1', 'c2', 'c3'],
+            notes: 'containers bound declared, not measured',
+          },
+        })),
+    );
+    const proposal = proposeEnvelope(
+      'gate',
+      noted,
+      measured.map((run) => runRecord(noted, { type: 'gate', ...run })),
+      partition,
+      ROOMY_POOL,
+      NOW,
+    );
+    if (proposal.kind !== 'proposed') throw new Error(proposal.reason);
+    expect(proposal.entry.provenance).toMatchObject({
+      notes: 'containers bound declared, not measured',
+    });
   });
 });

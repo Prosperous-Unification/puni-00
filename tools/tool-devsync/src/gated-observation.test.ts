@@ -40,6 +40,10 @@ for (const scenario of [
   'fd4-malformed',
   'fd4-read-error',
   'fd4-close-before-end',
+  'control-kill-ordering',
+  'control-kill-callback',
+  'control-kill-callback-leader-error',
+  'control-kill-before-delivery',
   'control-start-callback',
   'control-end-callback',
   'control-start-callback-after-status',
@@ -139,7 +143,17 @@ for (const scenario of [
         closeSync(stdout);
         closeSync(stderr);
         if (scenario.startsWith('control-')) {
-          await waitFile(join(pool.base, 'control-callback-injected'));
+          if (scenario !== 'control-kill-ordering')
+            await waitFile(join(pool.base, 'control-callback-injected'));
+          if (scenario === 'control-kill-before-delivery') {
+            await waitFile(join(pool.base, 'kill-pending.json'));
+            expect(receipt(join(pool.base, 'kill-pending.json'))).toEqual({
+              finished: false,
+              nativeEnded: false,
+              fd4Hex: '',
+            });
+            writeFileSync(join(pool.base, 'release-leader-payload'), 'release');
+          }
         } else if (scenario === 'leader-error') {
           await waitFile(join(pool.base, 'leader-observation.json'));
           expect(receipt(join(pool.base, 'leader-observation.json'))).toEqual({ finished: false });
@@ -173,8 +187,67 @@ for (const scenario of [
         const observed = receipt(join(pool.base, 'job-observation-outcome.json'));
         const preserved = scenario === 'fd4-delayed' || scenario === 'fd4-unconfirmed';
         expect(observed['outcome']).toMatchObject(
-          preserved ? { kind: 'status', status: 3 } : { kind: 'failed', code: 70 },
+          scenario === 'control-kill-ordering'
+            ? { kind: 'status', status: 124 }
+            : preserved
+              ? { kind: 'status', status: 3 }
+              : { kind: 'failed', code: 70 },
         );
+        if (scenario === 'control-kill-ordering') {
+          expect(observed['fd4Hex']).toBe('3133370a');
+          expect(observed['fd4Ended']).toBe(true);
+          const trace: unknown = observed['trace'];
+          if (!Array.isArray(trace) || !trace.every((entry) => typeof entry === 'string'))
+            throw new Error('invalid ordering trace');
+          expect(trace.indexOf('native-exit:137:null')).toBeGreaterThanOrEqual(0);
+          expect(trace.indexOf('leftover-kill-announced')).toBeGreaterThan(
+            trace.indexOf('native-exit:137:null'),
+          );
+          expect(observed['jobs']).toMatchObject([{ state: 'released' }]);
+          expect(observed['runs']).toMatchObject([
+            {
+              exitCode: 124,
+              signal: 'SIGKILL',
+              leftoverProcesses: { count: 1, endedWith: 'SIGKILL' },
+            },
+          ]);
+          expect(existsSync(join(pool.base, 'keeper-native-joined'))).toBe(true);
+          expect(existsSync(join(pool.base, 'kill-before-keeper'))).toBe(false);
+        }
+        if (scenario.startsWith('control-kill-') && scenario !== 'control-kill-ordering') {
+          const afterDelivery = scenario !== 'control-kill-before-delivery';
+          expect(observed['fd4Hex']).toBe(afterDelivery ? '3133370a' : '330a');
+          expect(observed['fd4Ended']).toBe(true);
+          expect(observed['outcome']).toMatchObject({
+            causeIdentity: {
+              kill: true,
+              leader: scenario === 'control-kill-callback-leader-error',
+              count: scenario === 'control-kill-callback-leader-error' ? 2 : 1,
+            },
+          });
+          const failureMatcher: unknown = expect.stringContaining(
+            'private payload kill delivery failed:',
+          );
+          expect(observed['runs']).toEqual(
+            expect.arrayContaining([
+              expect.objectContaining({
+                exitCode: 124,
+                signal: afterDelivery ? 'SIGKILL' : null,
+                attributionIncomplete: true,
+                telemetryFailure: failureMatcher,
+              }),
+            ]),
+          );
+          expect(observed['jobs']).toEqual(
+            expect.arrayContaining([expect.objectContaining({ state: 'released', exitCode: 124 })]),
+          );
+          expect(observed['trace']).toEqual(
+            expect.arrayContaining([
+              'native-control-finished',
+              afterDelivery ? 'native-exit:137:null' : 'native-exit:3:null',
+            ]),
+          );
+        }
         if (preserved) {
           const runs: unknown = observed['runs'];
           if (!Array.isArray(runs) || runs.length !== 1)

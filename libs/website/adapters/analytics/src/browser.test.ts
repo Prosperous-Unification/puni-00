@@ -8,7 +8,7 @@ const options = {
   environment: 'development',
   measurementId: 'G-R0JM3R4SSV',
 } as const;
-function browser(url = 'https://dev.app.puni.dev/?email=secret@example.test#private') {
+function browser(url = 'https://dev.request.puni.dev/?email=secret@example.test#private') {
   const dom = new JSDOM('<title>secret private title</title>', {
     url,
     referrer: 'https://search.example/private?email=secret@example.test',
@@ -58,7 +58,7 @@ test('browser starts cookieless before interaction and sets sanitized global/con
       user_data: null,
       cookie_domain: 'puni.dev',
       cookie_prefix: 'puni_dev',
-      page_location: 'https://dev.app.puni.dev/',
+      page_location: 'https://dev.request.puni.dev/',
       page_title: 'Build with PUNI',
       page_referrer: 'https://search.example',
     },
@@ -253,8 +253,8 @@ test('real domain cookies share development consent across hosts without grantin
   const { CookieJar } = await import('jsdom');
   const cookieJar = new CookieJar();
   const site = new JSDOM('', { url: 'https://dev.puni.dev/', cookieJar });
-  const app = new JSDOM('', { url: 'https://dev.app.puni.dev/', cookieJar });
-  const production = new JSDOM('', { url: 'https://app.puni.dev/', cookieJar });
+  const app = new JSDOM('', { url: 'https://dev.request.puni.dev/', cookieJar });
+  const production = new JSDOM('', { url: 'https://request.puni.dev/', cookieJar });
   for (const dom of [site, app, production])
     Object.assign(dom.window, {
       fetch: () => Promise.resolve(Response.json({ region: 'unknown', database: null })),
@@ -516,9 +516,9 @@ for (const scenario of [
   test(`region lookup excluded for ${scenario}`, () => {
     const { dom, window } = browser(
       scenario === 'operator'
-        ? 'https://dev.app.puni.dev/operator'
+        ? 'https://dev.request.puni.dev/operator'
         : scenario === 'unknown-route'
-          ? 'https://dev.app.puni.dev/unknown'
+          ? 'https://dev.request.puni.dev/unknown'
           : undefined,
     );
     const { requests } = pendingRegion(window);
@@ -548,7 +548,7 @@ for (const scenario of [
   });
 
 test('operator to public navigation starts once when first eligible', async () => {
-  const { dom, window } = browser('https://dev.app.puni.dev/operator');
+  const { dom, window } = browser('https://dev.request.puni.dev/operator');
   const { pending, requests } = pendingRegion(window);
   const analytics = createBrowserAnalytics(window, options);
   expect(requests).toHaveLength(0);
@@ -676,7 +676,7 @@ test('pending response cannot grant on a newly unsupported route', async () => {
 });
 
 test('disposed operator controller cannot start its first region lookup on navigation', () => {
-  const { dom, window } = browser('https://dev.app.puni.dev/operator');
+  const { dom, window } = browser('https://dev.request.puni.dev/operator');
   const { requests } = pendingRegion(window);
   const analytics = createBrowserAnalytics(window, options);
   analytics.dispose();

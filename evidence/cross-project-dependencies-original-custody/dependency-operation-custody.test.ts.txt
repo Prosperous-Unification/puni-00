@@ -1,0 +1,34 @@
+import { rejects } from 'node:assert/strict';
+
+import { expect, test } from 'bun:test';
+
+import {
+  closeOriginal,
+  createDependencyOperationCustody,
+  reserveAuthorityOperation,
+  settleAuthoritySpawnThrow,
+} from './dependency-operation-custody';
+
+test('owned original empty custody closes and rejects later dispatch', async () => {
+  const scope = createDependencyOperationCustody();
+  await closeOriginal(scope);
+  expect(() => reserveAuthorityOperation(scope, {}, 'fixture')).toThrow('closing');
+});
+
+test('owned original copied custody cannot authorize dispatch or closing', async () => {
+  const scope = createDependencyOperationCustody();
+  const copy = { ...scope };
+  expect(() => reserveAuthorityOperation(copy, {}, 'fixture')).toThrow('custody');
+  await rejects(closeOriginal(copy), /custody/);
+  await closeOriginal(scope);
+});
+
+test('owned original synchronous spawn throw closes without inventing a child', async () => {
+  const scope = createDependencyOperationCustody();
+  const attempt = reserveAuthorityOperation(scope, {}, 'fixture');
+  settleAuthoritySpawnThrow(attempt);
+  await closeOriginal(scope);
+  expect(() => {
+    settleAuthoritySpawnThrow(attempt);
+  }).toThrow('spawn');
+});

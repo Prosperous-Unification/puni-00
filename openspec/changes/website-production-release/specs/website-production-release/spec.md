@@ -62,7 +62,7 @@ Release preparation SHALL produce and identify a compatible baseline before the 
 
 ### Requirement: Release claims distinguish local and live evidence
 
-The release record SHALL name exact revisions/artifacts, the host gate, disposable rollback, consent and disabled-inference submission checks. Live readiness SHALL additionally require verified secrets/origins, provider cap/configuration, fresh backup restore, release identity and a preview request visible to the human owner. Missing tools or credentials SHALL remain unverified. Health alone SHALL NOT prove release identity, deletion, model quality or analytics settings.
+The release record SHALL name exact revisions/artifacts, the product’s Nx validation scope and actual check outcomes, disposable rollback, consent and disabled-inference submission checks. A full monorepo host gate SHALL NOT be a release prerequisite. Live readiness SHALL additionally require verified secrets/origins, provider cap/configuration, fresh backup restore, release identity and a preview request visible to the human owner. Missing tools or credentials SHALL remain unverified. Health alone SHALL NOT prove release identity, deletion, model quality or analytics settings.
 
 #### Scenario: Only local fixtures passed
 

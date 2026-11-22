@@ -572,6 +572,123 @@ if (insideOpsNamespace(import.meta.path)) {
       expect(vanished).toEqual(['no drift\n']);
     }, 120_000);
 
+    test('the audit exits 0 when its only drift is an expected overrun of a clamped envelope (S25-A6)', async () => {
+      // The gate_host probe's shape: `ops job audit --config <pool>` from the launcher checkout.
+      const fixture = pool();
+      const checkout = catalogueCheckout(join(fixture.base, 'checkout'), [
+        {
+          id: 'gate',
+          cpuCores: 2,
+          memoryGib: 1,
+          tmpDiskGib: 1,
+          exclusive: ['gate_tree'],
+          provenance: {
+            kind: 'calibrated',
+            hostClass: 'linux-x64-8c-15g',
+            calibratedAt: '2026-11-20T04:05:14.759Z',
+            recordCount: 3,
+            p95: { cpuCores: 1, memoryGib: 1.5, tmpDiskGib: 0.5 },
+            recordIds: ['c1', 'c2', 'c3'],
+            clampedToAllocatable: ['memoryGib'],
+            heuristic: { memoryGib: 2 },
+          },
+        },
+      ]);
+      const out: string[] = [];
+      expect(
+        opsHandlers['pool init'](
+          { command: 'ops', words: 'pool init', config: fixture.config },
+          dependencies(checkout, out, out, linuxScopeTelemetry()),
+        ),
+      ).toBe(0);
+      const GIB = 1024 ** 3;
+      const sample = (kind: 'gate' | 'exit', at: number, memoryGib: number, tmpGib: number) => ({
+        kind,
+        observedAt: at,
+        counters: {
+          memoryPeak: memoryGib * GIB,
+          memoryCurrent: memoryGib * GIB,
+          cpuUsageUsec: (at - 1_800_000_000_000) * 1000,
+          cpuUserUsec: 1,
+          cpuSystemUsec: 0,
+          pidsCurrent: 1,
+          memoryHighEvents: 0,
+        },
+        tmpBytes: tmpGib * GIB,
+        tmpUnreadable: [],
+        tmpUnreadableOmitted: 0,
+        containers: null,
+        failure: null,
+      });
+      const record = (jobId: string, memoryGib: number, tmpGib: number) => {
+        const written = HostJobRunRecords.open(fixture.root, true);
+        const startedAt = 1_800_000_000_000;
+        written.begin(
+          {
+            jobId,
+            type: 'gate',
+            label: 'gate:clamped',
+            descriptor: {
+              id: 'gate',
+              envelope: { cpuCores: 2, memoryGib: 1, tmpDiskGib: 1, exclusive: ['gate_tree'] },
+              containers: 'none',
+              enforcement: 'observe',
+            },
+            descriptorDigest: 'a'.repeat(64),
+            cataloguePath: join(checkout, 'infra', 'jobs', 'catalogue.json'),
+            launcherSha: 'b'.repeat(40),
+            argumentProfile: '',
+            argv: ['bin/payload.sh'],
+            hostClass: 'linux-x64-8c-15g',
+            memoryBoundGib: 2,
+            unit: `dash-job-${jobId}`,
+            cgroup: `/app.slice/dash-job-${jobId}.scope`,
+            tmpDirectory: join(fixture.root, jobId),
+            units: [],
+            startedAt,
+          },
+          sample('gate', startedAt, 0.1, 0),
+        );
+        written.sample(jobId, sample('exit', startedAt + 20_000, memoryGib, tmpGib));
+        written.finish(jobId, {
+          endedAt: startedAt + 20_000,
+          exitCode: 0,
+          signal: null,
+          telemetryFailure: null,
+          ledgerFailure: null,
+          attributionIncomplete: false,
+          containers: [],
+        });
+        written.close();
+      };
+      const audit = async (): Promise<{ code: number; stdout: string }> => {
+        const stdout: string[] = [];
+        const code = await runOps(
+          { command: 'ops', words: 'job audit', config: fixture.config, now: undefined },
+          dependencies(checkout, stdout, [], linuxScopeTelemetry()),
+        );
+        return { code, stdout: stdout.join('') };
+      };
+      record('clamped-run', 1.5, 0);
+      const expected = await audit();
+      expect(expected.code).toBe(0);
+      expect(expected.stdout).toContain(
+        'gate overrun memoryGib 1.5 above envelope 1 in run clamped-run',
+      );
+      expect(expected.stdout).toContain('; expected: the HEAD entry is clamped to the pool\n');
+      expect(expected.stdout).toContain(
+        'note: gate memoryGib overruns a clamped envelope: p95 1.5 GiB measured, entry 1 clamped to the pool',
+      );
+      expect(expected.stdout).toEndWith(
+        'only expected drift: overruns of envelopes clamped to the pool\n',
+      );
+      // An overrun in tmp disk, which the entry did not clamp, fails the audit as before.
+      record('tmp-run', 0.5, 2);
+      const failing = await audit();
+      expect(failing.code).toBe(1);
+      expect(failing.stdout).toContain('gate overrun tmpDiskGib 2 above envelope 1 in run tmp-run');
+    });
+
     test('propose refuses a checkout without a usable catalogue, and an uncatalogued type', async () => {
       const { config, base, checkout } = initialized();
       const propose = async (cwd: string, type = 'gate') => {

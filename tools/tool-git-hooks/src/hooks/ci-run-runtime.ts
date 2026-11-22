@@ -5,6 +5,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { createGatePlan } from './ci-plan';
 import {
   DEDICATED_RUNTIME_PROJECTS,
+  HEAVY_TEST_PROJECTS,
   partitionRuntimeProjects,
   type RuntimePartition,
 } from './ci-runtime-partitions';
@@ -23,6 +24,36 @@ function isProjectNames(names: unknown): names is string[] {
       (name: unknown) => typeof name === 'string' && /^(?!-)[a-zA-Z0-9@_./-]+$/.test(name),
     )
   );
+}
+
+/**
+ * Workspace lint runs one task at a time (A-CI-WORKSPACE-MEMORY-1), a cheap narrowing lever for
+ * the silent hosted-runner losses (R5-32 in docs/findings/checks-that-cannot-fail.md), not a
+ * localised fix. Full-mode workspace lints peak at 2.8 GiB (wbs-core) and 3.0 GiB (tool-fleet).
+ * Affected lint already ran after the tests, and no timing places a loss in lint. Parallel lint
+ * saved about four minutes. Test, typecheck and build stay at two.
+ * Proof (2026-11-20): restoring `--parallel=2` here failed ci-plan.test.ts in affected mode
+ * (`workspace lint runs one task at a time…`, received `--parallel=2`) and in full mode
+ * (`full partitions cover…`); folding lint back into the full run-many failed both again.
+ */
+const WORKSPACE_LINT_PARALLELISM = '--parallel=1';
+
+/**
+ * Nx parallelism for an owner's test, typecheck and build. Each heavy leaf runs its project's
+ * memory- and time-heavy `bun test` suite one task at a time (A-CI-WORKSPACE-MEMORY-2, -3).
+ * Proof (2026-11-21): returning `--parallel=2` for heavy failed ci-plan.test.ts `each heavy leaf
+ * runs only its project one task at a time…` in affected and full modes.
+ */
+function selectTaskParallelism(owner: string): string {
+  return owner === 'heavy' ? '--parallel=1' : '--parallel=2';
+}
+
+/**
+ * The heavy project a `heavy-<project>` leaf partition owns, or undefined for any other partition
+ * (A-CI-WORKSPACE-MEMORY-3: one job per heavy project).
+ */
+function selectHeavyLeaf(partition: string): string | undefined {
+  return HEAVY_TEST_PROJECTS.find((project) => partition === `heavy-${project}`);
 }
 
 /** Runs one Nx command and records its real duration and exit status even when the command fails. */
@@ -149,6 +180,8 @@ export async function runRuntime(
       // restored affected/full command ledgers passed (2026-11-05).
       'remote-storage',
       'frontend',
+      // Proof: omitting the heavy leaves refused every heavy-leaf CLI case in ci-plan.test.ts.
+      ...HEAVY_TEST_PROJECTS.map((project) => `heavy-${project}`),
       'twilight',
     ].includes(partition)
   )
@@ -187,7 +220,11 @@ export async function runRuntime(
   // Proof: omitting this call for selected storage let actual Nx run the canonical fallback
   // marker in full mode; restored storage refusal passed (2026-11-05).
   if (remoteLeaf !== undefined) requireRemoteTarget(repository, remoteLeaf);
-  const owner = remoteLeaf === undefined ? partition : 'remote';
+  const heavyLeaf = selectHeavyLeaf(partition);
+  const owner = remoteLeaf !== undefined ? 'remote' : heavyLeaf !== undefined ? 'heavy' : partition;
+  // Proof: dropping this filter let a heavy leaf run every heavy project; the per-leaf ledgers failed.
+  const ownedBy = (selected: string[]) =>
+    heavyLeaf === undefined ? selected : selected.filter((project) => project === heavyLeaf);
   if (mode === 'full') {
     if (partition === 'twilight') throw new Error('Twilight retains its existing full runner');
     const checkedOut = Bun.spawnSync(['git', 'rev-parse', 'HEAD'], {
@@ -214,13 +251,13 @@ export async function runRuntime(
     // `full runner refuses stale head, missing owner and failed Nx inventory` failed.
     if (!isProjectNames(names) || new Set(names).size !== names.length)
       throw new Error('Nx project inventory is malformed');
-    for (const project of Object.values(DEDICATED_RUNTIME_PROJECTS))
+    for (const project of [...Object.values(DEDICATED_RUNTIME_PROJECTS), ...HEAVY_TEST_PROJECTS])
       if (!names.includes(project)) throw new Error(`Nx project inventory omits ${project}`);
     const owned = partitionRuntimeProjects(
       names.filter((name) => name !== 'twilight-burokrat' && name !== 'twilight-dash'),
     );
     // Boundary: the initial partition allowlist and full-mode Twilight refusal restrict this key.
-    const projects = owned[owner as RuntimePartition];
+    const projects = ownedBy(owned[owner as RuntimePartition]);
     process.stdout.write(
       `${JSON.stringify({ mode, head, partition, projects, targets: ['test', 'lint', 'typecheck', 'build'] })}\n`,
     );
@@ -237,16 +274,39 @@ export async function runRuntime(
       await runRemoteLeaf(repository, head, remoteLeaf, mode);
       return;
     }
+    if (partition !== 'workspace') {
+      await runNx(repository, [
+        'run-many',
+        '-t',
+        'test',
+        'lint',
+        'typecheck',
+        'build',
+        '-p',
+        projects.join(','),
+        selectTaskParallelism(owner),
+        '--output-style=stream',
+      ]);
+      return;
+    }
     await runNx(repository, [
       'run-many',
       '-t',
       'test',
-      'lint',
       'typecheck',
       'build',
       '-p',
       projects.join(','),
       '--parallel=2',
+      '--output-style=stream',
+    ]);
+    await runNx(repository, [
+      'run-many',
+      '-t',
+      'lint',
+      '-p',
+      projects.join(','),
+      WORKSPACE_LINT_PARALLELISM,
       '--output-style=stream',
     ]);
     return;
@@ -258,7 +318,7 @@ export async function runRuntime(
     partition === 'twilight'
       ? plan.twilightProjects
       : // Boundary: the initial partition allowlist restricts every remaining key.
-        plan.partitions[owner as RuntimePartition];
+        ownedBy(plan.partitions[owner as RuntimePartition]);
   // Proof: removing this guard made the unexplained Twilight invocation regression falsely succeed.
   if (partition !== 'workspace' && projects.length === 0)
     throw new Error('Selected runtime partition has no projects');
@@ -280,7 +340,7 @@ export async function runRuntime(
       'build',
       '-p',
       complete.join(','),
-      '--parallel=2',
+      selectTaskParallelism(owner),
       '--output-style=stream',
     ]);
   }
@@ -292,7 +352,7 @@ export async function runRuntime(
       'build',
       '-p',
       test.project,
-      '--parallel=2',
+      selectTaskParallelism(owner),
       '--output-style=stream',
     ]);
     await runNx(repository, [
@@ -316,7 +376,7 @@ export async function runRuntime(
       `--base=${base}`,
       `--head=${head}`,
       '--exclude=twilight-burokrat',
-      '--parallel=2',
+      WORKSPACE_LINT_PARALLELISM,
       '--output-style=stream',
     ]);
     // Proof: tying source lint to runtime selection omitted it for shared lint-loader edits;
@@ -346,7 +406,7 @@ if (import.meta.main) {
     repository === undefined
   ) {
     throw new Error(
-      'Usage: ci-run-runtime.ts <workspace|backend|remote|remote-rest|remote-model|remote-model-continuation|remote-source|remote-source-restoration|remote-participant-policy|remote-complete-activation|remote-storage|frontend|twilight> <base-sha> <head-sha> <repository> [affected|full]',
+      'Usage: ci-run-runtime.ts <workspace|backend|remote|remote-rest|remote-model|remote-model-continuation|remote-source|remote-source-restoration|remote-participant-policy|remote-complete-activation|remote-storage|frontend|heavy-<project>|twilight> <base-sha> <head-sha> <repository> [affected|full]',
     );
   }
   try {

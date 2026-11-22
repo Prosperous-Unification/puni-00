@@ -622,8 +622,7 @@ describe('root migration production CLI', () => {
   test('resolves fragment-only links against their current document', async () => {
     const repository = createRepository();
     buildFixture(repository);
-    const source = readFileSync(join(repository, 'LLM_README.md'), 'utf8');
-    write(repository, 'LLM_README.md', `${source}\n[Missing incident](#absent-incident)\n`);
+    write(repository, 'LLM_README.md', '# Router\n\n[Missing incident](#absent-incident)\n');
     expectRefusal(
       await runCheck(repository, commit(repository, 'missing same-document anchor')),
       'Markdown anchor must occur once in LLM_README.md: LLM_README.md#absent-incident',

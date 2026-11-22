@@ -178,11 +178,20 @@ export function verifyEligibleTypes(
   strict = true,
 ): string {
   const named = new Set<string>();
+  /** Clamped types and the dimensions they hold whole (task 6.25, S25-A7). */
+  const clamped = new Map<string, readonly string[]>();
   const unverified: string[] = [];
   for (const checkout of checkouts) {
     let ids: string[];
     try {
-      ids = readCommittedCatalogue(checkout, command).jobs.map((job) => job.id);
+      const jobs = readCommittedCatalogue(checkout, command).jobs;
+      ids = jobs.map((job) => job.id);
+      for (const job of jobs)
+        if (
+          job.provenance.kind === 'calibrated' &&
+          job.provenance.clampedToAllocatable !== undefined
+        )
+          clamped.set(job.id, job.provenance.clampedToAllocatable);
     } catch (cause) {
       // Proof: refusing here when not strict made `a launcher checkout parked at a
       // pre-catalogue commit does not stop ops job run` (host-pool-mode.test.ts) refuse 64
@@ -205,6 +214,16 @@ export function verifyEligibleTypes(
         64,
         `${command}: concurrencyEligible names ${id}, which no launcher checkout's catalogue names${unverified.length === 0 ? '' : ` (${unverified.join(', ')})`}`,
       );
+  for (const id of eligible) {
+    const dimensions = clamped.get(id);
+    // Proof: without it `a type clamped to the pool may not be concurrency-eligible`
+    // (host-pool-mode.test.ts) opened the pool with the clamped gate listed (2026-11-20, S25-A7).
+    if (dimensions !== undefined)
+      throw new OpsRefusal(
+        64,
+        `${command}: concurrencyEligible names ${id}, whose catalogue entry is clamped to the pool (clampedToAllocatable ${dimensions.join(', ')}): it holds the whole pool there and never runs beside another job; remove it from concurrencyEligible`,
+      );
+  }
   return `concurrency-eligible: ${eligible.length === 0 ? 'none' : eligible.join(', ')}${unverified.length === 0 ? '' : `; ${unverified.join(', ')}`}`;
 }
 

@@ -1,21 +1,27 @@
 import {
+  closeSync,
   copyFileSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
+  openSync,
   readdirSync,
   readFileSync,
+  renameSync,
+  rmdirSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 
 import { fakeCredential } from '../compute/testing/credential';
 import { fixtureGit, gateTree } from '../resources/host-pool.test.fixture';
 import { catalogueOf, fakeSystemdRun } from './ops.test.fixture';
+import { HostJobRunRecords } from './run-records';
 
 /**
  * The real launchers against a real enrolled host (`dash-host-jobs` tasks 6.1, 6.2): `bin/h2puni-gate.sh`
@@ -23,10 +29,15 @@ import { catalogueOf, fakeSystemdRun } from './ops.test.fixture';
  * `run_heavy_job`, which finds the host pool configuration at its fixed path
  * `/home/puni1/.config/dash/host-pool.json`. That path is made a fixture by running this file in
  * a private user, mount and PID namespace whose `/home/puni1` subtrees are tmpfs, so no host
- * file is read or written. The fixture checkout's Dash entrypoint is `ops job run` itself
- * (`runHostJob`) over the fake scope seam, because the namespace has no user manager.
+ * file is read or written. The fixture checkout uses Dash's real job execution and calibration
+ * over the fake scope seam, because the namespace has no user manager.
  */
 const NAMESPACE_FLAG = 'DASH_LAUNCHER_TEST_NAMESPACE';
+const NAMESPACE_ANCHOR = 'DASH_LAUNCHER_TEST_ANCHOR';
+const NAMESPACE_REFUSAL = 'launcher fixture requires invocation-owned private mounts';
+const GATE_HOME = '/home/puni1';
+const AUTHORITY_DIRECTORIES = ['.config', '.cache', '.local'] as const;
+const SCRATCH_WITNESS = 'assigned-scratch-witness';
 const WORKSPACE = join(import.meta.dir, '..', '..', '..', '..', '..', '..');
 const DASH_SOURCE = join(import.meta.dir, '..');
 
@@ -36,6 +47,90 @@ const DASH_SOURCE = join(import.meta.dir, '..');
  * `.config`, `.cache` and `.local` are overlaid. The setup runs in Bun before execing the suite.
  */
 const NAMESPACE_SETUP = join(import.meta.dir, 'testing', 'launcher-namespace.test.fixture.ts');
+
+/** Start the inner runner with a reachable home bind and a child of the caller's assigned scratch. */
+function runInNamespace(args: string[], environment: NodeJS.ProcessEnv) {
+  const anchor = mkdtempSync('/tmp/dash-launcher-namespace-');
+  try {
+    const assigned = environment['TMPDIR'];
+    const scratch = mkdtempSync(
+      join(
+        assigned === undefined || assigned === '' ? '/tmp' : assigned,
+        'dash-launcher-assigned-',
+      ),
+    );
+    try {
+      const execution = Bun.spawnSync(
+        [
+          'unshare',
+          '--user',
+          '--map-root-user',
+          '--mount',
+          '--pid',
+          '--fork',
+          '--mount-proc',
+          'setpriv',
+          '--bounding-set=-sys_ptrace',
+          process.execPath,
+          '--no-env-file',
+          '--config=/dev/null',
+          NAMESPACE_SETUP,
+          anchor,
+          scratch,
+          process.execPath,
+          'test',
+          import.meta.path,
+          '--timeout=120000',
+          ...args,
+        ],
+        {
+          env: { ...cleanLauncherEnv(environment), [NAMESPACE_FLAG]: '1' },
+          stdout: 'pipe',
+          stderr: 'pipe',
+          timeout: 420000,
+        },
+      );
+      return { execution, scratchFiles: readdirSync(scratch) };
+    } finally {
+      rmSync(scratch, { recursive: true });
+    }
+  } finally {
+    rmSync(anchor, { recursive: true });
+  }
+}
+
+/** Prove that every fixed authority path is a bind of this invocation's private tmpfs. */
+function requirePrivateMounts(): string {
+  try {
+    const anchor = process.env[NAMESPACE_ANCHOR];
+    if (!anchor || !/^\/tmp\/dash-launcher-namespace-[a-zA-Z0-9_]+$/.test(anchor))
+      throw new Error('missing private mount anchor');
+    const mounts = new Map(
+      readFileSync('/proc/self/mountinfo', 'utf8')
+        .trim()
+        .split('\n')
+        .map((entry) => {
+          const [mount, filesystem] = entry.split(' - ');
+          return [mount.split(' ')[4], filesystem.split(' ')[0]] as const;
+        }),
+    );
+    const storage = join(anchor, 'private');
+    const scratch = join(anchor, 'scratch');
+    // Proof: keeping the inherited hidden TMPDIR broke the nested assigned-scratch case.
+    if (mounts.get(storage) !== 'tmpfs' || !mounts.has(scratch) || tmpdir() !== scratch)
+      throw new Error('missing private storage or assigned scratch bind');
+    for (const directory of AUTHORITY_DIRECTORIES) {
+      const target = join(GATE_HOME, directory);
+      const mounted = statSync(target);
+      const owned = statSync(join(storage, directory));
+      if (mounts.get(target) !== 'tmpfs' || mounted.dev !== owned.dev || mounted.ino !== owned.ino)
+        throw new Error(`mismatched private mount for ${target}`);
+    }
+    return anchor;
+  } catch (cause) {
+    throw new Error(NAMESPACE_REFUSAL, { cause });
+  }
+}
 
 /** What an enclosing gate or host job exports that a launcher under test must not inherit. */
 const INHERITED_JOB_VARIABLE =
@@ -57,49 +152,102 @@ function cleanLauncherEnv(environment: NodeJS.ProcessEnv): Record<string, string
 
 if (process.env[NAMESPACE_FLAG] !== '1') {
   test('launchers.test.ts in a private user, mount and PID namespace', () => {
-    const execution = Bun.spawnSync(
-      [
-        'unshare',
-        '--user',
-        '--map-root-user',
-        '--mount',
-        '--pid',
-        '--fork',
-        '--mount-proc',
-        'setpriv',
-        '--bounding-set=-sys_ptrace',
-        process.execPath,
-        '--no-env-file',
-        '--config=/dev/null',
-        NAMESPACE_SETUP,
-        process.execPath,
-        'test',
-        import.meta.path,
-        '--timeout=120000',
-      ],
-      {
-        env: { ...cleanLauncherEnv(process.env), [NAMESPACE_FLAG]: '1' },
-        stdout: 'pipe',
-        stderr: 'pipe',
-        timeout: 420000,
-      },
-    );
+    const { execution } = runInNamespace([], process.env);
     if (execution.exitCode !== 0)
       throw new Error(execution.stdout.toString() + execution.stderr.toString());
     process.stderr.write(execution.stderr.toString());
     expect(execution.exitCode).toBe(0);
   }, 420000);
 } else {
+  // Proof: omitting this check lost the early refusal in both disposable sentinel cases.
+  const anchor = requirePrivateMounts();
   const CONFIG = '/home/puni1/.config/dash/host-pool.json';
   const ROOT = '/home/puni1/.local/share/dash/host-pool';
   const LEDGER = join(ROOT, '.dash', 'resources.sqlite');
 
-  /** The fixture checkout's Dash: `ops job run` over the fake scope seam, its argv logged. */
+  test.each(['missing anchor', 'unrelated private root'])(
+    'an inherited inner flag with %s refuses before touching authority',
+    (fault) => {
+      mkdirSync(dirname(CONFIG), { recursive: true });
+      mkdirSync(dirname(ROOT), { recursive: true });
+      mkdirSync(ROOT);
+      const ledger = join(ROOT, 'sentinel');
+      writeFileSync(CONFIG, 'outer configuration', { flag: 'wx' });
+      writeFileSync(ledger, 'outer pool', { flag: 'wx' });
+      const local = join(anchor, 'private', '.local');
+      const owned = `${local}.original`;
+      const mismatch = fault === 'unrelated private root';
+      try {
+        if (mismatch) {
+          renameSync(local, owned);
+          mkdirSync(local);
+        }
+        const execution = Bun.spawnSync(
+          [process.execPath, 'test', import.meta.path, '-t', 'submits one enrolled calibration'],
+          {
+            env: { ...process.env, [NAMESPACE_ANCHOR]: mismatch ? anchor : '' },
+            stdout: 'pipe',
+            stderr: 'pipe',
+            timeout: 15000,
+          },
+        );
+        expect(execution.exitCode).toBe(1);
+        expect(execution.stderr.toString()).toContain(NAMESPACE_REFUSAL);
+        expect(readFileSync(CONFIG, 'utf8')).toBe('outer configuration');
+        expect(readdirSync(ROOT)).toEqual(['sentinel']);
+        expect(readFileSync(ledger, 'utf8')).toBe('outer pool');
+      } finally {
+        if (mismatch) {
+          rmdirSync(local);
+          renameSync(owned, local);
+        }
+        rmSync(CONFIG);
+        rmSync(ledger);
+        rmdirSync(ROOT);
+      }
+    },
+  );
+
+  test('nested launcher retains the assigned job scratch across account overlays', () => {
+    mkdirSync(dirname(CONFIG), { recursive: true });
+    mkdirSync(dirname(ROOT), { recursive: true });
+    mkdirSync(ROOT);
+    const jobScratch = mkdtempSync(join(ROOT, 'job-'));
+    writeFileSync(CONFIG, 'outer configuration', { flag: 'wx' });
+    try {
+      writeFileSync(join(jobScratch, 'outer-sentinel'), 'assigned job scratch');
+      const { execution, scratchFiles } = runInNamespace(
+        ['-t', '^inner launcher writes to the assigned scratch bind$'],
+        { ...process.env, HOME: GATE_HOME, TMPDIR: jobScratch },
+      );
+      expect(execution.exitCode, execution.stderr.toString()).toBe(0);
+      expect(execution.stderr.toString()).toContain('1 pass');
+      expect(scratchFiles).toEqual([SCRATCH_WITNESS]);
+      expect(readFileSync(CONFIG, 'utf8')).toBe('outer configuration');
+      expect(readdirSync(ROOT)).toEqual([basename(jobScratch)]);
+      expect(readdirSync(jobScratch)).toEqual(['outer-sentinel']);
+      expect(readFileSync(join(jobScratch, 'outer-sentinel'), 'utf8')).toBe('assigned job scratch');
+    } finally {
+      rmSync(CONFIG);
+      rmSync(jobScratch, { recursive: true });
+      rmdirSync(ROOT);
+    }
+  });
+
+  test('inner launcher writes to the assigned scratch bind', () => {
+    expect(existsSync(CONFIG)).toBe(false);
+    expect(existsSync(ROOT)).toBe(false);
+    const scratch = mkdtempSync(join(tmpdir(), 'dash-launcher-check-'));
+    rmSync(scratch, { recursive: true });
+    writeFileSync(join(tmpdir(), SCRATCH_WITNESS), 'private scratch is writable', { flag: 'wx' });
+  });
+
+  /** Run each recognized job verb through Dash and record the submitted argv. */
   const FIXTURE_DASH = `
-import { appendFileSync } from 'node:fs';
+import { appendFileSync, readFileSync, writeFileSync } from 'node:fs';
 import { monotonicClock, wallClock } from ${JSON.stringify(join(DASH_SOURCE, 'clock'))};
 import { ampleHost } from ${JSON.stringify(join(DASH_SOURCE, 'resources', 'host-pool.test.fixture'))};
-import { runHostJob } from ${JSON.stringify(join(DASH_SOURCE, 'ops', 'job-run'))};
+import { calibrateHostJob, runHostJob } from ${JSON.stringify(join(DASH_SOURCE, 'ops', 'job-run'))};
 import { productionLegacyLock } from ${JSON.stringify(join(DASH_SOURCE, 'resources', 'legacy-lock'))};
 import { createLaunch } from ${JSON.stringify(join(WORKSPACE, 'libs/shared/adapters/bun-startup/src/index.ts'))};
 import { fakeScopeTelemetry } from ${JSON.stringify(join(DASH_SOURCE, 'ops', 'ops.test.fixture'))};
@@ -107,12 +255,23 @@ import { OpsRefusal } from ${JSON.stringify(join(DASH_SOURCE, 'ops', 'refusal'))
 
 const words = process.argv.slice(2);
 appendFileSync(process.env['LAUNCHER_TEST_DASH_LOG'] ?? '/dev/null', words.join(' ') + '\\n');
+if (process.env['LAUNCHER_TEST_DASH_ARGV'])
+  appendFileSync(process.env['LAUNCHER_TEST_DASH_ARGV'], JSON.stringify(words) + '\\n');
+const originalVerifier = process.env['LAUNCHER_TEST_REPLACE_VERIFIER'];
+if (originalVerifier) {
+  const captured = process.env['H2PUNI_GATE_TRUSTED_LAUNCHER'];
+  if (!captured || !readFileSync(captured).equals(readFileSync(originalVerifier)))
+    throw new Error('verifier copy absent before admission');
+  writeFileSync(originalVerifier, 'exit 91\\n');
+}
 const flag = (name) => words[words.indexOf(name) + 1];
 const separator = words.indexOf('--');
-if (words[0] !== 'ops' || words[1] !== 'job' || words[2] !== 'run' || separator < 0)
-  throw new Error('fixture Dash runs only ops job run');
+if (words[0] !== 'ops' || words[1] !== 'job' ||
+    !['run', 'calibrate'].includes(words[2]) || separator < 0)
+  throw new Error('fixture Dash requires ops job run or calibrate');
+const run = words[2] === 'calibrate' ? calibrateHostJob : runHostJob;
 try {
-  process.exitCode = await runHostJob(
+  process.exitCode = await run(
     {
       config: flag('--config'),
       type: flag('--type'),
@@ -153,6 +312,13 @@ try {
       '#!/usr/bin/env bash',
       'set -euo pipefail',
       `printf '%s\\n' "$PWD" > "$LAUNCHER_TEST_BARRIER/${name}"`,
+      'if [[ -n ${LAUNCHER_TEST_STAGE_LOG:-} ]]; then',
+      '  test -f "$TMPDIR/.dash-tmp-identity"',
+      '  printf "%s\\n" "$PWD" "$(git rev-parse HEAD)" "$TMPDIR" >> "$LAUNCHER_TEST_STAGE_LOG"',
+      'fi',
+      'if [[ -n ${LAUNCHER_TEST_WIKI_ORDER:-} ]]; then',
+      '  printf "stage\\n" >> "$LAUNCHER_TEST_WIKI_ORDER"',
+      'fi',
       'for _ in $(seq 1 1200); do',
       '  [ "$(ls "$LAUNCHER_TEST_BARRIER" | wc -l)" -ge "$LAUNCHER_TEST_PARTIES" ] && exit "${LAUNCHER_TEST_STEPS_STATUS:-0}"',
       '  sleep 0.05',
@@ -166,6 +332,7 @@ try {
   let units: string[] = [];
   let tools = '';
   let launchedSha = '';
+  let testStubs = '';
 
   beforeAll(() => {
     base = mkdtempSync(join(tmpdir(), 'dash-launchers-'));
@@ -185,6 +352,8 @@ try {
       'h2puni-gate-payload.sh',
       'publish-release.sh',
       'publish-release-payload.sh',
+      'test-queued.sh',
+      'test-queued-payload.sh',
     ])
       copyFileSync(join(WORKSPACE, 'bin', script), join(checkout, 'bin', script));
     writeFileSync(join(checkout, 'bin', 'h2puni-gate-steps.sh'), barrierStage('gate-$$'));
@@ -209,11 +378,19 @@ try {
     const fixtureCatalogue = catalogueOf([
       { id: 'gate', cpuCores: 1, memoryGib: 1, exclusive: ['gate_tree'], argumentProfile: '<sha>' },
       { id: 'release-build', cpuCores: 1, memoryGib: 1 },
+      {
+        id: 'test-queued',
+        cpuCores: 1,
+        memoryGib: 1,
+        exclusive: ['gate_tree'],
+        argumentProfile: '<sha>',
+      },
     ]);
     // The real launchers as entrypoints, so `switch-mode` verifies they call `run_heavy_job`.
     const entrypoints: Record<string, string> = {
       gate: 'bin/h2puni-gate.sh',
       'release-build': 'bin/publish-release.sh',
+      'test-queued': 'bin/test-queued.sh',
     };
     const catalogue = {
       ...fixtureCatalogue,
@@ -232,15 +409,49 @@ try {
     launchedSha = fixtureGit(checkout, 'rev-parse', 'HEAD');
     units = [gateTree(join(base, 'gate-tree-1')), gateTree(join(base, 'gate-tree-2'))];
     tools = fakeSystemdRun(join(base, 'tools'), 'exec');
+    // The gate launcher's BuildKit preflight on an enrolled host (task 6.21);
+    // `LAUNCHER_TEST_BUILDX=missing` answers as Ubuntu's docker.io does without the plugin.
+    writeFileSync(
+      join(tools, 'docker'),
+      [
+        '#!/usr/bin/env bash',
+        'if [ "$1 ${2:-}" = "buildx version" ] && [ "${LAUNCHER_TEST_BUILDX:-present}" = present ]; then',
+        "  echo 'github.com/docker/buildx 0.30.1'",
+        '  exit 0',
+        'fi',
+        'echo "docker: unknown command: docker $1" >&2',
+        'exit 1',
+        '',
+      ].join('\n'),
+      { mode: 0o755 },
+    );
+    // The test-queued payload's two commands: `bun install` is logged and every other `bun` is
+    // the real one (Dash itself), and `bunx` is a barrier stage recording the tree it ran in.
+    testStubs = join(base, 'test-stubs');
+    mkdirSync(testStubs);
+    writeFileSync(
+      join(testStubs, 'bun'),
+      [
+        '#!/usr/bin/env bash',
+        'if [ "${1:-}" = install ]; then',
+        '  printf \'%s in %s\\n\' "$*" "$PWD" >> "$LAUNCHER_TEST_BUN_LOG"',
+        '  exit "${LAUNCHER_TEST_INSTALL_STATUS:-0}"',
+        'fi',
+        `exec ${JSON.stringify(process.execPath)} "$@"`,
+        '',
+      ].join('\n'),
+      { mode: 0o755 },
+    );
+    writeFileSync(join(testStubs, 'bunx'), barrierStage('test-$$'), { mode: 0o755 });
   });
   afterAll(() => {
     rmSync(base, { recursive: true, force: true });
   });
 
-  function writeConfig(): void {
+  function writeConfig(diskBudgetUnits = 16, config: string | number = CONFIG): void {
     mkdirSync('/home/puni1/.config/dash', { recursive: true });
     writeFileSync(
-      CONFIG,
+      config,
       JSON.stringify({
         schemaVersion: 3,
         root: ROOT,
@@ -250,7 +461,7 @@ try {
         mcpResource: 'http://127.0.0.1:3100/mcp',
         credential: fakeCredential(),
         diskUnitBytes: 1073741824,
-        diskBudgetUnits: 16,
+        diskBudgetUnits,
         workspaceSlots: 16,
         headroomBytes: 0,
         cpuCores: 4,
@@ -266,13 +477,13 @@ try {
     );
   }
 
-  /** Start one launcher; resolves with its exit code and stderr. */
+  /** Start one launcher and join its terminal and both output streams. */
   async function launch(
     argv: readonly string[],
     barrier: string,
     parties: number,
     extra: Record<string, string> = {},
-  ): Promise<{ exitCode: number; stderr: string }> {
+  ): Promise<{ exitCode: number; stdout: string; stderr: string }> {
     const run = Bun.spawn([...argv], {
       cwd: checkout,
       env: {
@@ -285,11 +496,15 @@ try {
         LAUNCHER_TEST_CGROUPS: join(base, 'cgroups'),
         ...extra,
       },
-      stdout: 'ignore',
+      stdout: 'pipe',
       stderr: 'pipe',
     });
-    const stderr = await new Response(run.stderr).text();
-    return { exitCode: await run.exited, stderr };
+    const [exitCode, stdout, stderr] = await Promise.all([
+      run.exited,
+      new Response(run.stdout).text(),
+      new Response(run.stderr).text(),
+    ]);
+    return { exitCode, stdout, stderr };
   }
 
   function barrierDirectory(name: string): string {
@@ -300,13 +515,520 @@ try {
 
   const gate = ['bash', 'bin/h2puni-gate.sh', 'HEAD'];
   const release = ['bash', 'bin/publish-release.sh'];
+  const testQueued = ['bash', 'bin/test-queued.sh', 'HEAD'];
+
+  /** The environment a test-queued launch adds: its stubs first on `PATH`, and their log. */
+  const testQueuedEnv = (): Record<string, string> => ({
+    PATH: `${testStubs}:${tools}:${process.env['PATH'] ?? ''}`,
+    LAUNCHER_TEST_BUN_LOG: join(base, 'bun.log'),
+  });
+
+  function initializeObservePool(diskBudgetUnits?: number): () => void {
+    mkdirSync(dirname(ROOT), { recursive: true });
+    mkdirSync(ROOT, { mode: 0o700 });
+    let ownsConfig = false;
+    const retire = (): void => {
+      if (ownsConfig) rmSync(CONFIG);
+      const retired = mkdtempSync(join(dirname(ROOT), 'retired-pool-'));
+      renameSync(ROOT, join(retired, 'pool'));
+    };
+    try {
+      mkdirSync(dirname(CONFIG), { recursive: true });
+      // Proof: opening with 'w' bypassed the config collision and reached pool init.
+      const config = openSync(CONFIG, 'wx', 0o600);
+      ownsConfig = true;
+      try {
+        writeConfig(diskBudgetUnits, config);
+      } finally {
+        closeSync(config);
+      }
+      const init = Bun.spawnSync(
+        [
+          process.execPath,
+          join(DASH_SOURCE, 'entrypoint.ts'),
+          'ops',
+          'pool',
+          'init',
+          '--config',
+          CONFIG,
+        ],
+        { env: cleanLauncherEnv(process.env), stdout: 'pipe', stderr: 'pipe' },
+      );
+      expect(init.stderr.toString()).toBe('');
+      expect(init.exitCode).toBe(0);
+      expect(existsSync(LEDGER)).toBe(true);
+      return retire;
+    } catch (cause) {
+      retire();
+      throw cause;
+    }
+  }
+
+  test('failed observe initialization retires only the root it created', () => {
+    mkdirSync(dirname(CONFIG), { recursive: true });
+    mkdirSync(dirname(ROOT), { recursive: true });
+    mkdirSync(ROOT);
+    const ledger = join(ROOT, 'sentinel');
+    writeFileSync(CONFIG, 'outer configuration', { flag: 'wx' });
+    writeFileSync(ledger, 'outer pool', { flag: 'wx' });
+    try {
+      try {
+        expect(() => initializeObservePool(2)).toThrow(/EEXIST/);
+        expect(readFileSync(ledger, 'utf8')).toBe('outer pool');
+      } finally {
+        rmSync(ledger);
+        rmdirSync(ROOT);
+      }
+      expect(() => initializeObservePool(2)).toThrow(/EEXIST/);
+      expect(readFileSync(CONFIG, 'utf8')).toBe('outer configuration');
+      expect(existsSync(ROOT)).toBe(false);
+    } finally {
+      rmSync(CONFIG, { force: true });
+    }
+    expect(() => initializeObservePool(0)).toThrow(/diskBudgetUnits/);
+    expect(existsSync(CONFIG)).toBe(false);
+    expect(existsSync(ROOT)).toBe(false);
+  });
+
+  describe('gate calibration through the outer launcher', () => {
+    const calibrate = ['bash', 'bin/h2puni-gate.sh', '--calibrate'];
+    let retirePool: (() => void) | undefined;
+
+    beforeAll(() => {
+      retirePool = initializeObservePool(2);
+    });
+    afterAll(() => {
+      retirePool?.();
+    });
+
+    test('refuses a nested ordinary gate before any second admission', async () => {
+      const barrier = barrierDirectory('nested-gate');
+      const log = join(barrier, 'dash.jsonl');
+      const library = join(checkout, 'bin', 'heavy-lock-lib.sh');
+      const original = readFileSync(library);
+      const id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+      // The fake scope does not create a kernel cgroup. Replace only that OS observation.
+      writeFileSync(
+        library,
+        `${original.toString()}\nread_own_cgroup() { printf '%s\\n' '/fake/dash-job-${id}.scope'; }\n`,
+      );
+      try {
+        const invocation = await launch(gate, barrier, 1, {
+          DASH_JOB_ID: id,
+          LAUNCHER_TEST_DASH_ARGV: log,
+          LAUNCHER_TEST_DASH_LOG: log,
+        });
+        expect(invocation.exitCode, invocation.stderr).toBe(70);
+        expect(invocation.stderr).toContain('gate declares the exclusive unit gate_tree');
+        expect(readdirSync(barrier)).toEqual([]);
+      } finally {
+        writeFileSync(library, original);
+      }
+    }, 20000);
+
+    test('submits one enrolled calibration with the fixed gate payload', async () => {
+      const barrier = barrierDirectory('calibration-success');
+      const dispatch = join(base, 'calibration-argv.jsonl');
+      const stage = join(base, 'calibration-stage');
+      const resting = units.map((unit) => fixtureGit(unit, 'rev-parse', 'HEAD'));
+      expect(resting).not.toContain(launchedSha);
+      const invocation = await launch([...calibrate, 'HEAD'], barrier, 1, {
+        HEAVY_LOCK_WAIT_SECONDS: '0',
+        LAUNCHER_TEST_DASH_ARGV: dispatch,
+        LAUNCHER_TEST_DASH_LOG: '/dev/null',
+        LAUNCHER_TEST_STAGE_LOG: stage,
+      });
+      expect(existsSync(dispatch), invocation.stderr).toBe(true);
+      expect(
+        readFileSync(dispatch, 'utf8')
+          .trim()
+          .split('\n')
+          .map((line): unknown => JSON.parse(line)),
+      ).toEqual([
+        [
+          'ops',
+          'job',
+          'calibrate',
+          '--type',
+          'gate',
+          '--config',
+          CONFIG,
+          '--wait-seconds',
+          '0',
+          '--poll-seconds',
+          '5',
+          '--label',
+          `gate:${launchedSha.slice(0, 8)}`,
+          '--',
+          join(checkout, 'bin', 'h2puni-gate-payload.sh'),
+          launchedSha,
+        ],
+      ]);
+      expect(invocation.exitCode, invocation.stderr).toBe(0);
+      expect(invocation.stderr).toContain(`h2puni gate: running on ${launchedSha}`);
+      const [tree, sha, scratch] = readFileSync(stage, 'utf8').trim().split('\n');
+      expect(tree).toBe(units[0]);
+      expect(sha).toBe(launchedSha);
+      expect(scratch).toMatch(new RegExp(`^${ROOT}/[0-9a-f-]{36}$`));
+      expect(units.map((unit) => fixtureGit(unit, 'rev-parse', 'HEAD'))).toEqual(resting);
+      expect(fixtureGit(checkout, 'rev-parse', 'HEAD')).toBe(launchedSha);
+      expect(fixtureGit(checkout, 'status', '--porcelain')).toBe('');
+      const records = HostJobRunRecords.openForReading(ROOT);
+      try {
+        expect(records.list()).toMatchObject([{ calibration: true, exitCode: 0 }]);
+      } finally {
+        records.close();
+      }
+    }, 20000);
+
+    test('ordinary explicit and default gates still submit one run', async () => {
+      for (const target of [[], [launchedSha]]) {
+        const label = `ordinary-${String(target.length)}`;
+        const barrier = barrierDirectory(label);
+        const dispatch = join(base, `${label}.jsonl`);
+        const invocation = await launch(['bash', 'bin/h2puni-gate.sh', ...target], barrier, 1, {
+          LAUNCHER_TEST_DASH_ARGV: dispatch,
+          LAUNCHER_TEST_DASH_LOG: '/dev/null',
+          HEAVY_LOCK_JOB_OPERATION: 'calibrate',
+          is_calibration: 'true',
+        });
+        expect(invocation.exitCode, invocation.stderr).toBe(0);
+        expect(
+          readFileSync(dispatch, 'utf8')
+            .trim()
+            .split('\n')
+            .map((line): unknown => JSON.parse(line)),
+        ).toEqual([
+          [
+            'ops',
+            'job',
+            'run',
+            '--type',
+            'gate',
+            '--config',
+            CONFIG,
+            '--wait-seconds',
+            '1800',
+            '--poll-seconds',
+            '5',
+            '--label',
+            `gate:${launchedSha.slice(0, 8)}`,
+            '--',
+            join(checkout, 'bin', 'h2puni-gate-payload.sh'),
+            launchedSha,
+          ],
+        ]);
+      }
+    }, 20000);
+
+    async function refusesCalibration(
+      name: string,
+      arguments_: string[],
+      status: number,
+      diagnostic: string,
+      extra: Record<string, string> = {},
+    ): Promise<void> {
+      const barrier = barrierDirectory(name);
+      const dispatch = join(barrier, 'dash.jsonl');
+      const invocation = await launch([...calibrate, ...arguments_], barrier, 1, {
+        HEAVY_LOCK_WAIT_SECONDS: '0',
+        LAUNCHER_TEST_DASH_ARGV: dispatch,
+        LAUNCHER_TEST_DASH_LOG: dispatch,
+        ...extra,
+      });
+      expect(invocation.exitCode, invocation.stderr).toBe(status);
+      expect(invocation.stderr).toContain(diagnostic);
+      expect(invocation.stderr).not.toContain('heavy lock: waited');
+      expect(readdirSync(barrier)).toEqual([]);
+    }
+
+    test.each([
+      ['missing', []],
+      ['empty', ['']],
+      ['extra', ['HEAD', 'HEAD']],
+    ] as const)(
+      'calibration refuses the %s target argument before admission',
+      async (name, target) => {
+        await refusesCalibration(
+          `calibration-${name}`,
+          [...target],
+          64,
+          'usage: h2puni-gate.sh --calibrate <sha>',
+        );
+      },
+    );
+
+    test('calibration refuses an unresolvable target before admission', async () => {
+      await refusesCalibration(
+        'calibration-unresolvable',
+        ['not-a-commit'],
+        64,
+        'not-a-commit is not a commit',
+      );
+    });
+
+    test.each([
+      ['empty', ''],
+      ['set', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'],
+    ])('calibration refuses the %s inherited Dash identity', async (name, id) => {
+      await refusesCalibration(
+        `calibration-identity-${name}`,
+        ['HEAD'],
+        70,
+        'calibration must start outside a Dash job',
+        {
+          DASH_JOB_ID: id,
+        },
+      );
+    });
+
+    test('calibration refuses with missing config beside the ledger', async () => {
+      const saved = `${CONFIG}.saved`;
+      renameSync(CONFIG, saved);
+      try {
+        await refusesCalibration(
+          'calibration-config-missing',
+          ['HEAD'],
+          70,
+          'is missing beside the ledger',
+        );
+      } finally {
+        renameSync(saved, CONFIG);
+      }
+    });
+
+    test('calibration refuses without enrollment or a legacy hold', async () => {
+      const savedConfig = `${CONFIG}.saved`;
+      const savedRoot = `${ROOT}.saved`;
+      renameSync(CONFIG, savedConfig);
+      renameSync(ROOT, savedRoot);
+      try {
+        await refusesCalibration(
+          'calibration-unenrolled',
+          ['HEAD'],
+          70,
+          'calibration requires an enrolled host',
+        );
+      } finally {
+        renameSync(savedRoot, ROOT);
+        renameSync(savedConfig, CONFIG);
+      }
+    });
+
+    // The solver smoke, the gate's last step, refuses the legacy builder inside a Dash job.
+    test.each([
+      ['gate', ['bash', 'bin/h2puni-gate.sh', 'HEAD']],
+      ['calibration', [...calibrate, 'HEAD']],
+    ] as const)('refuses an enrolled %s without BuildKit before admission', async (name, argv) => {
+      const barrier = barrierDirectory(`buildkit-missing-${name}`);
+      const dispatch = join(barrier, 'dash.jsonl');
+      const invocation = await launch([...argv], barrier, 1, {
+        HEAVY_LOCK_WAIT_SECONDS: '0',
+        LAUNCHER_TEST_BUILDX: 'missing',
+        LAUNCHER_TEST_DASH_ARGV: dispatch,
+        LAUNCHER_TEST_DASH_LOG: dispatch,
+      });
+      expect(invocation.exitCode, invocation.stderr).toBe(70);
+      expect(invocation.stderr).toContain('docker buildx version failed on this enrolled host');
+      expect(invocation.stderr).toContain('install docker-buildx');
+      expect(readdirSync(barrier)).toEqual([]);
+    });
+
+    function externalVerifier(name: string): { root: string; verifier: string; modules: string } {
+      const root = barrierDirectory(name);
+      const modules = join(root, 'trusted-node-modules');
+      const verifier = join(root, 'verifier.sh');
+      mkdirSync(join(modules, 'typescript'), { recursive: true });
+      writeFileSync(join(modules, 'typescript', 'package.json'), '{}');
+      writeFileSync(join(root, 'active-v1'), 'tool-wiki-active-v1\n');
+      writeFileSync(join(root, 'launcher-path'), 'verifier.sh\n');
+      writeFileSync(
+        verifier,
+        [
+          '#!/usr/bin/env bash',
+          'set -euo pipefail',
+          'test -f "$0"',
+          'printf "%s\\n" "$0" "$@" "$(git -C "$2" rev-parse HEAD)" "$TOOL_WIKI_TRUSTED_NODE_MODULES" "$TOOL_WIKI_REQUIRE_CERTIFIED" > "$LAUNCHER_TEST_WIKI_LOG"',
+          'printf "verifier\\n" >> "$LAUNCHER_TEST_WIKI_ORDER"',
+          'exit "${LAUNCHER_TEST_WIKI_EXIT:-0}"',
+          '',
+        ].join('\n'),
+      );
+      return { root, verifier, modules };
+    }
+
+    test('calibration rejects invalid external activation before submission', async () => {
+      const wiki = externalVerifier('invalid-calibration-wiki');
+      writeFileSync(join(wiki.root, 'active-v1'), 'invalid\n');
+      await refusesCalibration(
+        'calibration-invalid-wiki',
+        ['HEAD'],
+        78,
+        'active tool-wiki marker is missing, unreadable, or malformed',
+        {
+          TOOL_WIKI_ACTIVATION_ROOT: wiki.root,
+        },
+      );
+    });
+
+    test('calibration refuses a candidate-contained external verifier', async () => {
+      const wiki = externalVerifier('candidate-contained-calibration-wiki');
+      const contained = join(checkout, 'wiki-verifier.sh');
+      copyFileSync(wiki.verifier, contained);
+      writeFileSync(join(wiki.root, 'launcher-path'), contained + '\n');
+      try {
+        await refusesCalibration(
+          'calibration-contained-wiki',
+          ['HEAD'],
+          78,
+          'launcher must be outside the candidate checkout',
+          {
+            TOOL_WIKI_ACTIVATION_ROOT: wiki.root,
+          },
+        );
+      } finally {
+        rmSync(contained);
+      }
+    });
+
+    test.each([
+      ['success', '0', '0', ['verifier', 'stage']],
+      ['verifier-rejects', '77', '0', ['verifier']],
+      ['stage-fails', '0', '65', ['verifier', 'stage']],
+    ] as const)(
+      'calibration preserves external verification and restoration when %s',
+      async (name, verifierExit, stageExit, order) => {
+        const wiki = externalVerifier(`calibration-wiki-${name}`);
+        const barrier = barrierDirectory(`calibration-wiki-stage-${name}`);
+        const dispatch = join(wiki.root, 'dispatch.jsonl');
+        const log = join(wiki.root, 'observed');
+        const chronology = join(wiki.root, 'chronology');
+        const resting = units.map((unit) => fixtureGit(unit, 'rev-parse', 'HEAD'));
+        const invocation = await launch([...calibrate, 'HEAD'], barrier, 1, {
+          TOOL_WIKI_ACTIVATION_ROOT: wiki.root,
+          TOOL_WIKI_TRUSTED_NODE_MODULES: '',
+          HEAVY_LOCK_WAIT_SECONDS: '0',
+          LAUNCHER_TEST_DASH_ARGV: dispatch,
+          LAUNCHER_TEST_DASH_LOG: '/dev/null',
+          LAUNCHER_TEST_REPLACE_VERIFIER: wiki.verifier,
+          LAUNCHER_TEST_WIKI_LOG: log,
+          LAUNCHER_TEST_WIKI_ORDER: chronology,
+          LAUNCHER_TEST_WIKI_EXIT: verifierExit,
+          LAUNCHER_TEST_STEPS_STATUS: stageExit,
+        });
+        expect(invocation.exitCode, invocation.stderr).toBe(
+          Number(verifierExit !== '0' ? verifierExit : stageExit),
+        );
+        expect(readFileSync(dispatch, 'utf8').trim().split('\n')).toHaveLength(1);
+        expect(readFileSync(wiki.verifier, 'utf8')).toBe('exit 91\n');
+        const [captured, ...observed] = readFileSync(log, 'utf8').trim().split('\n');
+        expect(captured).toMatch(/\/tool-wiki-lint\.sh$/);
+        expect(captured).not.toBe(wiki.verifier);
+        expect(observed).toEqual(['committed', units[0], 'HEAD', launchedSha, wiki.modules, '1']);
+        expect(existsSync(captured)).toBe(false);
+        expect(readFileSync(chronology, 'utf8').trim().split('\n')).toEqual([...order]);
+        expect(readdirSync(barrier)).toHaveLength(order.length - 1);
+        expect(units.map((unit) => fixtureGit(unit, 'rev-parse', 'HEAD'))).toEqual(resting);
+        for (const unit of units) expect(fixtureGit(unit, 'status', '--porcelain')).toBe('');
+      },
+      20000,
+    );
+
+    test.each([
+      ['SIGINT', 130],
+      ['SIGTERM', 143],
+      ['SIGHUP', 129],
+    ] as const)(
+      'calibration forwards %s to Dash and removes the verifier copy',
+      async (signal, status) => {
+        const wiki = externalVerifier(`signal-wiki-${signal}`);
+        const bin = barrierDirectory(`signal-bin-${signal}`);
+        const ready = join(bin, 'ready');
+        const received = join(bin, 'received');
+        const cleanup = join(bin, 'cleanup');
+        writeFileSync(
+          join(bin, 'rm'),
+          [
+            '#!/usr/bin/env bash',
+            'printf "%s\\n" "$3" >> "$LAUNCHER_TEST_SIGNAL_CLEANUP"',
+            'exec /usr/bin/rm "$@"',
+            '',
+          ].join('\n'),
+          { mode: 0o755 },
+        );
+        writeFileSync(
+          join(bin, 'bun'),
+          [
+            '#!/usr/bin/python3',
+            'import os, signal, sys',
+            'assert sys.argv[2:5] == ["ops", "job", "calibrate"]',
+            'def finish(number, _frame):',
+            '    with open(os.environ["LAUNCHER_TEST_SIGNAL_RECEIVED"], "x") as stream:',
+            '        stream.write(signal.Signals(number).name)',
+            '    sys.exit(128 + number)',
+            'for number in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):',
+            '    signal.signal(number, finish)',
+            'signal.alarm(12)',
+            'ready = os.environ["LAUNCHER_TEST_SIGNAL_READY"]',
+            'with open(ready + ".new", "x") as stream:',
+            '    stream.write(os.environ["H2PUNI_GATE_TRUSTED_LAUNCHER"])',
+            'os.rename(ready + ".new", ready)',
+            'signal.pause()',
+            '',
+          ].join('\n'),
+          { mode: 0o755 },
+        );
+        const invocation = Bun.spawn([...calibrate, 'HEAD'], {
+          cwd: checkout,
+          env: {
+            ...cleanLauncherEnv(process.env),
+            PATH: `${bin}:${process.env['PATH'] ?? ''}`,
+            HEAVY_LOCK_WAIT_SECONDS: '0',
+            TOOL_WIKI_ACTIVATION_ROOT: wiki.root,
+            TOOL_WIKI_TRUSTED_NODE_MODULES: '',
+            LAUNCHER_TEST_SIGNAL_READY: ready,
+            LAUNCHER_TEST_SIGNAL_RECEIVED: received,
+            LAUNCHER_TEST_SIGNAL_CLEANUP: cleanup,
+          },
+          stdout: 'pipe',
+          stderr: 'pipe',
+        });
+        const terminal = Promise.all([
+          invocation.exited,
+          new Response(invocation.stdout).text(),
+          new Response(invocation.stderr).text(),
+        ]);
+        try {
+          for (let poll = 0; !existsSync(ready); poll++) {
+            if (invocation.exitCode !== null || poll >= 400)
+              throw new Error(`fake Dash did not reach readiness: ${(await terminal)[2]}`);
+            await Bun.sleep(10);
+          }
+          const captured = readFileSync(ready, 'utf8');
+          expect(captured).toMatch(/\/tool-wiki-lint\.sh$/);
+          expect(existsSync(captured)).toBe(true);
+          invocation.kill(signal);
+          const [code, stdout, stderr] = await terminal;
+          expect(code, stdout + stderr).toBe(status);
+          expect(readFileSync(received, 'utf8')).toBe(signal);
+          expect(existsSync(captured)).toBe(false);
+          expect(readFileSync(cleanup, 'utf8')).toBe(dirname(captured) + '\n');
+        } finally {
+          await terminal;
+        }
+      },
+      20000,
+    );
+  });
 
   describe('the launchers on one host (dash-host-jobs 6.1, 6.2)', () => {
     test('an unenrolled host runs the gate on the legacy lock in the launcher checkout', async () => {
       expect(existsSync(CONFIG)).toBe(false);
       const barrier = barrierDirectory('legacy');
       // A forged verdict changes nothing: no code reads it (slice 6a review G1).
-      const result = await launch(gate, barrier, 1, { HEAVY_JOB_ENROLLMENT: 'enrolled' });
+      const result = await launch(gate.slice(0, 2), barrier, 1, {
+        HEAVY_JOB_ENROLLMENT: 'enrolled',
+      });
       // The wait is whole seconds of wall time, so a loaded host may print 1s; the queue is what
       // this pins (it failed `waited 1s` once in a full run, 2026-11-02).
       expect(result.stderr).toMatch(/heavy lock: waited \d+s behind 0 tickets/);
@@ -317,6 +1039,37 @@ try {
       ).toEqual([checkout]);
       expect(existsSync(join(base, 'dash.log'))).toBe(false);
     }, 120000);
+
+    test('an unenrolled host runs test-queued pinned in the launcher checkout (6.12)', async () => {
+      expect(existsSync(CONFIG)).toBe(false);
+      rmSync(join(base, 'bun.log'), { force: true });
+      const barrier = barrierDirectory('test-legacy');
+      const result = await launch(testQueued, barrier, 1, testQueuedEnv());
+      expect(result.stderr).toMatch(/heavy lock: waited \d+s behind 0 tickets/);
+      expect(result.stderr).toContain(`h2puni gate: running on ${launchedSha}`);
+      expect(result.exitCode).toBe(0);
+      expect(
+        readdirSync(barrier).map((name) => readFileSync(join(barrier, name), 'utf8').trim()),
+      ).toEqual([checkout]);
+      expect(readFileSync(join(base, 'bun.log'), 'utf8')).toBe(
+        `install --frozen-lockfile in ${checkout}\n`,
+      );
+      expect(existsSync(join(base, 'dash.log'))).toBe(false);
+    }, 120000);
+
+    test('an unenrolled test-queued payload refuses an inherited DASH_JOB_UNIT_GATE_TREE', async () => {
+      expect(existsSync(CONFIG)).toBe(false);
+      const barrier = barrierDirectory('test-inherited-unit');
+      const result = await launch(['bash', 'bin/test-queued-payload.sh', launchedSha], barrier, 1, {
+        ...testQueuedEnv(),
+        DASH_JOB_UNIT_GATE_TREE: units[0] ?? '',
+      });
+      // Proof (observed 2026-11-12): with `resolve_gate_tree` in bin/test-queued-payload.sh
+      // replaced by the launcher checkout, this ran the tests and exited 0.
+      expect(result.exitCode).toBe(64);
+      expect(result.stderr).toContain('on a host that is not enrolled; no admission handed it out');
+      expect(readdirSync(barrier)).toEqual([]);
+    }, 60000);
 
     test('a configuration that appears while a gate is queued makes its payload refuse 64', async () => {
       expect(existsSync(CONFIG)).toBe(false);
@@ -363,23 +1116,7 @@ try {
     }, 120000);
 
     test('ops pool init enrolls the host at the fixed path', () => {
-      writeConfig();
-      mkdirSync(ROOT, { recursive: true, mode: 0o700 });
-      const init = Bun.spawnSync(
-        [
-          process.execPath,
-          join(DASH_SOURCE, 'entrypoint.ts'),
-          'ops',
-          'pool',
-          'init',
-          '--config',
-          CONFIG,
-        ],
-        { env: cleanLauncherEnv(process.env), stdout: 'pipe', stderr: 'pipe' },
-      );
-      expect(init.stderr.toString()).toBe('');
-      expect(init.exitCode).toBe(0);
-      expect(existsSync(LEDGER)).toBe(true);
+      initializeObservePool();
       // A fresh pool is in observe mode, which serialises every job through the shell lock
       // (slice 6b). The overlap cases below need concurrent mode; this suite runs no `watch`,
       // so the singleton guard is released at once. Both steps go through the entrypoint.
@@ -494,6 +1231,63 @@ try {
       // checkout and exited 0 (2026-11-02, slice 6a).
       expect(result.exitCode).toBe(64);
       expect(result.stderr).toContain('DASH_JOB_UNIT_GATE_TREE is not set');
+    }, 60000);
+
+    test('test-queued runs pinned in an admitted gate tree and returns it (6.12)', async () => {
+      rmSync(join(base, 'bun.log'), { force: true });
+      const barrier = barrierDirectory('test-enrolled');
+      const result = await launch(testQueued, barrier, 1, testQueuedEnv());
+      expect(result.stderr).not.toContain('heavy lock:');
+      expect(result.exitCode).toBe(0);
+      const trees = readdirSync(barrier).map((name) =>
+        readFileSync(join(barrier, name), 'utf8').trim(),
+      );
+      // Proof (observed 2026-11-12): with `resolve_gate_tree` in bin/test-queued-payload.sh
+      // replaced by the launcher checkout, the barrier recorded that checkout, in neither unit.
+      expect(trees).toHaveLength(1);
+      expect(units).toContain(trees[0]);
+      expect(readFileSync(join(base, 'bun.log'), 'utf8')).toBe(
+        `install --frozen-lockfile in ${trees[0] ?? ''}\n`,
+      );
+      expect(readFileSync(join(base, 'dash.log'), 'utf8')).toContain(
+        `ops job run --type test-queued --config ${CONFIG} --wait-seconds 0 --poll-seconds 5 --label test-queued:${launchedSha.slice(0, 8)} -- ${checkout}/bin/test-queued-payload.sh ${launchedSha}`,
+      );
+      for (const unit of units)
+        expect(fixtureGit(unit, 'log', '-1', '--format=%s')).toBe('resting commit');
+      expect(result.stderr).toMatch(/ops job: \S+ unit gate_tree \S+ released/);
+    }, 120000);
+
+    test('a failed frozen install refuses test-queued before the tests', async () => {
+      rmSync(join(base, 'bun.log'), { force: true });
+      const barrier = barrierDirectory('test-install-fails');
+      const result = await launch(testQueued, barrier, 1, {
+        ...testQueuedEnv(),
+        LAUNCHER_TEST_INSTALL_STATUS: '1',
+      });
+      // Proof: see bin/test-queued-payload.sh; with the install's status ignored this exited 0
+      // and the barrier recorded the tests (2026-11-12).
+      expect(result.exitCode).not.toBe(0);
+      expect(readFileSync(join(base, 'bun.log'), 'utf8')).toContain('install --frozen-lockfile');
+      expect(readdirSync(barrier)).toEqual([]);
+      for (const unit of units)
+        expect(fixtureGit(unit, 'log', '-1', '--format=%s')).toBe('resting commit');
+    }, 120000);
+
+    test('the enrolled test-queued payload run without an admission refuses 64', async () => {
+      const barrier = barrierDirectory('test-bare');
+      const result = await launch(
+        ['bash', 'bin/test-queued-payload.sh', launchedSha],
+        barrier,
+        1,
+        testQueuedEnv(),
+      );
+      // Proof (observed 2026-11-12): with `resolve_gate_tree` in bin/test-queued-payload.sh
+      // replaced by the launcher checkout, this ran the tests there and exited 0.
+      expect(result.exitCode).toBe(64);
+      expect(result.stderr).toContain(
+        'DASH_JOB_UNIT_GATE_TREE is not set; the payload runs only in the gate tree its admission hands it, so launch bin/test-queued.sh <sha>',
+      );
+      expect(readdirSync(barrier)).toEqual([]);
     }, 60000);
 
     test("the shim's exact argv gets past the real Dash parser", async () => {

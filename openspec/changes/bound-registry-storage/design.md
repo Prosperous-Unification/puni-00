@@ -426,6 +426,105 @@ complete protected-owner evidence and host/native checks remain Task 5.1 obligat
 This local prerequisite adds no remote/root route, root helper verb, platform stage
 activation or product migration.
 
+### Independent observation availability through Prometheus
+
+Intent: preserve the original five-minute reporting deadline through source and
+scrape loss in the existing monitoring stack. This integration stages a pure
+configuration renderer and native rule verifier. Producer qualification,
+authenticated acquisition, private serving, installation and delivery remain open.
+
+The renderer accepts exactly one `{target, enrolledAt, environment, address}`.
+Target is exactly `{machineId, registryId, storageId, registryPath}`: machineId is
+32 lowercase hexadecimal characters and each remaining field is1..256characters.
+enrolledAt is a canonical JavaScript Date string; environment is1..64ASCII
+characters matching `[a-z][a-z0-9-]*`. Derive the opaque key as SHA-256 of JSON
+serialization of `[machineId, registryId, storageId, registryPath, enrolledAt]`.
+Only this derived key may expose identity in metric labels or alert annotations.
+
+The independently specified wire requires the gauges
+`registry_pressure_evaluation_timestamp_milliseconds`,
+`registry_pressure_baseline_timestamp_milliseconds` and
+`registry_pressure_has_measurement`, each with only `enrollment="<derived key>"`
+as its exporter label. Timestamp values retain original integer epoch milliseconds;
+the measurement flag is0or1. Scraping never advances those values. Historical
+pressure gauges do not confirm reporting health or replace durable pressure
+incidents. Synthetic wire fixtures establish consumer semantics; they do not
+establish a producer, accepted measurement or authenticated observation.
+
+A separate opt-in renderer consumes one exact exporter enrollment, actual
+environment, and an explicit monitoring-private IPv4 address/port. Accept RFC1918
+IPv4 unicast plus1..5 decimal port digits whose value is1..65535; shorter
+zero-padded forms are allowed. No URL, hostname, path, credentials, redirect,
+wildcard, loopback or public target. It emits candidate Prometheus configuration,
+a separate registry rule file and the exact additional read-only Prometheus mount.
+It adds no service, network, credentials or runtime apply path. Existing default
+dev files, admission, topology and Alertmanager configuration remain unchanged.
+Runtime adoption must separately attest this mount and qualified private route.
+
+The scrape job is `registry-pressure-observer`, path `/metrics`, interval30s,
+timeout5s, body limit16KiB, sample limit16, label limit8, label-name limit64 and
+label-value limit256. It adds fixed static `target=<derived key>`; the exported
+`enrollment` must independently match that key. Honor labels and client timestamps
+are false. Every registry alert carries the actual environment, service=registry,
+target and fixed severity=warning, including expected-only fallback; it cannot
+inherit the stack's external environment=dev label accidentally.
+
+The one alert `RegistryPressureObservationUnavailable` has no extra `for` delay.
+Inline an expected `vector(1)` with that fixed target, independent of scrape
+discovery and recording-rule success. Subtract only confirming visible evidence
+using `unless on(target)`. Confirmation requires exactly one expected up series
+with up=1 and scrape age between0and90s, exactly one complete core gauge of each
+name with the expected job/instance/target/enrollment, has_measurement0or1,
+nonfuture evaluation age at most90000ms, baseline no later than evaluation and
+`scalar(round(vector(time()*1000))) < baseline_ms + 300000`. Count conflicting instances and
+enrollments under that target rather than selecting one apparently healthy copy.
+All comparisons filter, without `bool`. Plain instant selectors intrinsically
+exclude scrape samples newer than the rule evaluation; the explicit scrape-age
+predicate therefore needs only its90s upper bound. Keep production selectors free
+of `@` and offset modifiers. Prometheus3.14.0 vectorSelectorSingle selects the
+previous sample when a seek lands after its reference time; the pinned native
+future-sample fixture preserves the old timestamp until the future sample's time.
+The arbitrary evaluation gauge still needs explicit lower and upper age predicates.
+Scope target identity through the independent expected target and `on(target)`
+joins rather than duplicate target literals on every selector. Exact job, instance
+and enrollment selectors plus cardinality counted across all series under each
+target remain mandatory. Gate each metric operand by its singleton cardinality
+before a vector comparison, so duplicates yield unavailable instead of a
+many-to-many query error. Set the new scrape's follow_redirects=false; it must not
+turn its enrolled private address into a redirect-selected destination.
+Do not depend on stale intermediate recording rules. Missing core values and stale/future values cannot confirm health.
+
+At the first evaluation on/after the original five-minute source deadline the
+alert fires. Observer/exporter visibility failure can fire it earlier as unknown.
+Source-missing then scrape loss keeps exactly the same alert labels/fingerprint.
+Restart with the same checkpoint cannot extend grace. A later accepted report,
+including a fenced report, can restore reporting availability. The description
+must say that resolution means reporting is visible within its original deadline,
+not that capacity recovered, writes reopened or Slack received anything. The
+description begins `Enrollment <derived key>.` using the fixed lowercase-hex key,
+so the unchanged Slack template's rendered text identifies the expected target.
+Do not insert raw registry IDs, paths or reasons into notification annotations. Pressure
+metrics do not replace distinct durable warning/cutoff/maintenance incidents.
+
+Prove native results with the repository-pinned Prometheus3.14.0 image and an
+explicit non-cached Bun/Nx target. Required Docker/image/tool failures throw.
+Include deadline equality and millisecond precision, never-reported enrollment,
+cached/restarted state, scrape absence/loss, simultaneous source/exporter loss,
+frozen/future evaluation, missing or duplicate core members, wrong enrollment,
+extra instances, visibility-only return, and a new accepted fenced report after
+known source expiry. Rule removal/query failure, stopped Prometheus, notification
+lease expiry and outages between samples cannot be solved by this expression;
+installed rule inventory and independent monitoring-health evidence remain required.
+Prometheus resolution is never a correlated registry-recovery or delivery receipt.
+
+The pure Prometheus renderer and native rule fixtures can be implemented from
+the explicit wire contract independently of the producer's file-admission helper.
+That source-only consumer acceptance grants no producer qualification. The producer implementation retained outside this integration
+has an unresolved admission race; its stopped correction remains stopped.
+Do not execute or transfer that helper as part of rule testing. Real producer
+integration, authenticated acquisition, scheduling and actual missing-report
+destination receipts remain mandatory before adoption.
+
 ## Risks / Trade-offs
 
 The newest ten releases may exceed 50 GiB. The system chooses blocked publication

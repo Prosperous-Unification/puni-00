@@ -1262,7 +1262,7 @@ run_heavy_job() {
     with_heavy_lock "$(resolve_heavy_lock_path)" -- "$@" || legacy_status=$?
     return "$legacy_status"
   fi
-  run_enrolled_heavy_job "$job_type" "$@"
+  run_enrolled_heavy_job run "$job_type" "$@"
 }
 
 # Seconds a nested call waits for `ops job admission` before refusing (review of #876 F2): one
@@ -1313,7 +1313,8 @@ read_own_cgroup() {
 #
 # **A type that declares an exclusive unit is refused, 70.** Its unit is either the enclosing
 # job's, in use by the payload that started this one, or not held at all; re-labelling cannot
-# make either sound. Today that is every type but `test-queued`.
+# make either sound. Since 2026-11-12 (task 6.12) that is every catalogued type, `test-queued`
+# included: it shares the gate's trees, so a test run started inside a gate is refused too.
 #
 # The payload runs as a foreground child and its status is returned; a signal reaches it through
 # the job's scope, which Dash signals as a whole. Exit codes: the payload's, 64 for a type the
@@ -1424,7 +1425,9 @@ run_nested_heavy_job() {
   return "$payload_status"
 }
 
-# Run `command [arg ...]` through `ops job run --type $1` and return its status (J13).
+# Run a fixed payload through enrolled `ops job` and return its status (J13).
+# The ordinary heavy-job entry supplies `run`; the top-level gate calibration supplies
+# `calibrate` after verifying authority and preparing the same payload.
 #
 # **An outer shell, not an `exec`**: the caller's own `EXIT` trap (the gate's trusted-launcher
 # cleanup) runs once, when the caller exits with this status. Dash runs in the background and
@@ -1442,8 +1445,8 @@ run_nested_heavy_job() {
 # to the launcher left Dash running until it ended — `45b … want 'TERM', got ''`
 # (bin/heavy-lock.test.sh, cases 44 and 45).
 run_enrolled_heavy_job() {
-  local job_type=$1
-  shift
+  local operation=$1 job_type=$2
+  shift 2
   local entrypoint
   entrypoint=$(resolve_dash_entrypoint)
   # Proof (observed 2026-11-02): removed, a checkout without the entrypoint handed `bun` a path
@@ -1475,7 +1478,7 @@ run_enrolled_heavy_job() {
   # `<&0` keeps the caller's stdin: without job control bash gives a background command
   # /dev/null instead.
   env -u HEAVY_LOCK_WAIT_SECONDS -u HEAVY_LOCK_POLL_SECONDS \
-    bun "$entrypoint" ops job run \
+    bun "$entrypoint" ops job "$operation" \
     --type "$job_type" \
     --config "$(resolve_host_pool_config_path)" \
     --wait-seconds "${HEAVY_LOCK_WAIT_SECONDS:-0}" \

@@ -331,6 +331,7 @@ function realFixture(): RealFixture {
   const repository = mkdtempSync(join(tmpdir(), 'tool-wiki-entry-candidate-'));
   const trust = mkdtempSync(join(tmpdir(), 'tool-wiki-entry-trust-'));
   scratchPaths.push(repository, trust);
+  symlinkSync(join(workspace, 'node_modules'), join(trust, 'trusted-node-modules'), 'dir');
   git(repository, 'init', '--initial-branch=main');
   git(repository, 'config', 'user.email', 'entrypoint@example.test');
   git(repository, 'config', 'user.name', 'Entrypoint Fixture');
@@ -1322,7 +1323,22 @@ await snapshotValidator({ bindingPath, validatorPath, candidateDirectory, destin
       join(workspace, 'tools/tool-git-hooks/src/hooks/ci-run-runtime.ts'),
       'utf8',
     );
-    expect(ci).toContain('ci-run-runtime.ts workspace');
+    // The workspace and heavy-leaf gate steps share one text that names its partition once
+    // (A-CI-WORKSPACE-MEMORY-3). The workspace step must still bind `workspace` and invoke the
+    // runtime with that binding; the heavy leaves bind their matrix partition instead.
+    // Proof: binding the workspace step to `partition=backend`, or a literal partition in the heavy
+    // leaf invocation, failed here (2026-11-21).
+    const gateSteps = parseYaml(ci) as {
+      jobs: Record<string, { steps: { id?: string; run?: string }[] } | undefined>;
+    };
+    const gateRun = (job: string) =>
+      gateSteps.jobs[job]?.steps.find(({ id }) => id === 'nx_gate')?.run;
+    const workspaceRun = gateRun('gate_workspace');
+    expect(workspaceRun).toContain('\npartition=workspace\n');
+    expect(workspaceRun).toContain('ci-run-runtime.ts "$partition" "$GATE_BASE"');
+    const heavyRun = gateRun('gate_heavy');
+    expect(heavyRun).toContain('\npartition="$RUNTIME_PARTITION"\n');
+    expect(heavyRun).toContain('ci-run-runtime.ts "$partition" "$GATE_BASE"');
     expect(runtime).toContain("'--exclude=twilight-burokrat'");
     expect(ci).toContain('bunx nx run twilight-burokrat:lint:source --skip-nx-cache');
     const consumerTemplate = readFileSync(

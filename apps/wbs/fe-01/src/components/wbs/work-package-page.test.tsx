@@ -11,6 +11,8 @@ import type { PlanDocumentRequest, SessionFeatures } from '@wbs/contracts';
 import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain/priority-band';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { workPackageStepBoard } from '@/components/board/step-board';
+import { createStepBoardAction } from '@/components/board/step-board-action';
 import { FaultBoundary } from '@/components/chrome/fault-boundary';
 import * as projectDialogModule from '@/components/projects/new-project-dialog';
 import * as projectPickerModule from '@/components/projects/project-picker';
@@ -58,6 +60,7 @@ import {
 
 import { forgetRefusedDrafts } from './live-editing';
 import { distinctImportName } from './plan-import-words';
+import * as toastHooks from './toasts';
 import { INFO_TOAST_MS } from './toasts';
 import {
   recallLastWorkPackage,
@@ -485,9 +488,16 @@ const fakeSavedPlanRoutes = (
 const pageWith = (api: WorkPackageApi, savedPlanRoutes: SavedPlanRoutes = fakeSavedPlanRoutes()) =>
   render(<WorkPackagePageOverOwner api={api} savedPlanRoutes={savedPlanRoutes} />);
 
-async function pageWithEditableBoardRow(streamDeps?: WorkPackageStreamDeps) {
+async function pageWithEditableBoardRow(streamDeps?: WorkPackageStreamDeps, withStep = false) {
   const model = fakeWorkPackageApi();
   await model.createWorkItem('p2', { parentId: null, afterId: null, name: 'Build' });
+  if (withStep)
+    model.stepRows.push({
+      id: 'step-development',
+      name: 'Development',
+      estimateUnit: 'workdays',
+      allowancePercent: 0,
+    });
   const api = fakeWorkPackages(TWO);
   api.tree = (workPackageId) => model.tree(workPackageId);
   api.steps = (workPackageId) => model.steps(workPackageId);
@@ -495,16 +505,52 @@ async function pageWithEditableBoardRow(streamDeps?: WorkPackageStreamDeps) {
   api.setStatus = (workItemId, status, on, factStart) =>
     model.setStatus(workItemId, status, on, factStart);
   api.setEstimate = (workItemId, stepId, days) => model.setEstimate(workItemId, stepId, days);
+  const progressWrites: unknown[][] = [];
+  let progressRequest: Promise<void> = Promise.resolve();
+  const setProgress: WorkPackageApi['setProgress'] = (workItemId, stepId, state) => {
+    progressWrites.push(['setProgress', workItemId, stepId, state]);
+    return progressRequest;
+  };
+  const clearProgress: WorkPackageApi['clearProgress'] = (workItemId, stepId) => {
+    progressWrites.push(['clearProgress', workItemId, stepId]);
+    return progressRequest;
+  };
   const writes = recordCalls(api, 'patchWorkItem');
   const undos = recordCalls(api, 'undo');
   const redos = recordCalls(api, 'redo');
   const statuses = recordCalls(api, 'setStatus');
   const estimates = recordCalls(api, 'setEstimate');
   const owner = createWorkPackageOwner();
-  render(<WorkPackagePage {...pageWiring(owner, api, streamDeps, fakeSavedPlanRoutes())} />);
+  const routedApi: WorkPackageApi = withStep
+    ? new Proxy(api, {
+        get(target, key, receiver) {
+          if (key === 'setProgress') return setProgress;
+          if (key === 'clearProgress') return clearProgress;
+          const member: unknown = Reflect.get(target, key, receiver);
+          return member;
+        },
+      })
+    : api;
+  const wiring = pageWiring(owner, routedApi, streamDeps, fakeSavedPlanRoutes());
+  render(<WorkPackagePage {...wiring} />);
   await selectWorkPackage('p2');
   const field = await screen.findByLabelText<HTMLInputElement>('Name of 010');
-  return { field, writes, undos, redos, statuses, estimates, model, owner, api };
+  return {
+    field,
+    writes,
+    undos,
+    redos,
+    statuses,
+    estimates,
+    model,
+    owner,
+    workPackages: wiring.workPackages,
+    api,
+    progressWrites,
+    holdProgress: (pending: Promise<void>) => {
+      progressRequest = pending;
+    },
+  };
 }
 
 const picker = () => screen.getByLabelText<HTMLInputElement>('Work package');
@@ -1323,6 +1369,289 @@ describe('the selected runtime Plan and Board views', () => {
   afterEach(() => {
     forgetRefusedDrafts(() => true);
   });
+  itDom('keeps a Board step move admitted across Board remount and a Plan write', async () => {
+    const { field, progressWrites, holdProgress, writes, owner } = await pageWithEditableBoardRow(
+      undefined,
+      true,
+    );
+    const selected = owner.snapshot();
+    if (selected.status !== 'live') throw new Error('selected runtime not open');
+    const busyTransitions: boolean[] = [];
+    const unsubscribeBusy = selected.services.busy.subscribe(() => {
+      busyTransitions.push(selected.services.busy.snapshot());
+    });
+    let release: (() => void) | undefined;
+    holdProgress(
+      new Promise<void>((resolve) => {
+        release = resolve;
+      }),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Board' }));
+    const move = () =>
+      screen.getByRole<HTMLButtonElement>('button', { name: /Move .* \/ Development to Done/ });
+    fireEvent.click(move());
+    expect(move().disabled).toBe(true);
+    expect(selected.services.busy.snapshot()).toBe(true);
+    await waitFor(() => {
+      expect(progressWrites).toEqual([['setProgress', 'w1', 'step-development', 'done']]);
+    });
+    expect(move().disabled).toBe(true);
+    expect(
+      within(screen.getByRole('region', { name: 'Step board' })).getByRole('heading', {
+        name: 'Done (0)',
+      }),
+    ).toBeDefined();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Plan' }));
+    act(() => {
+      field.focus();
+    });
+    fireEvent.change(field, { target: { value: 'Renamed during move' } });
+    act(() => {
+      field.blur();
+    });
+    await waitFor(() => {
+      expect(writes).toHaveLength(1);
+    });
+    await waitFor(() => {
+      expect(selected.services.busy.snapshot()).toBe(false);
+    });
+    expect(busyTransitions).toContain(false);
+    fireEvent.click(screen.getByRole('button', { name: 'Board' }));
+    expect(move().disabled).toBe(true);
+    fireEvent.click(move());
+    expect(progressWrites).toHaveLength(1);
+
+    const settle = release;
+    if (settle === undefined) throw new Error('progress request was not held');
+    await act(async () => {
+      settle();
+      await Promise.resolve();
+    });
+    await waitFor(() => {
+      expect(move().disabled).toBe(false);
+    });
+    unsubscribeBusy();
+  });
+  itDom(
+    'reports one refused Board move through one toast sink and leaves delivered placement',
+    async () => {
+      const actualUseToasts = toastHooks.useToasts;
+      const pushed = vi.fn();
+      vi.spyOn(toastHooks, 'useToasts').mockImplementation(() => {
+        const stack = actualUseToasts();
+        return {
+          ...stack,
+          pushToast: (toast) => {
+            pushed(toast);
+            stack.pushToast(toast);
+          },
+        };
+      });
+      const { progressWrites, holdProgress, owner } = await pageWithEditableBoardRow(
+        undefined,
+        true,
+      );
+      const opened = owner.snapshot();
+      if (opened.status !== 'live') throw new Error('selected runtime closed');
+      const refusals: string[] = [];
+      const unsubscribe = opened.services.refusals.subscribe((refusal) => {
+        if ('sentence' in refusal) refusals.push(refusal.sentence);
+      });
+      let refuse: ((cause: Error) => void) | undefined;
+      holdProgress(
+        new Promise<void>((_resolve, reject) => {
+          refuse = reject;
+        }),
+      );
+      pushed.mockClear();
+      fireEvent.click(screen.getByRole('button', { name: 'Board' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Move 010 Build / Development to Done' }));
+      expect(progressWrites).toEqual([['setProgress', 'w1', 'step-development', 'done']]);
+      const rejectMove = refuse;
+      if (rejectMove === undefined) throw new Error('progress request was not held');
+      await act(async () => {
+        rejectMove(new Error('forbidden'));
+        await Promise.resolve();
+      });
+      await waitFor(() => {
+        expect(refusals).toHaveLength(1);
+      });
+      expect(pushed).toHaveBeenCalledTimes(1);
+      expect(toastTexts()).toHaveLength(1);
+      expect(
+        within(screen.getByRole('region', { name: 'Step board' })).getByRole('heading', {
+          name: 'Done (0)',
+        }),
+      ).toBeDefined();
+      unsubscribe();
+    },
+  );
+
+  itDom('disables Board move controls after a failed covering tree read', async () => {
+    const { api, owner, progressWrites } = await pageWithEditableBoardRow(undefined, true);
+    fireEvent.click(screen.getByRole('button', { name: 'Board' }));
+    const move = screen.getByRole<HTMLButtonElement>('button', {
+      name: 'Move 010 Build / Development to Done',
+    });
+    expect(move.disabled).toBe(false);
+    api.tree = () => Promise.reject(new Error('tree read failed'));
+    const opened = owner.snapshot();
+    if (opened.status !== 'live') throw new Error('selected runtime closed');
+    await act(async () => {
+      expect(await opened.services.reread(['tree'])).toBe(false);
+    });
+    expect(move.disabled).toBe(true);
+    fireEvent.click(move);
+    expect(progressWrites).toEqual([]);
+  });
+
+  itDom(
+    'retains delivered cards and makes Retry read only after a Board write covering read fails',
+    async () => {
+      const { api, progressWrites } = await pageWithEditableBoardRow(undefined, true);
+      let failedReads = 0;
+      api.tree = () => {
+        failedReads += 1;
+        return Promise.reject(new Error('covering read failed'));
+      };
+      fireEvent.click(screen.getByRole('button', { name: 'Board' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Move 010 Build / Development to Done' }));
+      const board = screen.getByRole('region', { name: 'Step board' });
+      await waitFor(() => {
+        expect(within(board).getByRole('alert').textContent).toContain(
+          'Showing the last delivered board',
+        );
+      });
+      expect(within(board).getByRole('heading', { name: 'Unknown (3)' })).toBeDefined();
+      expect(within(board).getByRole('heading', { name: 'Done (0)' })).toBeDefined();
+      expect(progressWrites).toEqual([['setProgress', 'w1', 'step-development', 'done']]);
+      fireEvent.click(within(board).getByRole('button', { name: 'Retry' }));
+      await waitFor(() => {
+        expect(failedReads).toBe(2);
+      });
+      expect(progressWrites).toHaveLength(1);
+    },
+  );
+
+  itDom('lets a Board move settle while an older Plan write still holds shared busy', async () => {
+    const { api, field, progressWrites, owner } = await pageWithEditableBoardRow(undefined, true);
+    const patch = api.patchWorkItem.bind(api);
+    const asked: Parameters<WorkPackageApi['patchWorkItem']>[] = [];
+    let releasePlan: (() => Promise<void>) | undefined;
+    api.patchWorkItem = (...args) => {
+      asked.push(args);
+      return new Promise<void>((resolve, reject) => {
+        releasePlan = () => patch(...args).then(resolve, reject);
+      });
+    };
+    act(() => {
+      field.focus();
+    });
+    fireEvent.change(field, { target: { value: 'Held Plan name' } });
+    act(() => {
+      field.blur();
+    });
+    expect(asked).toEqual([['w1', { name: 'Held Plan name' }]]);
+    const selected = owner.snapshot();
+    if (selected.status !== 'live') throw new Error('selected runtime not open');
+    expect(selected.services.busy.snapshot()).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Board' }));
+    const done = screen.getByRole<HTMLButtonElement>('button', {
+      name: 'Move 010 Build / Development to Done',
+    });
+    fireEvent.click(done);
+    await waitFor(() => {
+      expect(done.disabled).toBe(false);
+    });
+    expect(selected.services.busy.snapshot()).toBe(false);
+    expect(progressWrites).toEqual([['setProgress', 'w1', 'step-development', 'done']]);
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Move 010 Build / Development to In progress' }),
+    );
+    expect(progressWrites).toEqual([
+      ['setProgress', 'w1', 'step-development', 'done'],
+      ['setProgress', 'w1', 'step-development', 'in_progress'],
+    ]);
+    const settlePlan = releasePlan;
+    if (settlePlan === undefined) throw new Error('Plan write was not held');
+    await act(async () => {
+      await settlePlan();
+    });
+    expect(asked).toHaveLength(1);
+  });
+
+  itDom('keeps a new selected runtime independent when an old Board request refuses', async () => {
+    const { progressWrites, holdProgress, owner, workPackages } = await pageWithEditableBoardRow(
+      undefined,
+      true,
+    );
+    let rejectOld: ((cause: Error) => void) | undefined;
+    holdProgress(
+      new Promise<void>((_resolve, reject) => {
+        rejectOld = reject;
+      }),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Board' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Move 010 Build / Development to Done' }));
+    const old = owner.snapshot();
+    if (old.status !== 'live') throw new Error('old runtime not open');
+    const oldTree = old.services.plan.snapshot().tree;
+    if (oldTree === null) throw new Error('old runtime has no tree');
+    const oldCard = workPackageStepBoard(oldTree.value).columns.unknown.find(
+      (candidate) => candidate.stepId === 'step-development',
+    );
+    if (oldCard === undefined) throw new Error('old card missing');
+    const retainedOldAction = createStepBoardAction(old.services);
+    retainedOldAction.capture(oldCard, 'unknown');
+    const oldRefusals: unknown[] = [];
+    const unsubscribeOld = old.services.refusals.subscribe((refusal) => {
+      oldRefusals.push(refusal);
+    });
+    await act(async () => {
+      await workPackages.open('p1');
+    });
+    const intervening = owner.snapshot();
+    if (intervening.status !== 'live' || intervening.services.workPackageId !== 'p1') {
+      throw new Error('intervening work package not open');
+    }
+    await act(async () => {
+      await workPackages.open('p2');
+    });
+    const replacement = owner.snapshot();
+    if (replacement.status !== 'live') throw new Error('replacement runtime not open');
+    expect(replacement.services).not.toBe(old.services);
+    const oldAttempt = retainedOldAction.move('done');
+    const oldCallsBeforeSettlement = [...progressWrites];
+    expect(oldCallsBeforeSettlement).toEqual([['setProgress', 'w1', 'step-development', 'done']]);
+    expect(await oldAttempt).toBe('not-sent');
+    const newRefusals: unknown[] = [];
+    const unsubscribeNew = replacement.services.refusals.subscribe((refusal) => {
+      newRefusals.push(refusal);
+    });
+    holdProgress(Promise.resolve());
+    fireEvent.click(screen.getByRole('button', { name: 'Board' }));
+    const move = screen.getByRole<HTMLButtonElement>('button', {
+      name: 'Move 010 Build / Development to Done',
+    });
+    expect(move.disabled).toBe(false);
+    fireEvent.click(move);
+    await waitFor(() => {
+      expect(progressWrites).toHaveLength(2);
+    });
+    const refuse = rejectOld;
+    if (refuse === undefined) throw new Error('old progress request was not held');
+    await act(async () => {
+      refuse(new Error('old refusal'));
+      await Promise.resolve();
+    });
+    expect(progressWrites).toHaveLength(2);
+    expect(oldRefusals).toEqual([]);
+    expect(newRefusals).toEqual([]);
+    expect(toastTexts()).toEqual([]);
+    unsubscribeOld();
+    unsubscribeNew();
+  });
   itDom(
     'keeps one Plan table, runtime and work package feed across repeated view switches',
     async () => {
@@ -1526,7 +1855,10 @@ describe('the selected runtime Plan and Board views', () => {
   itDom(
     'keeps an unfocused draft through Board and later peer trees until deliberate leave',
     async () => {
-      const { field, writes, model, owner } = await pageWithEditableBoardRow();
+      const { field, writes, model, owner, progressWrites } = await pageWithEditableBoardRow(
+        undefined,
+        true,
+      );
       act(() => {
         field.focus();
       });
@@ -1537,6 +1869,11 @@ describe('the selected runtime Plan and Board views', () => {
         board.focus();
       });
       fireEvent.click(board);
+      expect(writes).toEqual([]);
+      fireEvent.click(screen.getByRole('button', { name: 'Move 010 Build / Development to Done' }));
+      await waitFor(() => {
+        expect(progressWrites).toEqual([['setProgress', 'w1', 'step-development', 'done']]);
+      });
       expect(writes).toEqual([]);
 
       const row = model.rows[0];

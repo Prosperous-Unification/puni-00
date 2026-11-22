@@ -955,6 +955,8 @@ test('the general window bounds a windowless route per source before any store c
   expect(await limited.json()).toEqual({ code: 'rate_limited' });
   // Proof: deleting the Retry-After header from rateRefusal failed this assertion.
   expect(limited.headers.get('retry-after')).toBe('45');
+  // Proof: removing the expose header from attachCors failed this assertion.
+  expect(limited.headers.get('access-control-expose-headers')).toBe('Retry-After');
   expect(calls.count).toBe(before);
   // Proof: keying the general window on the path admitted the 121st request above.
   expect(
@@ -1042,6 +1044,8 @@ test('draft caps answer 429 with Retry-After to UTC midnight and set no cookie',
   expect(bySource.headers.get('retry-after')).toBe('43200');
   expect(bySource.headers.get('set-cookie')).toBeNull();
   expect(bySource.headers.get('access-control-allow-origin')).toBe(config.publicOrigin);
+  // Proof: removing the expose header from attachSiteCors failed this assertion.
+  expect(bySource.headers.get('access-control-expose-headers')).toBe('Retry-After');
   const other = await api.fetch(
     request('/intakes', 'POST', config.publicOrigin, { description: 'A dashboard' }),
     '198.51.100.7',

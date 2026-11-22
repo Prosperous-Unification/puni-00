@@ -56,11 +56,16 @@ export async function observeRegistryBackupTerminal(run: () => Promise<string>):
         child.exited
           .then(async (exitCode: number) => {
             const signal = child.signalCode;
+            const allowedSignals: readonly Bun.Subprocess['signalCode'][] = [
+              null,
+              'SIGINT',
+              'SIGKILL',
+            ];
             if (
               !Number.isSafeInteger(exitCode) ||
               exitCode < 0 ||
               exitCode > 255 ||
-              ![null, 'SIGINT', 'SIGKILL'].includes(signal)
+              !allowedSignals.includes(signal)
             )
               throw new Error('Invalid owned restic terminal');
             await appendFile(

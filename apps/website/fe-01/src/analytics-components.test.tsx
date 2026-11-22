@@ -8,7 +8,7 @@ import { createMilestones, MilestonesContext } from './analytics-flow';
 import { ArrivalChoice, PrivacyChoices } from './privacy-choices';
 import { RequestEditor } from './request-editor';
 
-const dom = new JSDOM('<!doctype html><body></body>', { url: 'https://dev.app.puni.dev' });
+const dom = new JSDOM('<!doctype html><body></body>', { url: 'https://dev.request.puni.dev' });
 const originalFetch = globalThis.fetch;
 beforeAll(() => {
   Object.assign(globalThis, {
@@ -213,7 +213,7 @@ for (const action of ['Allow analytics cookies', 'Disable measurement'])
   test(`arrival choice uses canonical storage without moving focus: ${action}`, () => {
     const isolated = new JSDOM(
       '<body><button id="request">Request</button><div id="choices"></div></body>',
-      { url: 'https://dev.app.puni.dev/' },
+      { url: 'https://dev.request.puni.dev/' },
     );
     Object.assign(isolated.window, {
       fetch: () => Promise.resolve(Response.json({ region: 'unknown', database: null })),
@@ -275,7 +275,9 @@ for (const [preference, visible] of [
   [JSON.stringify({ version: 1, accepted: false, expires: Date.UTC(2030, 0) }), false],
 ] as const)
   test(`arrival choice visibility follows validated preference: ${String(preference)}`, async () => {
-    const isolated = new JSDOM('<body><div></div></body>', { url: 'https://dev.app.puni.dev/' });
+    const isolated = new JSDOM('<body><div></div></body>', {
+      url: 'https://dev.request.puni.dev/',
+    });
     if (preference !== null)
       isolated.window.document.cookie = `puni_dev_consent_v1=${encodeURIComponent(preference)}; Domain=puni.dev; Path=/; Secure`;
     Object.assign(isolated.window, {
@@ -326,7 +328,7 @@ for (const [preference, visible] of [
 
 for (const action of ['Allow analytics cookies', 'Disable measurement'])
   test(`arrival choice remains actionable through unreadable and refused persistence: ${action}`, () => {
-    const isolated = new JSDOM('<body></body>', { url: 'https://dev.app.puni.dev/' });
+    const isolated = new JSDOM('<body></body>', { url: 'https://dev.request.puni.dev/' });
     Object.defineProperty(isolated.window.document, 'cookie', {
       configurable: true,
       get: () => {
@@ -401,9 +403,9 @@ for (const action of ['Allow analytics cookies', 'Disable measurement'])
   });
 
 for (const [enabled, url] of [
-  [false, 'https://dev.app.puni.dev/'],
-  [true, 'https://dev.app.puni.dev/operator/'],
-  [true, 'https://dev.app.puni.dev/unknown/'],
+  [false, 'https://dev.request.puni.dev/'],
+  [true, 'https://dev.request.puni.dev/operator/'],
+  [true, 'https://dev.request.puni.dev/unknown/'],
 ] as const)
   test(`arrival choice absent when disabled or unsupported: ${String(enabled)} ${url}`, () => {
     const isolated = new JSDOM('<body></body>', { url });
@@ -435,7 +437,7 @@ for (const [enabled, url] of [
   });
 
 test('focus sync observes another host choice while vendor stays loading', () => {
-  const isolated = new JSDOM('<body></body>', { url: 'https://dev.app.puni.dev/' });
+  const isolated = new JSDOM('<body></body>', { url: 'https://dev.request.puni.dev/' });
   Object.assign(isolated.window, {
     fetch: () => Promise.resolve(Response.json({ region: 'unknown', database: null })),
   });
@@ -476,7 +478,7 @@ test('focus sync observes another host choice while vendor stays loading', () =>
 
 for (const action of ['Allow analytics cookies', 'Disable measurement'])
   test(`fresh footer can persist a choice directly: ${action}`, () => {
-    const isolated = new JSDOM('<body></body>', { url: 'https://dev.app.puni.dev/' });
+    const isolated = new JSDOM('<body></body>', { url: 'https://dev.request.puni.dev/' });
     Object.assign(isolated.window, {
       fetch: () => Promise.resolve(Response.json({ region: 'unknown', database: null })),
     });
@@ -521,7 +523,7 @@ for (const action of ['Allow analytics cookies', 'Disable measurement'])
   });
 
 test('regional arrival visibility updates during vendor loading while footer rejection remains reachable', async () => {
-  const isolated = new JSDOM('<body></body>', { url: 'https://dev.app.puni.dev/' });
+  const isolated = new JSDOM('<body></body>', { url: 'https://dev.request.puni.dev/' });
   const pending = Promise.withResolvers<Response>();
   Object.assign(isolated.window, { fetch: () => pending.promise });
   const analytics = createBrowserAnalytics(isolated.window, {
@@ -582,7 +584,7 @@ test('regional arrival visibility updates during vendor loading while footer rej
 });
 
 test('regional grant cannot hide a failed preference write and unknown remains actionable', () => {
-  const isolated = new JSDOM('<body></body>', { url: 'https://dev.app.puni.dev/' });
+  const isolated = new JSDOM('<body></body>', { url: 'https://dev.request.puni.dev/' });
   Object.assign(isolated.window, { fetch: () => new Promise<Response>(() => undefined) });
   const analytics = createBrowserAnalytics(isolated.window, {
     enabled: true,
@@ -632,7 +634,7 @@ test('regional grant cannot hide a failed preference write and unknown remains a
 });
 
 test('region notification hides arrival even after optional vendor failure', async () => {
-  const isolated = new JSDOM('<body></body>', { url: 'https://dev.app.puni.dev/' });
+  const isolated = new JSDOM('<body></body>', { url: 'https://dev.request.puni.dev/' });
   const pending = Promise.withResolvers<Response>();
   Object.assign(isolated.window, { fetch: () => pending.promise });
   const analytics = createBrowserAnalytics(isolated.window, {
@@ -682,7 +684,7 @@ test('region notification hides arrival even after optional vendor failure', asy
 });
 
 test('failed preference recovery controls return after operator navigation and allow retry', () => {
-  const isolated = new JSDOM('<body></body>', { url: 'https://dev.app.puni.dev/' });
+  const isolated = new JSDOM('<body></body>', { url: 'https://dev.request.puni.dev/' });
   Object.assign(isolated.window, { fetch: () => new Promise<Response>(() => undefined) });
   const analytics = createBrowserAnalytics(isolated.window, {
     enabled: true,

@@ -1354,6 +1354,7 @@ describe('undo and redo', () => {
     // no full stop and no answer to "since what?", while every toast beside it
     // was a whole sentence. Read on screen on 2026-08-09.
     const api = await threeRoots();
+    const treeReads = recordCalls(api, 'tree');
     api.answerStackWith({
       ok: false,
       reason: 'stale_undo',
@@ -1366,6 +1367,9 @@ describe('undo and redo', () => {
       expect(toastTexts()).toContain(
         'That could not be undone: “Sand it twice” has changed since then.',
       );
+    });
+    await waitFor(() => {
+      expect(treeReads).toHaveLength(1);
     });
   });
 

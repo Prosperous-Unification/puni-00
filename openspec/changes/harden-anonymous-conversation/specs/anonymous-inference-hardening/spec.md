@@ -68,6 +68,11 @@ A configured high-entropy operator secret in a URL fragment SHALL reset only the
 - **WHEN** the operator opens the preview reset fragment after exhausting a conversation
 - **THEN** its allowance is replenished, the fragment disappears, history remains and normal chat loads
 
+#### Scenario: Development hostname compatibility
+
+- **WHEN** a tester uses the exact development request hostname or its legacy development app hostname with the development site API
+- **THEN** the secret reset remains available, while production, crossed origin pairs and lookalike suffixes remain refused
+
 #### Scenario: Unauthorized or production reset
 
 - **WHEN** the secret is absent, wrong, disabled or used against production

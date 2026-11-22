@@ -1058,3 +1058,35 @@ broader goal remains **paused**. The proposed restart order is recorded in
 `docs/superpowers/plans/2026-11-21-puni-completion-replan.md`; writing that plan
 does not execute it. No full gate, public commit, push, PR update, merge,
 deployment, activation or original-scope completion is claimed.
+
+### 2026-11-22: bounded delivery integration
+
+The current delivery goal is to push and merge the existing batch, including necessary
+merge compatibility repairs. The earlier broad CLI/script completion goal is deferred.
+Commit `0be6f8781c0eadc7a691c8eb4f0889dcfba83804` was pushed to PR917 with normal hooks;
+integration of main `a512c4b0b1eb8e53f2f6b0370aea4cb2c45b9dd6` is in progress.
+
+Before the bounded timeout repair, the combined job-run owner reports60 passed,
+17 skipped and2 failed: forced termination loses the native keeper before its required
+private payload status can qualify. The repaired owner passes63 tests,386 assertions,
+with the same17 environment skips. The actual namespace launcher owner passes41 tests;
+existing protocol/control/proof owners pass104, and current native owners pass59 with
+one actual-systemd skip. These are separate, overlapping scopes.
+
+Thirteen current kill-phase, delivery and keeper-ordering cases pass after the scoped
+production faults are restored. A later four-case focused run verifies simultaneous
+failure causes survive the final AggregateError construction, alongside the existing
+delivery and ordering controls. Actual payload/native status remains required; a
+failed kill write refuses caller completion even after a later genuine payload exit.
+Formal Astra review remains open. Local source bundles do not qualify installed PUNI
+or real systemd/cgroup behavior; detailed limits and fault identities are in the Dash
+host-jobs verification amendment.
+
+Workflow guards pass75 tests with Node available on the child PATH. The Burokrat
+entrypoint owner passes58 after its real external-trust fixture provisions the
+actual TypeScript closure; its missing-runtime refusal remains tested separately.
+Scoped root compatibility lint/format and Burokrat types pass. Terminal receipts
+are `delivery-ci-memory-node-path-v167`,
+`delivery-gate-entrypoints-provisioned-v170`, `delivery-root-compat-*-v171` and
+`delivery-journal-types-v175` under the retained control directory. This is local
+integration evidence, not an exact-commit host gate, CI completion or merge.

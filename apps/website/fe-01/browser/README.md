@@ -1,13 +1,13 @@
 # Local analytics fixture
 
-`analytics.mjs` runs the real non-debug Google tag in intercepted HTTPS browser contexts. It serves the public `analytics-home.mjs` adapter fixture at `https://dev.puni.dev/` and a built public app at `https://dev.app.puni.dev`. Home here is a public adapter integration test; the licensed private site's built Home and cross-host integration require their separate verification.
+`analytics.mjs` runs the real non-debug Google tag in intercepted HTTPS browser contexts. It serves the public `analytics-home.mjs` adapter fixture at `https://dev.puni.dev/` and a built public app at `https://dev.request.puni.dev`. Home here is a public adapter integration test; the licensed private site's built Home and cross-host integration require their separate verification.
 
 Run with Bun, the repository's existing dependencies, an installed Chrome or `PUNI_CHROMIUM_PATH`, and unique local ports. Keep the API scripted: `conversation-api.mjs` owns a real disposable SQLite store and substitutes its provider transport without reading a provider secret or making paid calls.
 
 For example, start these commands from the repository root, using separate terminals for the long-lived processes:
 
 ```sh
-WEBSITE_API_PORT=32861 APP_ORIGIN=https://dev.app.puni.dev PUBLIC_ORIGIN=https://dev.puni.dev WEBSITE_DATABASE_PATH=/tmp/puni-analytics.sqlite bun apps/website/fe-01/browser/conversation-api.mjs
+WEBSITE_API_PORT=32861 APP_ORIGIN=https://dev.request.puni.dev PUBLIC_ORIGIN=https://dev.puni.dev WEBSITE_DATABASE_PATH=/tmp/puni-analytics.sqlite bun apps/website/fe-01/browser/conversation-api.mjs
 
 VITE_ANALYTICS_ENABLED=true VITE_ANALYTICS_ENVIRONMENT=development VITE_ANALYTICS_MEASUREMENT_ID=G-R0JM3R4SSV VITE_API_ORIGIN=https://dev.puni.dev/api VITE_SITE_ORIGIN=https://dev.puni.dev bunx vite build --config apps/website/fe-01/vite.config.ts
 

@@ -118,6 +118,24 @@ function fixture(): string {
   return root;
 }
 
+/**
+ * The ambient environment for a spawned leaf runner, without NODE_OPTIONS or BUN_OPTIONS. The
+ * leaf refuses both as selection overrides (tool-remote-scripts `hasSelectionOverride` in
+ * `test/run-tests.ts`, and the custody fixture's "ordinary HOLD invocation selection override
+ * refused") and then runs nothing. A gate that pins NODE_OPTIONS (A-NODE-HEAP-1, #956; the
+ * capped CI steps since A-CI-LEAF-MEMORYMAX-1) would otherwise turn these tests red for a
+ * reason they do not test.
+ * Proof (2026-11-21): with NODE_OPTIONS=--max-old-space-size=4096 exported and the ambient
+ * environment forwarded as is, three tests here received `executed(...)` `[]` (as on the h4claw
+ * gate c24eac90); with this helper they pass.
+ */
+function leafEnvironment(overrides: Record<string, string>): Record<string, string | undefined> {
+  const environment: Record<string, string | undefined> = { ...process.env, ...overrides };
+  delete environment['NODE_OPTIONS'];
+  delete environment['BUN_OPTIONS'];
+  return environment;
+}
+
 function invoke(root: string, leaf: string, preload?: string) {
   const head = Bun.spawnSync(['git', 'rev-parse', 'HEAD'], { cwd: root, stdout: 'pipe' })
     .stdout.toString()
@@ -132,7 +150,7 @@ function invoke(root: string, leaf: string, preload?: string) {
       `--head=${head}`,
     ],
     {
-      env: { ...process.env, FORCE_COLOR: '0', CLAUDECODE: '0', AGENT: '0' },
+      env: leafEnvironment({ FORCE_COLOR: '0', CLAUDECODE: '0', AGENT: '0' }),
       stdout: 'pipe',
       stderr: 'pipe',
       timeout: 5000,
@@ -377,13 +395,12 @@ test.each([
       ],
       {
         cwd: root,
-        env: {
-          ...process.env,
+        env: leafEnvironment({
           NX_DAEMON: 'false',
           NX_ISOLATE_PLUGINS: 'false',
           CLAUDECODE: '0',
           AGENT: '0',
-        },
+        }),
         stdout: 'pipe',
         stderr: 'pipe',
         timeout: 9000,
@@ -471,14 +488,13 @@ test('actual noncached Nx leaf targets preserve environment and run dependency b
       ],
       {
         cwd: root,
-        env: {
-          ...process.env,
+        env: leafEnvironment({
           NX_DAEMON: 'false',
           NX_ISOLATE_PLUGINS: 'false',
           NX_SKIP_NX_CACHE: 'true',
           CLAUDECODE: 'fixture-must-override',
           AGENT: 'fixture-must-override',
-        },
+        }),
         stdout: 'pipe',
         stderr: 'pipe',
         timeout: 9000,
@@ -536,7 +552,7 @@ test('the leaf refuses immutable-head and discovery/environment overrides before
         `--head=${fault === 'head' ? 'f'.repeat(40) : head}`,
       ],
       {
-        env: { ...process.env, CLAUDECODE: fault === 'environment' ? '1' : '0', AGENT: '0' },
+        env: leafEnvironment({ CLAUDECODE: fault === 'environment' ? '1' : '0', AGENT: '0' }),
         stdout: 'pipe',
         stderr: 'pipe',
         timeout: 5000,
@@ -567,12 +583,11 @@ test('the leaf refuses an unsupported Bun pin or test-selection environment', ()
     const child = Bun.spawnSync(
       [process.execPath, join(root, PROJECT, 'test/ci-leaf.ts'), root, 'model', `--head=${head}`],
       {
-        env: {
-          ...process.env,
+        env: leafEnvironment({
           CLAUDECODE: '0',
           AGENT: '0',
           ...(fault === 'selection' ? { BUN_TEST_TIMEOUT: '20000' } : {}),
-        },
+        }),
         stdout: 'pipe',
         stderr: 'pipe',
         timeout: 5000,

@@ -28,7 +28,7 @@ import { FunnelPanel } from './funnel-panel';
 import { GuardrailsPanel } from './guardrails-panel';
 import { ArrivalChoice, PrivacyChoices } from './privacy-choices';
 import { clearRequestEditor, RequestEditor } from './request-editor';
-import { consumeTestingReset } from './testing-reset';
+import { bindTestingReset, consumeTestingReset } from './testing-reset';
 
 interface Submission {
   id: string;
@@ -689,6 +689,7 @@ function OperatorPage() {
 const root = document.getElementById('root');
 if (!root) throw new Error('Missing app root');
 const appRoot = createRoot(root);
+let resetGeneration = 0;
 
 /** Routes an operator reset failure through the existing page Error Boundary. */
 function ResetFailure({ error }: { error: Error }): never {
@@ -697,8 +698,9 @@ function ResetFailure({ error }: { error: Error }): never {
 
 function mountApp(): void {
   const milestones = createMilestones(createAppAnalytics(window));
+  // Proof: removing this key kept the mounted exhausted page after a successful browser reset.
   appRoot.render(
-    <MilestonesContext.Provider value={milestones}>
+    <MilestonesContext.Provider key={resetGeneration} value={milestones}>
       {window.location.pathname.startsWith('/operator') ? (
         <OperatorPage />
       ) : window.location.pathname.startsWith('/manual') ? (
@@ -714,20 +716,29 @@ function mountApp(): void {
   );
 }
 
-const testingReset = consumeTestingReset(window, (secret) =>
+/** Discards mounted tester state so renewed allowance is read from the API. */
+function remountApp(): void {
+  resetGeneration += 1;
+  mountApp();
+}
+
+/** Renders a sanitized testing refusal through the existing page Error Boundary. */
+function showResetFailure(error: unknown): void {
+  if (!(error instanceof Error)) throw new Error('Unexpected testing reset failure');
+  appRoot.render(
+    <AppErrorBoundary>
+      <ResetFailure error={error} />
+    </AppErrorBoundary>,
+  );
+}
+
+const resetTestingAllowance = (secret: string) =>
   sendCommand('/testing/reset', {
     method: 'POST',
     headers: { 'X-Puni-Test-Reset': secret },
     signal: AbortSignal.timeout(10_000),
-  }),
-);
-if (testingReset === null) mountApp();
-else
-  void testingReset.then(mountApp, (error: unknown) => {
-    if (!(error instanceof Error)) throw new Error('Unexpected testing reset failure');
-    appRoot.render(
-      <AppErrorBoundary>
-        <ResetFailure error={error} />
-      </AppErrorBoundary>,
-    );
   });
+bindTestingReset(window, resetTestingAllowance, remountApp, showResetFailure);
+const testingReset = consumeTestingReset(window, resetTestingAllowance);
+if (testingReset === null) mountApp();
+else void testingReset.then(remountApp, showResetFailure);

@@ -9,6 +9,10 @@ current readiness. Managed procedures remain attended future operations; this
 source merge performs no installation, adoption or production action. Full native,
 provider, storage, backup, isolation, recovery and delivery acceptance stays open.
 
+**Remaining scope — 2026-11-22:** The [completion plan](../superpowers/plans/2026-11-22-registry-storage-completion.md) reconciles the recorded Harbor direction with unfinished lifecycle requirements, sequences the acceptance gates and records retained holds. Implementation remains paused; this documentation does not establish installed readiness.
+
+**Proposed — 2026-11-17:** [adopt-harbor-registry](../../openspec/changes/adopt-harbor-registry/proposal.md) proposes replacing this registry and the storage lifecycle below with Harbor; it is a plan, not active, and nothing here has changed.
+
 The platform registry is Distribution 2.8.3 with verified TLS and htpasswd authentication. Its endpoint is `registry.puni.internal:5000`, resolved to h4claw’s private address `10.1.0.4`. It uses the existing `puni-registry/registry` PVC, a 50 GiB local-path Retain volume on h4claw. This is a single-instance service, not a highly available registry.
 
 The existing website images remain on GHCR and WBS keeps its existing registry. Making this endpoint usable does not migrate either product. See the [activation checklist](../../openspec/changes/activate-platform-registry/tasks.md).

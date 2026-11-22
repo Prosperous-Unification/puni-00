@@ -28,6 +28,11 @@ if (
   scenario === undefined
 )
   throw new Error('missing job observer operands');
+const killScenario = scenario.startsWith('control-kill-');
+const combinedKillFailure = scenario === 'control-kill-callback-leader-error';
+const deliveryCause = new Error('controlled actual control callback failure');
+const beforeDeliveryCause = new Error('controlled kill delivery failure before native write');
+const leaderCause = new Error('controlled leader observation error');
 const original = { ...childProcess },
   nativeSpawn = childProcess.spawn;
 let manager: childProcess.ChildProcess | undefined;
@@ -49,6 +54,8 @@ await mock.module('node:child_process', () => ({
       child.once('exit', (code, signal) => {
         trace.push('native-exit:' + String(code) + ':' + String(signal));
         nativeEnded.resolve(undefined);
+        if (scenario === 'control-kill-ordering')
+          writeFileSync(join(root, 'keeper-native-joined'), 'actual native exit observed');
         if (scenario !== 'leader-error')
           writeFileSync(
             join(root, 'fd4-held.json'),
@@ -58,10 +65,33 @@ await mock.module('node:child_process', () => ({
       if (scenario.startsWith('control-')) {
         const control = child.stdio.at(3);
         if (!(control instanceof Writable)) throw new Error('actual control writable absent');
-        const method = scenario.startsWith('control-start-callback') ? 'write' : 'end';
+        const method =
+          scenario.startsWith('control-start-callback') || killScenario ? 'write' : 'end';
+        if (killScenario) {
+          const status = child.stdio.at(4);
+          if (!(status instanceof Readable)) throw new Error('kill status readable absent');
+          status.on('data', (chunk: Buffer) => {
+            fd4 = Buffer.concat([fd4, chunk]);
+            trace.push('native-fd4-bytes');
+          });
+          status.on('end', () => {
+            fd4Ended = true;
+            trace.push('native-fd4-end');
+          });
+          control.once('finish', () => {
+            trace.push('native-control-finished');
+          });
+        }
         const nativeOperation = control[method].bind(control);
         Object.defineProperty(control, method, {
           value(...arguments_: unknown[]) {
+            if (
+              scenario === 'control-kill-ordering' ||
+              (killScenario && arguments_[0] !== 'kill\n')
+            ) {
+              const forwarded: unknown = Reflect.apply(nativeOperation, undefined, arguments_);
+              return forwarded;
+            }
             const callback = arguments_.at(-1);
             if (typeof callback !== 'function') throw new Error('controlled callback absent');
             if (scenario === 'control-start-callback-after-status') {
@@ -91,11 +121,19 @@ await mock.module('node:child_process', () => ({
               Reflect.apply(nativeOperation, undefined, arguments_);
               return control;
             }
+            if (scenario === 'control-kill-before-delivery') {
+              writeFileSync(join(root, 'control-callback-injected'), method);
+              Reflect.apply(callback, undefined, [beforeDeliveryCause]);
+              return control;
+            }
             arguments_[arguments_.length - 1] = (cause?: Error | null) => {
               if (cause) throw new Error('unexpected actual control error', { cause });
               writeFileSync(join(root, 'control-callback-injected'), method);
+              if (combinedKillFailure) child.emit('error', leaderCause);
               Reflect.apply(callback, undefined, [
-                new Error('controlled actual control callback failure'),
+                killScenario
+                  ? deliveryCause
+                  : new Error('controlled actual control callback failure'),
               ]);
             };
             Reflect.apply(nativeOperation, undefined, arguments_);
@@ -177,6 +215,10 @@ const helperPrefix =
         faultMode,
       ];
 const reports: string[] = [];
+const nativeClock = monotonicClock();
+const monotonic = killScenario
+  ? { now: () => nativeClock.now() + (existsSync(join(root, 'leader-payload-ready')) ? 61_000 : 0) }
+  : nativeClock;
 let finished = false;
 function isFinished(): boolean {
   return finished;
@@ -193,16 +235,18 @@ const operation = runHostJob(
   {
     helperPrefix,
     clock: wallClock(),
-    monotonic: monotonicClock(),
+    monotonic,
     environment: { ...process.env, PATH: path },
     cwd,
     report: (line) => {
       reports.push(line);
+      if (scenario === 'control-kill-ordering' && line.includes('after its leader; SIGKILL'))
+        trace.push('leftover-kill-announced');
     },
     telemetry: fakeScopeTelemetry(cgroupRoot),
     host: ampleHost,
-    sampleIntervalMs: 10000,
-    settleBudgetMs: 2000,
+    sampleIntervalMs: killScenario ? 10 : 10000,
+    settleBudgetMs: killScenario ? 100 : 2000,
     user: 'fixture',
     legacyLock: privateLegacyLock(join(cwd, '..')),
   },
@@ -213,14 +257,40 @@ const operation = runHostJob(
   },
   (cause: unknown) => {
     finished = true;
+    const failureCause: unknown = cause instanceof Error ? cause.cause : undefined;
+    const retainedCauses: readonly unknown[] =
+      failureCause instanceof AggregateError ? failureCause.errors : [failureCause];
     return {
       kind: 'failed',
       code: cause instanceof Error && 'exitCode' in cause ? cause.exitCode : null,
       message: cause instanceof Error ? cause.message : 'unknown',
+      ...(killScenario
+        ? {
+            causeIdentity: {
+              kill: retainedCauses.includes(
+                scenario === 'control-kill-before-delivery' ? beforeDeliveryCause : deliveryCause,
+              ),
+              leader: retainedCauses.includes(leaderCause),
+              count: retainedCauses.length,
+            },
+          }
+        : {}),
     };
   },
 );
 if (scenario.startsWith('control-')) {
+  if (scenario === 'control-kill-before-delivery') {
+    while (!existsSync(join(root, 'control-callback-injected'))) await Bun.sleep(1);
+    await Bun.sleep(30);
+    writeFileSync(
+      join(root, 'kill-pending.json'),
+      JSON.stringify({
+        finished: isFinished(),
+        nativeEnded: trace.some((entry) => entry.startsWith('native-exit:')),
+        fd4Hex: fd4.toString('hex'),
+      }),
+    );
+  }
   await operation;
 } else if (scenario === 'leader-error') {
   while (!existsSync(join(root, 'leader-error-injected'))) await Bun.sleep(1);

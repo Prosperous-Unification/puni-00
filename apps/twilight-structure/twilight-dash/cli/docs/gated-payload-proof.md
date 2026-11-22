@@ -129,3 +129,21 @@ The private `2.2d` addendum leaves parent1.1/2.1/2.2 open. The separate document
 Current ordinary checks passed: Tools34/0 (34 expectations, actual systemd controls available), codec/composition/facade48/0 (80 expectations), four forced strict roots, fresh elevated Nx graph, uncached owned lint, scoped format and OpenSpec343/0. The exact two native command receipts are `/tmp/puni-c34-private-closing-focused-v1/receipts.json`; each records actual exit0/null, one shared output FD, one close and one completed owner stop/reap. The actual nine-module before/after Bun-emission bridge is `/tmp/puni-c34-private-closing-js-bridge-v2.json`, SHA256 `9b7d7171df6e592843dec3d4c982aaa21bdbb50c32ed2bb83220edaac1606b11`. Six source files changed only comments; all nine emitted programs are byte-identical. These checks do not add canonical negative observations or recapture the installed52f package. Closing review and adoption remain separate.
 
 The corrected v2 bridge records actual Bun.version `1.4.4` separately from Node-compatibility process.version `v26.3.0`. Its predecessor remains immutable with the mislabeled runtime field explicitly historical. The three closing corrections change only metadata, bridge references and the JSON refusal-stage comment: JSON.parse remains unchanged, and that proof does not claim excerpt privacy or payload admission. The existing34/48 healthy observations carry only through exact current emitted-program identity and unchanged test/harness hashes; no runtime replay occurred for these corrections.
+
+## Current retained-child kill compatibility (2026-11-22)
+
+The current FD3 protocol adds one private retained-child kill after startup. It keeps genuine
+native callback/numeric correspondence, raw FD4 status, ACK and actual keeper join authoritative;
+cgroup leftovers are ended only after keeper retirement. A first late kill preserves actual
+status, while startup/duplicate/post-done kills and truncated prefixes refuse. Delivery failure
+cannot return 124 or authorize release. Simultaneous delivery/native-observation failures preserve
+both original causes; single-failure cause identities remain unchanged.
+
+Current RED/restoredGREEN recipes, exact scope and native custody are recorded in the
+[Dash merge verification](../../../../../openspec/changes/dash-host-jobs/verify.md#current-merge-compatibility-retained-native-child-kill-2026-11-22).
+The v181 source-bundle artifact is
+`674cf809a9b585ce59ceee1ea757cbdb40f95ae2b9fb9611a6d0cd1bca9e3219`.
+These are current source/native observations, not additions to the 72 accepted historical
+canonical pairs, replacement archive hashes or installed-PUNI/real-user-scope qualification.
+The historical proof identities and captures above remain unchanged. Formal Astra review remains
+required before delivery.

@@ -1,5 +1,4 @@
-import { seedLegacyProject } from '../testing/project-fixture';
-const PARENT_PROJECT_ID = 'service-fixture-parent';
+import { rejects } from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -15,10 +14,11 @@ import { DemandRepository, ResourceCapacityRepository } from '@wbs/store-sqlite/
 import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
 import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
 import { StepParallelRepository } from '@wbs/store-sqlite/step-parallel';
+import { seedCurrentProjectFixture } from '@wbs/store-sqlite/testing/current-project-fixture';
 import { activateTestStepBlockages } from '@wbs/store-sqlite/testing/step-blockage-activation';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 import { WorkItemBudgetRepository } from '@wbs/store-sqlite/work-item-budget';
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 
 import type { JournalEntry, LabelledWorkItem, Step, WorkItem, WriteStamp } from '../repository';
 import { ActualRepository } from '../repository/actual';
@@ -28,7 +28,6 @@ import { DependencyRepository } from '../repository/dependency';
 import { DirectoryRepository } from '../repository/directory';
 import { EstimateRepository } from '../repository/estimate';
 import { OPEN } from '../repository/gate';
-import { runMigrations } from '../repository/migrate';
 import { PlanEventRepository } from '../repository/plan-event';
 import { commandJournal } from '../repository/schema';
 import { StepMeasureRepository } from '../repository/step-measure';
@@ -61,10 +60,11 @@ import { fastScheduler } from './optimizer-wiring';
  * edit is the failure two reviewers independently refused to ship, and every
  * `stale_undo` case below is one of the ways that was going to happen.
  */
-const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
+const PARENT_PROJECT_ID = 'service-fixture-parent';
 
 let dir: string;
 let path: string;
+let fixtureCustody: { hasUnknownOwner: boolean };
 let workItems: WorkItemService;
 let workPackages: WorkPackageService;
 let workItemStore: WorkItemRepository;
@@ -80,7 +80,7 @@ let ownerId: string;
 let strangerId: string;
 let steps: Step[];
 
-/** The first step every work package starts with, which the estimate cases write to. */
+/** The fixture's explicitly authored Dev, captured by this package's birth owner. */
 const dev = (): string => {
   const found = steps.at(0);
   if (found === undefined)
@@ -99,10 +99,38 @@ const OTHER_DAYS = { optimistic: 4, realistic: 5, pessimistic: 6 };
 const wrote = (): WriteStamp => ({ at: 1, by: ownerId });
 
 beforeEach(async () => {
+  fixtureCustody = { hasUnknownOwner: false };
   dir = mkdtempSync(join(tmpdir(), 'wbs-undo-'));
   path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
-  seedLegacyProject(path, 'service-fixture-legacy', PARENT_PROJECT_ID);
+  ownerId = crypto.randomUUID();
+  await seedCurrentProjectFixture(
+    {
+      path,
+      directory: dir,
+      organizationId: 'service-fixture-legacy',
+      projectId: PARENT_PROJECT_ID,
+      stamp: wrote(),
+      definitions: [
+        {
+          id: 'undo-dev',
+          code: 'dev',
+          name: 'Dev',
+          position: 1,
+          defaultEstimateUnit: 'workdays',
+          defaultAllowancePercent: 0,
+        },
+        {
+          id: 'undo-qa',
+          code: 'qa',
+          name: 'QA',
+          position: 2,
+          defaultEstimateUnit: 'workdays',
+          defaultAllowancePercent: 0,
+        },
+      ],
+    },
+    fixtureCustody,
+  );
   activateTestStepBlockages(path);
   const db = openDrizzle(path);
 
@@ -117,11 +145,6 @@ beforeEach(async () => {
   journalStore = new CommandJournalRepository(db, OPEN);
 
   const users = new UserRepository(db, OPEN);
-  ownerId = crypto.randomUUID();
-  await users.create(
-    { id: ownerId, username: 'owner', passwordHash: 'x', createdAt: 1 },
-    { at: 1, by: ownerId },
-  );
   // Somebody else on the same plan. The work package is not restricted, so they may
   // edit it — which is the only reason any of the staleness cases below exist.
   strangerId = crypto.randomUUID();
@@ -176,9 +199,22 @@ beforeEach(async () => {
   );
   workPackageId = created.workPackage.id;
   steps = created.steps;
+  expect(
+    steps.map(({ id, code, estimateUnit, allowancePercent }) => ({
+      id,
+      code,
+      estimateUnit,
+      allowancePercent,
+    })),
+  ).toEqual([
+    { id: 'undo-dev', code: 'dev', estimateUnit: 'workdays', allowancePercent: 0 },
+    { id: 'undo-qa', code: 'qa', estimateUnit: 'workdays', allowancePercent: 0 },
+  ]);
 });
 
 afterEach(() => {
+  if (fixtureCustody.hasUnknownOwner)
+    throw new Error('undo fixture has unknown database custody; retained ' + dir);
   rmSync(dir, { recursive: true, force: true });
 });
 
@@ -703,23 +739,31 @@ describe('undoing each kind of change', () => {
     expect(await found(strip)).not.toBeNull();
   });
 
-  it('refuses to undo a create once a second child sits under it, which no revision would say', async () => {
-    const strip = await root('Strip');
+  it('refuses to undo a branch creation once another child sits under it, which no revision would say', async () => {
+    const template = await root('Branch template');
+    await child(template, 'Existing child');
+    const created = await workItems.duplicate(template, ownerId);
+    if (!created.ok) throw new Error('branch fixture duplication refused: ' + created.reason);
+    const strip = created.value.id;
+    // The copied child already completed the first-child handoff. Sockets is
+    // an ordinary additional child whose removal leaves the parent intact.
     await child(strip, 'Sockets');
-    // Two more creates land on this account's own stack, so walk past them.
     const revisionBefore = (await found(strip))?.revision;
     await workItems.create(workPackageId, strangerId, {
       parentId: strip,
       afterId: null,
       name: 'Switches',
     });
-    // The second child changed nothing about `strip` itself — this is the case
+    // The new child changed nothing about `strip` itself — this is the case
     // the subtree guard exists for.
     expect((await found(strip))?.revision).toBe(revisionBefore ?? -1);
 
-    // Undo the two creates this account made under it, newest first.
+    // Walk past this account's additional child, then reach branch creation.
     expect(expectDone(await undone())).toBe('add “Sockets”');
-    expectStale(await undone());
+    expect((await found(strip))?.revision).toBe(revisionBefore ?? -1);
+    expect(expectStale(await undone())).toBe(
+      'work has been added or removed under that row since then.',
+    );
     expect(await found(strip)).not.toBeNull();
   });
 
@@ -1294,6 +1338,24 @@ describe('an undo refuses when what it touched has moved', () => {
     expect(await estimateStore.listByWorkPackage(workPackageId)).toEqual([
       { workItemId: strip, stepId: dev(), ...OTHER_DAYS },
     ]);
+  });
+
+  it('refuses a progress undo after another actor changes the same step', async () => {
+    const strip = await root('Strip');
+    expect((await workItems.setProgress(strip, ownerId, dev(), 'done')).ok).toBe(true);
+    expect((await workItems.setProgress(strip, strangerId, dev(), 'in_progress')).ok).toBe(true);
+
+    expectStale(await undone());
+
+    expect(
+      (await progressStore.listByWorkPackage(workPackageId)).map(
+        ({ workItemId, stepId, state }) => ({
+          workItemId,
+          stepId,
+          state,
+        }),
+      ),
+    ).toEqual([{ workItemId: strip, stepId: dev(), state: 'in_progress' }]);
   });
 
   it('refuses an assignment somebody else has reassigned', async () => {
@@ -1887,6 +1949,22 @@ describe('a tag set is undone whole, which a scalar habit would not do', () => {
     await workItemStore.patch(id, { typeIds: [bug, spike] }, wrote());
     expect((await workItems.remove(id, ownerId, 'cascade', { kind: 'legacy' })).ok).toBe(true);
     await directoryStore.removeWorkItemType(bug, true, wrote());
+
+    const before = await rows();
+    const entry = await nextUndoable();
+    if (entry === null) throw new Error('deleted-type undo entry is absent');
+    const unreadable = new Error('injected unreadable current type directory');
+    const read = spyOn(directoryStore, 'listWorkItemTypes').mockRejectedValue(unreadable);
+    try {
+      await rejects(
+        workItems.undo(workPackageId, ownerId),
+        (cause: unknown) => cause === unreadable,
+      );
+      expect(await rows()).toEqual(before);
+      expect(await nextUndoable()).toEqual(entry);
+    } finally {
+      read.mockRestore();
+    }
 
     expectDone(await undone());
     expect(await typesOn(id)).toEqual([spike]);

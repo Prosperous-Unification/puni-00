@@ -1865,3 +1865,50 @@ update, merge, deploy, install or activation occurred in this slice.
 The user resolved the current AGENTS.md/additive-only versus SC14 policy conflict for this transition: “just do the migration this time, i'll review the SC14 thing vs AGENTS.md later”. This authorizes the existing single catalogue maintenance-window design; it does not change the general policy or supply live host/session, backup or fingerprinted merge-rule evidence. No live database migration was executed by this repair.
 
 The exact 20261115130000_add_step_catalogue folder now waives only DROP TABLE and requires bin/assert-rename-window.ts. The complete forward/down SQL remains unchanged. All55 migration-lint tests pass. Four finite production-path faults (entry removal, skipped gate-presence check, constant wrong-folder lookup and added TRUNCATE label) each fail their own named assertion and pass after exact restoration. Adjacent Proof notes record only lint admission/refusal, not window execution or rollback success. Evidence: /tmp/puni-combined-proposal-v1/control/catalogue-lint-fault-{plan,state}-v130.json and catalogue-lint-*-v130 receipts/logs. Formal Astra review, actual window/apply delivery and host gates remain open.
+
+### 2026-11-22: current permission owner and merge compatibility
+
+The full command-permission controller owner passes407 tests,860 assertions, after
+its catalogue/entity fixture premises were repaired. This includes all four retained
+saved-plan permission controls and the independent writer controls. No permission
+policy or production schema changed in that fixture repair. Exact file pins, retained
+failures and terminal custody are in `/tmp/puni-command-permission-final-v145.json`;
+the protected full run is `command-permission-v145-full-owner`.
+
+The current backend type check passes (`delivery-backend-full-types-v166`). The
+incoming Board journal reader now queries actual `work_package_id` and exposes
+`workPackageId`, matching its frontend facade. A real migrated SQLite probe verifies
+package isolation, actor, sequence and inverse values; a source copy querying the old
+column fails and its restored copy passes (`board-journal-current-schema-v161`).
+This SQL probe does not establish browser execution.
+
+Current configured frontend cohorts pass314 View tests and21 Node tests. Production
+and e2e types, scoped lint/format and collection of17 Board browser cases pass; browser
+execution remains unverified.
+
+The undo owner now uses the explicit current catalogue migration fixture. Historical
+restore preflight and insertion share detached rows containing the surviving types;
+current ownership validation and immutable journal bytes remain intact. The full owner
+passes103 tests,482 assertions; core and actual SQLite/Memory projection owners pass174,
+1325 assertions. An actual directory-read error preserves rows and journal before a
+successful retry. Omitting the type filter fails the actual deleted-type restoration;
+exact restoration passes. Final comments reconstruct the tested source exactly apart
+from JSDoc/Proof additions. Pins and terminal receipts are in
+`/tmp/puni-undo-final-v175.json`; fresh integrated backend types remain owed.
+
+The required orphan-process fixture uses the same explicit current migration owner
+and actual package creation under a real project. Its shared SQL/slot and uncertain
+Source-close controls pass2 tests,8 assertions. A missing-throw fault fails the custody
+control. Scoped types, lint and format pass. Incoming Docker/process assertions remain
+unchanged, but their enabled real process execution remains a host-gate requirement.
+Evidence: `/tmp/puni-orphan-fixture-v171-handoff.json`.
+
+The other cleanly merged frontend behavior owners pass400 View tests (Gantt and
+plan read/write) and5 Node tests (plan commands), with terminal protected receipts
+`delivery-frontend-main-{view,node}-v182`. Integrated backend types passed after the
+restore repair (`delivery-integrated-backend-types-v180`); final validation after the
+last Dash error-accounting change also passes with no diagnostics
+(`delivery-final-backend-types-v185`).
+
+The exact-commit host gate, formal review and merge remain open. No live migration or
+completion of the earlier broad entities/CLI goal is claimed by this delivery slice.

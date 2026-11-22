@@ -33,7 +33,10 @@ describe('the host-owned solver command builder', () => {
   it('builds one fixed, hardened, digest-pinned container command', () => {
     // Production break caught: deleting or reordering any hardening flag, or
     // taking an image/entrypoint option from the caller, changes this literal.
-    expect(buildManagedContainerArgs(START, { image: IMAGE, pidsLimit: 128 })).toEqual([
+    // It is also the argv outside a Dash job: no `--cpus`, no `puni.job` label.
+    // Proof: with hostJobAttributionFlags' outside-a-job branch removed (flags always built),
+    // this literal failed on an inserted `--cpus 1 --label puni.job=…` (2026-11-12).
+    expect(buildManagedContainerArgs(START, { image: IMAGE, pidsLimit: 128 }, {})).toEqual([
       'docker',
       'create',
       '--name',
@@ -85,11 +88,39 @@ describe('the host-owned solver command builder', () => {
     ]);
   });
 
+  // Proof: with the spread of hostJobAttributionFlags removed from buildManagedContainerArgs,
+  // this test failed on a create argv without `--cpus` and the label (2026-11-12).
+  it('bounds and labels the managed container inside a Dash job, keeping its own memory', () => {
+    const argv = buildManagedContainerArgs(
+      START,
+      { image: IMAGE, pidsLimit: 128 },
+      { DASH_JOB_ID: 'abc' },
+    );
+    const limits = argv.indexOf('--pids-limit');
+    expect(argv.slice(limits, limits + 6)).toEqual([
+      '--pids-limit',
+      '128',
+      '--cpus',
+      '1',
+      '--label',
+      'puni.job=abc',
+    ]);
+    expect(argv.filter((flag) => flag === '--memory')).toHaveLength(1);
+    expect(argv[argv.indexOf('--memory') + 1]).toBe('512m');
+    expect(() =>
+      buildManagedContainerArgs(
+        { ...START, memoryLimitMb: 2048 },
+        { image: IMAGE, pidsLimit: 128 },
+        { DASH_JOB_ID: 'abc' },
+      ),
+    ).toThrow(/exceeds the 1 GiB containers bound/);
+  });
+
   it('refuses movable images and invalid host PID limits', () => {
     expect(() =>
-      buildManagedContainerArgs(START, { image: 'wbs-be-01:latest', pidsLimit: 128 }),
+      buildManagedContainerArgs(START, { image: 'wbs-be-01:latest', pidsLimit: 128 }, {}),
     ).toThrow(/digest-pinned/);
-    expect(() => buildManagedContainerArgs(START, { image: IMAGE, pidsLimit: 0 })).toThrow(
+    expect(() => buildManagedContainerArgs(START, { image: IMAGE, pidsLimit: 0 }, {})).toThrow(
       /pidsLimit/,
     );
   });

@@ -613,18 +613,25 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
     });
   }
 
+  /**
+   * Allows the app origin to read the response. `Retry-After` is not CORS-safelisted, so without
+   * the expose header a cross-origin refusal reaches the app with no wait.
+   */
   function attachCors(response: Response, origin: string | null): Response {
     if (origin === config.appOrigin) {
       response.headers.set('Access-Control-Allow-Origin', config.appOrigin);
       response.headers.set('Access-Control-Allow-Credentials', 'true');
+      response.headers.set('Access-Control-Expose-Headers', 'Retry-After');
       response.headers.set('Vary', 'Origin');
     }
     return response;
   }
 
+  /** Allows the public site to read the response, including `Retry-After` as {@link attachCors}. */
   function attachSiteCors(response: Response): Response {
     response.headers.set('Access-Control-Allow-Origin', config.publicOrigin);
     response.headers.set('Access-Control-Allow-Credentials', 'true');
+    response.headers.set('Access-Control-Expose-Headers', 'Retry-After');
     response.headers.set('Vary', 'Origin');
     return response;
   }

@@ -10712,6 +10712,9 @@ export class WorkItemService {
    * A validated old deletion recipe that would put progress back on the surviving
    * parent is permanently inapplicable under current leaf rules. It refuses as
    * stale before any restore writes; immutable plan history is left untouched.
+   * Deleted historical type labels are omitted from detached rows shared by graph
+   * projection and insertion. Present types retain current ownership validation;
+   * an unreadable current directory throws without rewriting the journal.
    */
   private async applyRestore(
     workPackageId: string,
@@ -10731,13 +10734,23 @@ export class WorkItemService {
     if (root.parentId !== null && !rows.some((each) => each.id === root.parentId)) {
       return { ok: false, detail: 'the work item it sat under has been deleted since then.' };
     }
+    // Proof: the rejected current directory reader left rows/journal unchanged and
+    // the same deleted-type undo then succeeded (undo-owner-v173-directory-control-green).
+    const heldTypes = new Set((await this.opts.directory.listWorkItemTypes()).map(({ id }) => id));
+    const restoredRows = command.rows.map((row) => ({
+      ...row,
+      // Proof: removing this filter made `restores a deleted row without a type the
+      // directory has since removed` (undo.db.test.ts) throw current ownership error;
+      // exact restoration passed (undo-type-v174-without-filter/restored).
+      typeIds: row.typeIds === undefined ? [] : row.typeIds.filter((id) => heldTypes.has(id)),
+    }));
     const reparented = new Map(command.reparented.map((row) => [row.id, row]));
     const projectedTree = [
       ...rows.map((row) => {
         const moved = reparented.get(row.id);
         return moved === undefined ? row : { ...row, parentId: moved.parentId };
       }),
-      ...command.rows,
+      ...restoredRows,
     ];
     const estimates = await this.opts.estimates.listByWorkPackage(workPackageId);
     const removedEstimateKeys = new Set(
@@ -10769,18 +10782,7 @@ export class WorkItemService {
     // at its real SQLite refusal assertion; zero partial effects also checked (2026-10-22).
     const structural = await this.structuralRefusal(workPackageId, stamp.by, {
       rows: projectedTree,
-      // SubtreeCopy's validated recipe contract: an omitted historical type list writes no types.
-      directTypes: command.rows.map((row) => {
-        let typeIds: readonly string[];
-        switch (row.typeIds) {
-          case undefined:
-            typeIds = [];
-            break;
-          default:
-            typeIds = row.typeIds;
-        }
-        return { workItemId: row.id, typeIds };
-      }),
+      directTypes: restoredRows.map((row) => ({ workItemId: row.id, typeIds: row.typeIds })),
       estimates: [
         ...estimates.filter(
           (estimate) =>
@@ -10897,7 +10899,7 @@ export class WorkItemService {
     }
     const inserted = await this.opts.subtrees.insertSubtree(
       {
-        rows: command.rows.map((row) => ({
+        rows: restoredRows.map((row) => ({
           ...row,
           position: row.id === root.id ? placed.position : row.position,
           // A row that has been away and come back is new to every reader

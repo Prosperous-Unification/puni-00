@@ -6,7 +6,7 @@ Continue the authorized launch plan in its isolated worktrees using subagent-dri
 
 Production is `website-prod`, `https://puni.dev`, `https://app.puni.dev`. Development retains `website-dev` and its existing hosts. New active releases require `conversion-scoping/1`; inference/analytics toggles cannot waive it. No live pin, DNS, secret copying, provider-cap increase, erasure activation or development prospect migration belongs to preparation. Private source stays private. Record observed negative proofs and exact command output; do not substitute fixture success for live evidence.
 
-Finish public funnel/analytics and the bounded real-provider evaluation before choosing the final public snapshot SHA. Public namespace/capability changes below also precede that gate. Preserve a private compatibility-baseline commit/artifact before changing the landing flow; do not lose that ordering while integrating private UI work.
+Finish public funnel/analytics and the bounded real-provider evaluation before choosing the final public snapshot SHA. Public namespace/capability changes below also precede product-scoped validation. Preserve a private compatibility-baseline commit/artifact before changing the landing flow; do not lose that ordering while integrating private UI work.
 
 ## 1. Public platform and protocol contract
 
@@ -27,7 +27,7 @@ Finish public funnel/analytics and the bounded real-provider evaluation before c
 
 ## 4. Evidence and activation handoff
 
-- [ ] 4.1 Run affected public `tool-fleet`/API checks, private `website-deploy`/site checks and fleet policy/render/rehearsal checks; run the exact-SHA host gate from a clean isolated gate tree under its lock. Record actual output and all new failure proofs in verify.md after implementation. Keep original/public and licensed/private revisions and evidence separate. Any failed, absent or unrun required check is explicitly incomplete.
+- [ ] 4.1 Run the exact-source product Nx dependency scope, applicable public platform/API checks, private `website-deploy`/site checks and Fleet policy/render/rehearsal checks under canonical admission. A full monorepo host gate is not a release prerequisite. Record actual output and all new failure proofs in verify.md after implementation. Keep original/public and licensed/private revisions and evidence separate. Any failed, absent or unrun required check is explicitly incomplete.
 - [ ] 4.2 Produce the concrete compatibility-baseline/candidate identities and remaining operator commands for image publication, secret provisioning, fresh backup/restore, TLS/origin/release identity, capped provider identity and a preview request visible to Danylo Fedorov. Verify what available authorization/access permits; never claim the retained h2 key is the current h4 Secret. Keep production Flux suspended and DNS/live activation unchanged until the final concrete approval. Unavailable account/cluster evidence is an activation prerequisite, not a fabricated passing check.
 
 ## Verification commands
@@ -41,4 +41,4 @@ bunx nx run website-be-01:test:package
 ./node_modules/.bin/openspec validate website-production-release --strict
 ```
 
-The API `test:package` target depends on its build and runs the declared build smoke. The host-wide final gate remains `bin/h2puni-gate.sh <sha>` on h2puni or the documented h4claw gate tree. Its printed running SHA is authoritative. No raw full Nx gate on those hosts.
+The API `test:package` target depends on its build and runs the declared build smoke. A full `bin/h2puni-gate.sh <sha>` remains available for repository integration and is not required for this product release. Source-bound scoped product validation and the actual image/deployment proofs supply release qualification. No raw full Nx gate on those hosts.

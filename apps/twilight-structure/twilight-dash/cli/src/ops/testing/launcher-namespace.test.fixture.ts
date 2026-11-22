@@ -1,5 +1,4 @@
-import { mkdirSync, mkdtempSync, readdirSync, statSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { existsSync, mkdirSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 /** Run mount operations inside the caller's private user, mount and PID namespace. */
@@ -13,36 +12,50 @@ function mountNamespace(arguments_: readonly string[]): void {
 }
 
 /** Preserve checkout paths while isolating the fixed host-pool account's writable state. */
-function isolateHome(): void {
-  const retained = mkdtempSync(join(tmpdir(), 'puni launcher home '));
+function isolateHome(anchor: string, scratch: string): void {
+  const retained = join(anchor, 'home');
+  const storage = join(anchor, 'private');
+  const assigned = join(anchor, 'scratch');
   mountNamespace(['--make-rprivate', '/']);
+  for (const directory of [retained, storage, assigned]) mkdirSync(directory);
   mountNamespace(['--rbind', '/home', retained]);
+  mountNamespace(['--bind', scratch, assigned]);
+  mountNamespace(['-t', 'tmpfs', 'tmpfs', storage]);
   mountNamespace(['-t', 'tmpfs', 'tmpfs', '/home']);
   for (const name of readdirSync(retained)) {
+    const original = join(retained, name);
+    if (!existsSync(original)) continue;
+    if (name === 'puni1' && process.env['HOME'] !== '/home/puni1') continue;
     const destination = join('/home', name);
     mkdirSync(destination);
-    mountNamespace(['--rbind', join(retained, name), destination]);
+    mountNamespace(['--rbind', original, destination]);
   }
   const home = '/home/puni1';
   mkdirSync(home, { recursive: true });
-  const uid = process.getuid?.();
-  if (uid === undefined) throw new Error('launcher namespace UID is unavailable');
-  // A foreign UID is unmapped here, so namespace root cannot create its private subdirectories.
-  // The entire foreign home can be overlaid: this account's checkout lives in another home.
-  if (statSync(home).uid !== uid) mountNamespace(['-t', 'tmpfs', 'tmpfs', home]);
   for (const name of ['.config', '.cache', '.local']) {
     const directory = join(home, name);
-    mkdirSync(directory, { recursive: true });
-    mountNamespace(['-t', 'tmpfs', 'tmpfs', directory]);
+    if (process.env['HOME'] === home) {
+      if (!statSync(directory).isDirectory())
+        throw new Error('launcher namespace authority directory is not a directory');
+    } else mkdirSync(directory, { recursive: true });
+    const privateDirectory = join(storage, name);
+    mkdirSync(privateDirectory);
+    mountNamespace(['--bind', privateDirectory, directory]);
   }
 }
 
-const argv = process.argv.slice(2),
+const arguments_ = process.argv.slice(2),
+  anchor = arguments_.at(0),
+  scratch = arguments_.at(1),
+  argv = arguments_.slice(2),
   executable = argv.at(0);
-if (executable === undefined) throw new Error('launcher namespace command is missing');
+if (anchor === undefined || scratch === undefined || executable === undefined)
+  throw new Error('launcher namespace roots or command are missing');
 if (process.execve === undefined) throw new Error('launcher namespace execve is unavailable');
-isolateHome();
+isolateHome(anchor, scratch);
 const environment: Record<string, string> = {};
 for (const [name, value] of Object.entries(process.env))
   if (value !== undefined) environment[name] = value;
+environment['DASH_LAUNCHER_TEST_ANCHOR'] = anchor;
+environment['TMPDIR'] = join(anchor, 'scratch');
 process.execve(executable, argv, environment);

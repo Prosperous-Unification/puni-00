@@ -26,8 +26,16 @@ const pool = hostPoolFixture({
   credential: supplied.credential,
 });
 ResourceRuntime.initialize(loadResourceConfiguration(pool.config), wallClock(), ampleHost).close();
+const killScenario = scenario.startsWith('control-kill-');
+const orderedKill = scenario === 'control-kill-ordering';
 const checkout = catalogueCheckout(join(pool.base, 'checkout'), [
-    { id: 'test-queued', cpuCores: 1, memoryGib: 1, tmpDiskGib: 1 },
+    {
+      id: 'test-queued',
+      cpuCores: 1,
+      memoryGib: 1,
+      tmpDiskGib: 1,
+      ...(killScenario ? { maxRuntimeMinutes: 1 } : {}),
+    },
   ]),
   bin = fakeSystemdRun(join(pool.base, 'bin'), 'exec'),
   payload = join(pool.base, 'payload.mjs');
@@ -35,10 +43,20 @@ writeFileSync(
   payload,
   '#!' +
     process.execPath +
+    (killScenario ? '\nprocess.on("SIGTERM",()=>undefined);' : '') +
+    (orderedKill
+      ? '\nBun.spawn(["setsid","sh","-c",' +
+        JSON.stringify(
+          'trap "" TERM; echo $$ > ' + join(pool.base, 'escaped-ready') + '; exec sleep 30',
+        ) +
+        '],{cwd:process.env["TMPDIR"],env:process.env,stdin:"ignore",stdout:"ignore",stderr:"inherit"});\nwhile(!(await Bun.file(' +
+        JSON.stringify(join(pool.base, 'escaped-ready')) +
+        ').exists()))await Bun.sleep(1);\n'
+      : '') +
     '\nawait Bun.write(' +
     JSON.stringify(join(pool.base, 'leader-payload-ready')) +
     ',"ready");\n' +
-    (scenario === 'leader-error'
+    (scenario === 'leader-error' || killScenario
       ? 'while(!(await Bun.file(' +
         JSON.stringify(join(pool.base, 'release-leader-payload')) +
         ').exists()))await Bun.sleep(1);\n'
@@ -48,6 +66,21 @@ writeFileSync(
     ';\n',
   { mode: 0o755 },
 );
+if (orderedKill) {
+  const systemctl = join(bin, 'systemctl');
+  const script = readFileSync(systemctl, 'utf8');
+  const newline = script.indexOf('\n');
+  writeFileSync(
+    systemctl,
+    script.slice(0, newline + 1) +
+      'if [ "$2" = kill ]; then test -f ' +
+      join(pool.base, 'keeper-native-joined') +
+      ' || { touch ' +
+      join(pool.base, 'kill-before-keeper') +
+      '; exit 78; }; fi\n' +
+      script.slice(newline + 1),
+  );
+}
 writeFileSync(
   join(root, 'pool.json'),
   JSON.stringify({ base: pool.base, config: pool.config, checkout, bin, payload }),
