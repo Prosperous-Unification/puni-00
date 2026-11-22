@@ -2323,3 +2323,20 @@ Nx typecheck passed.
   its local OIDC listener. The fixture uses a real project in each
   organization and proves that a live credential needs its own grant
   before it can list its organization's package.
+
+### Backend resource-use reports and remote source observer
+
+- The resource-use suite passed 41 of 42 focused cases after its project
+  and catalogue fixture update. The remaining rollback test passed on a
+  focused rerun with the final change. It checks the exact partially
+  reversed ledger and retained report on an isolated copy, and checks the
+  native resource-use CHECK and complete unchanged state on the original
+  database. This preserves the historical reinstall and retained report
+  witnesses without running a destructive test against the mounted copy.
+- The two revised Remote Source tests passed natively in 221.71 seconds
+  with 33 wrapper assertions. Both isolated children reported their exact
+  named pass, one filtered case and zero failures. The terminal child
+  reported both namespace and cleanup completion markers. The prior hosted
+  result killed a single wrapper at 310 seconds while it shared that
+  watchdog across both cases. The split preserves the original bounds per
+  case.

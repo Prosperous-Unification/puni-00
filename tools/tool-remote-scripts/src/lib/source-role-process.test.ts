@@ -4,7 +4,14 @@ import { expect, test } from 'bun:test';
 
 import { createReadinessByteTransportFixture } from '../fixtures/product-readiness-byte-transport';
 
-test('source role observer runs its isolated raw-byte consumer suite', async () => {
+const OBSERVER =
+  'source observer consumes the original running source through raw process transport';
+const TERMINAL = 'source actual helper cleanup failure closes the original observer context';
+
+for (const name of [OBSERVER, TERMINAL] as const)
+  test(`isolated ${name}`, () => runSourceCase(name), 320000);
+
+async function runSourceCase(name: typeof OBSERVER | typeof TERMINAL): Promise<void> {
   const peer = await createReadinessByteTransportFixture();
   const environment: NodeJS.ProcessEnv = { ...peer.environment, FORCE_COLOR: '0' };
   delete environment['SOURCE_ROLE_PROOF'];
@@ -15,6 +22,8 @@ test('source role observer runs its isolated raw-byte consumer suite', async () 
         process.execPath,
         'test',
         'test/source-role-process-model-child.test.ts',
+        '-t',
+        `^${name}$`,
         '--timeout=300000',
       ],
       {
@@ -56,15 +65,22 @@ test('source role observer runs its isolated raw-byte consumer suite', async () 
     expect(exit.value).toBe(0);
     expect(child.signalCode).toBeNull();
     expect(stdout.value).toMatch(/^bun test v[^\n]+\n$/);
-    expect(stderr.value).toMatch(/\b2 pass\b/);
-    expect(stderr.value).toMatch(/\b0 fail\b/);
+    // Proof: a third case in the child transcript produced two filtered cases and failed both wrappers.
+    expect(
+      stderr.value.match(/^\s*\d+ (?:pass|filtered out|fail)$/gm)?.map((line) => line.trim()),
+    ).toEqual(['1 pass', '1 filtered out', '0 fail']);
     const passed = [...stderr.value.matchAll(/^\(pass\) (.+) \[[0-9.]+ms\]$/gm)].map(
       (match) => match[1],
     );
-    expect(passed).toEqual([
-      'source observer consumes the original running source through raw process transport',
-      'source actual helper cleanup failure closes the original observer context',
-    ]);
+    expect(passed).toEqual([name]);
+    if (name === TERMINAL) {
+      for (const fault of ['namespace', 'cleanup']) {
+        expect(stderr.value).toContain(`source terminal actual-peer refusal: ${fault}`);
+        // Proof: omitting either completion marker from a passing child transcript failed this assertion.
+        expect(stderr.value).toContain(`source terminal actual-peer refusal observed: ${fault}`);
+      }
+      return;
+    }
     for (const fault of [
       'missing',
       'duplicate',
@@ -85,10 +101,8 @@ test('source role observer runs its isolated raw-byte consumer suite', async () 
       expect(stderr.value).toContain(`source first-binding refusal: ${fault}`);
     for (const fault of ['pid-reuse', 'object', 'listener'])
       expect(stderr.value).toContain(`source retained-binding refusal: ${fault}`);
-    for (const fault of ['namespace', 'cleanup'])
-      expect(stderr.value).toContain(`source terminal actual-peer refusal: ${fault}`);
     expect(stderr.value).toContain('source first candidate remains pinned after closing refusal');
   } finally {
     if (isSettled) await rm(peer.directory, { recursive: true });
   }
-}, 320000);
+}

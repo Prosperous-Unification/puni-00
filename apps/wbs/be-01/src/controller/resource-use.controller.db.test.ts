@@ -9,6 +9,7 @@ import { rollbackTo } from '@wbs/store-sqlite/migrate-down';
 import { afterEach, beforeAll, beforeEach, expect, it } from 'bun:test';
 
 import { runMigrations } from '../repository/migrate';
+import { bindDevQaFixture } from '../testing/dev-qa-fixture';
 import {
   addAgentPerson,
   grantCredential,
@@ -20,6 +21,7 @@ import { type HarnessMachineGrants, OrganizationHarness } from '../testing/organ
 let machineGrants: HarnessMachineGrants;
 let h: OrganizationHarness;
 let workPackageId: string;
+let projectId: string;
 let leaf: string;
 let resourceId: string;
 let key: string;
@@ -57,8 +59,24 @@ beforeEach(async () => {
     "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('worker-write','org-a','organization','org-a','machine_credential',?,'project-contributor','route',1)",
     [worker.id],
   );
-  const workPackage = await h.call('owner', 'POST', '/api/work-packages', { name: 'Tracked plan' });
-  workPackageId = (workPackage.body as { workPackage: { id: string } }).workPackage.id;
+  const project = await h.call('owner', 'POST', '/api/projects', { name: 'Resource use parent' });
+  if (project.status !== 201)
+    throw new Error('resource use project refused: ' + JSON.stringify(project));
+  const parent = h.sqlite
+    .query<{ id: string }, []>(
+      "SELECT id FROM project WHERE organization_id='org-a' AND name='Resource use parent'",
+    )
+    .get();
+  if (parent === null) throw new Error('resource use project is absent');
+  projectId = parent.id;
+  await h.publicWrites().uow.run(async ({ stores }) => {
+    await bindDevQaFixture(stores.stepCatalogue, 'org-a', projectId, {
+      by: h.userId('owner'),
+      at: 1,
+    });
+    return { commit: true, value: undefined };
+  });
+  workPackageId = await createPackage('Tracked plan');
   const created = await h.call('owner', 'POST', `/api/work-packages/${workPackageId}/commands`, {
     commands: [{ kind: 'createWorkItem', parentId: null, name: 'Leaf' }],
   });
@@ -72,6 +90,12 @@ beforeEach(async () => {
   path = `/api/work-packages/${workPackageId}/resource-uses`;
 });
 afterEach(async () => h.closeComposed());
+async function createPackage(name: string): Promise<string> {
+  const answer = await h.call('owner', 'POST', '/api/work-packages', { name, projectId });
+  if (answer.status !== 200)
+    throw new Error('resource use package refused: ' + JSON.stringify(answer));
+  return (answer.body as { workPackage: { id: string } }).workPackage.id;
+}
 function draft(requestId = crypto.randomUUID()) {
   return {
     requestId,
@@ -324,7 +348,6 @@ it('keeps deleted planning snapshots and limits orphan access to original organi
   const use = await registered();
   h.sqlite.run('DELETE FROM work_item WHERE id=?', [leaf]);
   h.sqlite.run('DELETE FROM work_package_access WHERE work_package_id=?', [workPackageId]);
-  h.sqlite.run('DELETE FROM step WHERE work_package_id=?', [workPackageId]);
   h.sqlite.run('DELETE FROM work_package WHERE id=?', [workPackageId]);
   expect((await h.call('owner', 'GET', path)).body).toMatchObject({
     uses: [{ workPackageName: 'Tracked plan', workItemName: 'Leaf', state: 'active' }],
@@ -441,7 +464,9 @@ it('preserves immutable history and refuses destructive rollback once reports ex
     schema: h.sqlite
       .query('SELECT type,name,tbl_name,sql FROM sqlite_master ORDER BY type,name')
       .all(),
-    ledger: h.sqlite.query('SELECT * FROM __drizzle_migrations ORDER BY id').all(),
+    ledger: h.sqlite
+      .query<{ name: string }, []>('SELECT * FROM __drizzle_migrations ORDER BY id')
+      .all(),
     rows: Object.fromEntries(
       h.sqlite
         .query<{ name: string }, []>(
@@ -455,13 +480,37 @@ it('preserves immutable history and refuses destructive rollback once reports ex
     ),
   });
   const before = readInstallation();
+  const rollbackPath = join(dirname(h.databasePath()), 'resource-use-rollback-copy.db');
+  h.sqlite.run('VACUUM INTO ?', [rollbackPath]);
   expect(() =>
     rollbackTo(
-      h.databasePath(),
+      rollbackPath,
       new URL('../../drizzle', import.meta.url).pathname,
       '20261023170000_add_work_item_budget',
     ),
-  ).toThrow('work-package rename rollback requires restoring the verified window snapshot');
+  ).toThrow('step catalogue rollback requires migration-origin definition');
+  const rolled = openDatabase(rollbackPath);
+  try {
+    const reversed = new Set([
+      '20261118180000_add_resource_use_locations',
+      '20261118210000_add_step_retirements',
+    ]);
+    // The two later migrations reverse before the catalogue refuses its own down.
+    expect(rolled.query('SELECT * FROM __drizzle_migrations ORDER BY id').all()).toEqual(
+      before.ledger.filter(({ name }) => !reversed.has(name)),
+    );
+    expect(rolled.query('SELECT * FROM resource_use WHERE id=?').get(use.id)).toMatchObject({
+      id: use.id,
+      work_package_id: workPackageId,
+      work_item_id: leaf,
+      state: 'active',
+    });
+    expect(rolled.query('SELECT * FROM resource_use_event ORDER BY rowid').all()).toEqual(
+      before.rows['resource_use_event'],
+    );
+  } finally {
+    rolled.close();
+  }
   expect(readInstallation()).toEqual(before);
   const down = await Bun.file(
     new URL('../../drizzle/20261025120000_add_resource_use/down.sql', import.meta.url),
@@ -471,7 +520,7 @@ it('preserves immutable history and refuses destructive rollback once reports ex
       for (const statement of down.split('--> statement-breakpoint').filter((each) => each.trim()))
         h.sqlite.run(statement);
     })();
-  }).toThrow();
+  }).toThrow('CHECK constraint failed');
   expect(readInstallation()).toEqual(before);
   expect(
     h.sqlite.query("SELECT name FROM sqlite_master WHERE name='resource_use_rollback_guard'").all(),
@@ -1430,7 +1479,6 @@ it('admission replay survives work package deletion with original organization a
   expect((await commands([{ kind: 'deleteWorkItem', workItemId: leaf }])).status).toBe(200);
   // Work package deletion has no public route in this increment; mirror the existing orphan-history fixture.
   h.sqlite.run('DELETE FROM work_package_access WHERE work_package_id=?', [workPackageId]);
-  h.sqlite.run('DELETE FROM step WHERE work_package_id=?', [workPackageId]);
   h.sqlite.run('DELETE FROM work_package WHERE id=?', [workPackageId]);
   expect(await callForwarded(h, r.issued.key, 'PUT', endpoint, admission)).toEqual(accepted);
   expect(
@@ -1483,10 +1531,7 @@ it('admission identities cannot reserve the same authority event for two differe
   expect(
     (await callForwarded(h, r.issued.key, 'PUT', endpoint, admissionOf(r.runtimeEvent))).status,
   ).toBe(200);
-  const workPackage = await h.call('owner', 'POST', '/api/work-packages', {
-    name: 'Second work package',
-  });
-  const secondWorkPackage = (workPackage.body as { workPackage: { id: string } }).workPackage.id;
+  const secondWorkPackage = await createPackage('Second work package');
   const created = await h.call(
     'owner',
     'POST',
