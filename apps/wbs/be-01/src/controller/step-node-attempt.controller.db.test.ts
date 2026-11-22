@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 
 import { SubtreeRepository } from '../repository/work-item';
 import { fastScheduler } from '../service/optimizer-wiring';
+import { bindDevQaFixture } from '../testing/dev-qa-fixture';
 import { type Answer, OrganizationHarness } from '../testing/organization-harness';
 
 /**
@@ -16,6 +17,7 @@ import { type Answer, OrganizationHarness } from '../testing/organization-harnes
  */
 let h: OrganizationHarness;
 let workPackage: string;
+let projectId: string;
 let dev: string;
 let qa: string;
 let strip: string;
@@ -25,6 +27,30 @@ beforeEach(async () => {
   await populate();
 });
 
+/**
+ * Parses the current project-create response before authoring catalogue fixtures.
+ * Proof: null-envelope and blank-ID faults after real project creation reached
+ * the precise refusals; removing each guard lost that refusal, and exact
+ * restoration recovered it before catalogue/package writes (2026-11-22).
+ * The actual creator grant, audit and composed close were also observed by
+ * `refuses node_done, attempt_running and attempt_in_future at their command index`.
+ */
+function projectIdOf(body: unknown): string {
+  if (typeof body !== 'object' || body === null || Array.isArray(body) || !('project' in body))
+    throw new Error('fixture project response is absent or malformed');
+  const project = body.project;
+  if (
+    typeof project !== 'object' ||
+    project === null ||
+    Array.isArray(project) ||
+    !('id' in project) ||
+    typeof project.id !== 'string' ||
+    project.id.trim() === ''
+  )
+    throw new Error('fixture project identity is absent or malformed');
+  return project.id;
+}
+
 async function populate(): Promise<void> {
   activateTestStepBlockages(h.sqlite.filename);
   await h.register('ada');
@@ -33,7 +59,20 @@ async function populate(): Promise<void> {
   h.grantPermissions('org-a', 'ada', ['organization.create_project', 'package.manage_settings']);
   h.bind('ada', 'org-a');
   h.activate();
-  const created = await h.call('ada', 'POST', '/api/work-packages', { name: 'Rewire the shed' });
+  const parent = await h.call('ada', 'POST', '/api/projects', { name: 'Attempt command fixture' });
+  expect(parent.status).toBe(201);
+  projectId = projectIdOf(parent.body);
+  await h.publicWrites().uow.run(async ({ stores }) => {
+    await bindDevQaFixture(stores.stepCatalogue, 'org-a', projectId, {
+      at: Date.now(),
+      by: h.userId('ada'),
+    });
+    return { commit: true, value: undefined };
+  });
+  const created = await h.call('ada', 'POST', '/api/work-packages', {
+    name: 'Rewire the shed',
+    projectId,
+  });
   if (created.status !== 200) throw new Error(`create refused: ${JSON.stringify(created)}`);
   const body = created.body as {
     workPackage: { id: string };
@@ -50,8 +89,8 @@ async function populate(): Promise<void> {
   strip = id;
 }
 
-afterEach(() => {
-  h.close();
+afterEach(async () => {
+  await h.closeComposed();
 });
 
 function stepNamed(steps: readonly { id: string; name: string }[], name: string): string {

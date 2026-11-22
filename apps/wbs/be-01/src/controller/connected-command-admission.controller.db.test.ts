@@ -25,12 +25,37 @@ import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-ac
 import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from '@wbs/store-sqlite/testing/dependency-capability';
 import { afterEach, expect, test } from 'bun:test';
 
+import { bindDevQaFixture } from '../testing/dev-qa-fixture';
 import { OrganizationHarness } from '../testing/organization-harness';
 
 let harness: OrganizationHarness;
 afterEach(async () => {
   await harness.closeComposed();
 });
+
+/**
+ * Parses the current project-create response before authoring catalogue fixtures.
+ * Proof: null-envelope and blank-ID faults after real project creation reached
+ * the precise refusals; removing each guard lost that refusal, and exact
+ * restoration recovered it before catalogue/package writes (2026-11-22).
+ * The actual creator grant, audit and composed close were also observed by
+ * `mounted external authoring stays dormant and rolls back an earlier successful command`.
+ */
+function projectIdOf(body: unknown): string {
+  if (typeof body !== 'object' || body === null || Array.isArray(body) || !('project' in body))
+    throw new Error('fixture project response is absent or malformed');
+  const project = body.project;
+  if (
+    typeof project !== 'object' ||
+    project === null ||
+    Array.isArray(project) ||
+    !('id' in project) ||
+    typeof project.id !== 'string' ||
+    project.id.trim() === ''
+  )
+    throw new Error('fixture project identity is absent or malformed');
+  return project.id;
+}
 
 async function open(
   pushUrls?: string[],
@@ -83,8 +108,18 @@ async function open(
       },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
+  const parent = await request('/api/projects', { name: 'Connected command fixture' });
+  expect(parent.status).toBe(201);
+  const projectId = projectIdOf(await parent.json());
+  await harness.publicWrites().uow.run(async ({ stores }) => {
+    await bindDevQaFixture(stores.stepCatalogue, 'org-a', projectId, {
+      at: Date.now(),
+      by: harness.userId('ada'),
+    });
+    return { commit: true, value: undefined };
+  });
   for (const name of ['Predecessor', 'Owner']) {
-    expect((await request('/api/work-packages', { name })).status).toBe(200);
+    expect((await request('/api/work-packages', { name, projectId })).status).toBe(200);
     const workPackage = harness.sqlite
       .query<{ id: string }, [string]>('SELECT id FROM work_package WHERE name=?')
       .get(name);
@@ -127,7 +162,7 @@ async function open(
     successor: { ...owner, scope: 'whole' as const },
     type: 'FS' as const,
   };
-  return { predecessor, owner, principal, expectedAccess, request, input };
+  return { projectId, predecessor, owner, principal, expectedAccess, request, input };
 }
 
 async function foreignEndpoint() {

@@ -42,7 +42,6 @@ import { readRuntimeSolverVersion } from './module/solver-launcher/solver-launch
 import { openConnection, openDatabase, type openDrizzle } from './repository/db';
 import { DrizzleEventLogStore } from './repository/event-log';
 import { OPEN } from './repository/gate';
-import { runMigrations } from './repository/migrate';
 import { allocateGeneration } from './repository/optimization-generation';
 import { SavedPlanRepository } from './repository/saved-plan';
 import { SavedPlanCaptureRepository } from './repository/saved-plan-capture';
@@ -60,10 +59,9 @@ import { nodeDigest } from './runtime/bun-runtime';
 import { BACKEND_DEPENDENCY_CAPABILITY } from './runtime/dependency-support';
 import { optimizerWiring } from './service/optimizer-wiring';
 import { buildServices, type ServicesOptions } from './services';
+import { migrateOrganizationCatalogueFixture } from './testing/organization-catalogue-fixture';
 import { refusingProjectRead } from './testing/project-fixture';
 import { workPackageRow } from './testing/work-package-fixture';
-
-const FOLDER = new URL('../drizzle', import.meta.url).pathname;
 
 const dirs: string[] = [];
 const sources: SqliteSource[] = [];
@@ -105,6 +103,13 @@ afterEach(async () => {
   for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
 
+/**
+ * Migration and Source acquisition return before this private namespace becomes removable.
+ * Proof: services-compose-v249 helper/source omission/restoration pairs run the real
+ * post-bind composition case. Each fault closes its actual connection before throwing;
+ * early registration deletes the directory and database and fails the retention oracle,
+ * while restored ordering retains both. These faults do not model an actual leaked FD.
+ */
 function bootstrap(
   legacyOrganizationId: string | null,
   optimizer?: {
@@ -120,9 +125,8 @@ function bootstrap(
 ) {
   const pushUrls: string[] = [];
   const dir = mkdtempSync(join(tmpdir(), 'wbs-services-'));
-  dirs.push(dir);
   const path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
+  migrateOrganizationCatalogueFixture(path);
   if (legacyOrganizationId !== null) seedLegacyProject(path, legacyOrganizationId, PROJECT_ID);
   const source = openSqliteSource({
     dependencyCapability: BACKEND_DEPENDENCY_CAPABILITY,
@@ -130,6 +134,7 @@ function bootstrap(
     onFanoutCapture,
   });
   sources.push(source);
+  dirs.push(dir);
   const db = source.db;
   if (afterOptimizerTurn !== undefined) {
     const originalEnter = source.gate.enter.bind(source.gate);

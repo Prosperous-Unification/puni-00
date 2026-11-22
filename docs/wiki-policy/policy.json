@@ -208,6 +208,10 @@
           {
             "kind": "path",
             "value": "infra/ansible/tests/registry-storage-rehearsal.sh"
+          },
+          {
+            "kind": "path",
+            "value": "bin/tsconfig.json"
           }
         ]
       },
@@ -474,6 +478,26 @@
           {
             "kind": "segment",
             "value": "vendor"
+          },
+          {
+            "kind": "path",
+            "value": "bin/assert-rename-window.ts"
+          },
+          {
+            "kind": "path",
+            "value": "bin/dev-be-probe.ts"
+          },
+          {
+            "kind": "path",
+            "value": "bin/dev-ports.ts"
+          },
+          {
+            "kind": "path",
+            "value": "bin/dev.ts"
+          },
+          {
+            "kind": "path",
+            "value": "bin/tool-wiki-lint.ts"
           }
         ]
       },

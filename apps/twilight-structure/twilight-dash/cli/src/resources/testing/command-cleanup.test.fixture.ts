@@ -5,6 +5,7 @@ import { mock } from 'bun:test';
 
 import { parseDashRequest } from '../../cli-parser';
 import type { WbsTools } from '../../mcp/wbs-tools';
+import type { ContainerEvidence } from '../runtime';
 
 interface Scenario {
   action: 'init' | 'watch' | 'run' | 'exec';
@@ -101,6 +102,7 @@ async function settleGate(point: 'guard stop' | 'transport close'): Promise<void
 }
 let inspections = 0,
   reports = 0;
+const containerEvidence: { current: ContainerEvidence | undefined } = { current: undefined };
 const use = {
   id: 'owned-use',
   revision: 1,
@@ -109,6 +111,9 @@ const use = {
   state: 'held',
 };
 const runtime = {
+  useContainerEvidence(evidence: ContainerEvidence): void {
+    containerEvidence.current = evidence;
+  },
   create(_request: unknown, tools: WbsTools) {
     if (tools !== transport) throw new Error('create received another transport');
     events.push('create');

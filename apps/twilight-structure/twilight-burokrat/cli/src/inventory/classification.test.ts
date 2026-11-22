@@ -1352,3 +1352,114 @@ describe('entry classification production CLI', () => {
     expect(output(invocation)).toContain(`undeclared binary content at ${path}`);
   });
 });
+
+describe('shipped bin classification boundaries', () => {
+  const workspace = join(import.meta.dir, '../../../../../..');
+  // Proof: bin-classification-red-v336 observed all eighteen isolated path/policy cases
+  // refuse their original two-rule ambiguity. The six exact exclusions per policy made
+  // those cases and twelve refusal/neighbor controls pass in bin-classification-green-controls-v337.
+  const policyPaths = [
+    'docs/code-organization/rule-policy.json',
+    'docs/wiki-policy/policy.json',
+    'docs/wiki-policy/bootstrap-policy.json',
+  ] as const;
+  const reviewed = [
+    ['bin/assert-rename-window.ts', 'script'],
+    ['bin/dev-be-probe.ts', 'script'],
+    ['bin/dev-ports.ts', 'script'],
+    ['bin/dev.ts', 'script'],
+    ['bin/tool-wiki-lint.ts', 'script'],
+    ['bin/tsconfig.json', 'config'],
+  ] as const;
+
+  function readClassificationPolicy(path: string): object {
+    const envelope: unknown = JSON.parse(readFileSync(join(workspace, path), 'utf8'));
+    if (envelope === null || typeof envelope !== 'object' || !('classificationPolicy' in envelope))
+      throw new Error('shipped policy lacks its classification boundary: ' + path);
+    const selected = envelope.classificationPolicy;
+    if (selected === null || typeof selected !== 'object' || Array.isArray(selected))
+      throw new Error('shipped classification policy is malformed: ' + path);
+    return selected;
+  }
+
+  for (const policyPath of policyPaths) {
+    test.each(reviewed)(
+      'classifies reviewed %s as %s with ' + policyPath,
+      async (path, contentClass) => {
+        const repository = createRepository();
+        write(repository, path, readFileSync(join(workspace, path)));
+        const revision = commitAll(repository);
+        const invocation = await classify(
+          repository,
+          revision,
+          writePolicy(repository, readClassificationPolicy(policyPath)),
+        );
+        expect(invocation.exitCode, output(invocation)).toBe(0);
+        const classified: unknown = JSON.parse(standardOutput(invocation));
+        expect(classified).toMatchObject({
+          entries: [
+            {
+              path,
+              mode: '100644',
+              blob: hash(repository, path),
+              classification: { kind: 'content', contentClass },
+            },
+          ],
+        });
+      },
+    );
+
+    test.each([
+      ['bin/unreviewed.ts', 2],
+      ['bin/unreviewed.json', 2],
+      ['unknown.zzz', 0],
+    ] as const)('refuses unreviewed %s with ' + policyPath, async (path, count) => {
+      const repository = createRepository();
+      write(repository, path, 'unreviewed ordinary text\n');
+      const revision = commitAll(repository);
+      const invocation = await classify(
+        repository,
+        revision,
+        writePolicy(repository, readClassificationPolicy(policyPath)),
+      );
+      expect(invocation.exitCode, output(invocation)).toBe(1);
+      expect(output(invocation)).toContain(
+        'ordinary content ' + path + ' matched ' + String(count) + ' classification rules',
+      );
+    });
+
+    test(
+      'preserves neighboring script, test, source and config classes with ' + policyPath,
+      async () => {
+        const repository = createRepository();
+        const controls = [
+          ['bin/dev.sh', 'script'],
+          ['bin/dev.test.sh', 'test'],
+          ['src/main.ts', 'source'],
+          ['src/tsconfig.json', 'config'],
+          ['binary/main.ts', 'source'],
+          ['bins/main.ts', 'source'],
+        ] as const;
+        for (const [path] of controls) write(repository, path, '{}\n');
+        const revision = commitAll(repository);
+        const invocation = await classify(
+          repository,
+          revision,
+          writePolicy(repository, readClassificationPolicy(policyPath)),
+        );
+        expect(invocation.exitCode, output(invocation)).toBe(0);
+        const classified: unknown = JSON.parse(standardOutput(invocation));
+        expect(classified).toMatchObject({
+          entries: controls
+            .map(([path, contentClass]) => ({
+              path,
+              mode: '100644',
+              blob: hash(repository, path),
+              classification: { kind: 'content', contentClass },
+            }))
+            .sort((left, right) => Buffer.compare(Buffer.from(left.path), Buffer.from(right.path))),
+        });
+      },
+    );
+  }
+});

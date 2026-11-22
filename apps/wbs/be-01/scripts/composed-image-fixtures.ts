@@ -23,15 +23,15 @@ export const COMPOSED_IMAGE_FIXTURES = [
   'onboarding-fixture.ts',
   'organization-access-fixture.ts',
   'priority-band-fixture.ts',
-  'work-package-address-search-fixture.ts',
-  'work-package-fixture.ts',
-  'work-package-rank-fixture.ts',
   'replay-fixture.ts',
   'saved-plan-fixture.ts',
   'solver-composed-image-client.ts',
   'space-fixture.ts',
   'step-fixture.ts',
   'work-item-fixture.ts',
+  'work-package-address-search-fixture.ts',
+  'work-package-fixture.ts',
+  'work-package-rank-fixture.ts',
   'writes-fixture.ts',
 ] as const;
 
