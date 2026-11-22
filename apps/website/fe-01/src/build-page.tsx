@@ -64,10 +64,6 @@ type BuildLoad =
     }
   | { kind: 'error'; message: string };
 
-function HarnessEyebrow() {
-  return <p className="harness-eyebrow">[ AI can do everything. It doesn’t want anything. ]</p>;
-}
-
 /**
  * Discards the browser's saved request after an inline confirmation, then lands on the site's
  * empty Home prompt. Only an unsubmitted draft can be discarded; the API refuses a consumed one.
@@ -157,9 +153,7 @@ function DisabledHarness({ conversation }: { conversation: Conversation }) {
     <div className="harness-root">
       <section className="harness-thread" aria-label="Conversation with PUNI">
         <div className="harness-column">
-          <HarnessEyebrow />
           <div className="build-message user">
-            <span className="message-label">YOU</span>
             <p>{conversation.description}</p>
           </div>
           <div className="build-message system build-disabled-row">

@@ -4,7 +4,7 @@ import React, { useEffect, useId, useLayoutEffect, useRef, useState } from 'reac
 import { readStartingChoice, useMilestone, useMilestones } from './analytics-flow';
 import { ApiFailure, requestJson } from './api';
 import { describeFailure } from './app-flow';
-import { parseDraft, parseScoping } from './build-contract';
+import { parseDraft, parseScoping, startOverUrl } from './build-contract';
 import { siteOrigin } from './chrome';
 
 interface EditableDraft {
@@ -148,6 +148,8 @@ export function RequestEditor({
   draft,
   open,
   contact = false,
+  editLabel = 'Add references or edit brief',
+  emailOnly = false,
   route = 'default',
   onOpen,
   onClose,
@@ -158,6 +160,8 @@ export function RequestEditor({
   draft: EditableDraft;
   open: boolean;
   contact?: boolean;
+  editLabel?: string | undefined;
+  emailOnly?: boolean;
   route?: AnalyticsReviewRoute;
   onOpen: () => void;
   onClose: () => void;
@@ -191,6 +195,7 @@ export function RequestEditor({
   );
   const id = useId();
   const briefField = useRef<HTMLTextAreaElement>(null);
+  const emailField = useRef<HTMLInputElement>(null);
   const final = composeRequest(fields.brief, fields.references);
   const isDirty =
     fields.brief !== fields.savedBrief || fields.references !== fields.savedReferences;
@@ -233,6 +238,12 @@ export function RequestEditor({
   useEffect(() => {
     if (isEditing) briefField.current?.focus();
   }, [isEditing]);
+  // The control that opened the contact form unmounts with it, so focus follows to the email.
+  const wasContactOpen = useRef(isContactOpen);
+  useEffect(() => {
+    if (isContactOpen && !wasContactOpen.current && !isEditing) emailField.current?.focus();
+    wasContactOpen.current = isContactOpen;
+  }, [isContactOpen, isEditing]);
   useLayoutEffect(() => {
     if (draft.scoping?.version !== 1) return;
     const latest = {
@@ -514,6 +525,25 @@ export function RequestEditor({
     }
   }
 
+  if (receipt !== null && route !== 'manual')
+    return (
+      <section className="proposal-card proposal-receipt receipt-success" role="status">
+        <div className="receipt-emblem" aria-hidden="true">
+          <span className="receipt-check">✓</span>
+          <span className="receipt-sparkles">
+            <span />
+            <span />
+            <span />
+            <span />
+          </span>
+        </div>
+        <h2>Your request is recorded.</h2>
+        <p>PUNI will contact you by email within 4 hours.</p>
+        <a className="glass-button quiet receipt-next" href={startOverUrl(siteOrigin)}>
+          Chat more
+        </a>
+      </section>
+    );
   if (receipt !== null)
     return (
       <section className="proposal-card proposal-receipt" role="status">
@@ -540,14 +570,14 @@ export function RequestEditor({
             setEditing(true);
           }}
         >
-          Add references or edit brief
+          {editLabel}
         </button>
       )}
       <section hidden={!isEditorOpen} className="proposal-card" aria-label="Your request editor">
-        <h2 className="message-label">[ YOUR REQUEST ]</h2>
+        <h2 className="visually-hidden">Your request</h2>
         {isEditing ? (
           <>
-            <label className="proposal-label" htmlFor={`${id}-brief`}>
+            <label className="visually-hidden" htmlFor={`${id}-brief`}>
               Your brief
             </label>
             <textarea
@@ -626,7 +656,7 @@ export function RequestEditor({
               </button>
             </div>
           </>
-        ) : (
+        ) : emailOnly ? null : (
           <div role="region" aria-label="Final request" className="request-preview">
             <p>
               {final.kind === 'ready'
@@ -635,7 +665,7 @@ export function RequestEditor({
             </p>
           </div>
         )}
-        {candidate !== null && candidate !== fields.brief && (
+        {!emailOnly && candidate !== null && candidate !== fields.brief && (
           <details>
             <summary>AI suggested brief</summary>
             <p className="submission-brief">{candidate}</p>
@@ -658,54 +688,25 @@ export function RequestEditor({
         )}
         {!isEditing && (
           <>
-            {(!hasDeclined || isContactOpen) && (
+            {!emailOnly && (!hasDeclined || isContactOpen) && (
               <p className="proposal-lead">
-                Want a person at PUNI to review this? Leave your email and send this brief. We’ll
-                reply with our recommended starting point and any questions we need to clarify.
+                Leave your email and a person at PUNI replies with a starting point and any
+                questions.
               </p>
             )}
-            <div className="scoping-answers request-actions">
-              <button
-                type="button"
-                className="harness-text-button"
-                onClick={() => {
-                  setEditing(true);
-                }}
-              >
-                Change this
-              </button>
-              {!isContactOpen && (
-                <button
-                  type="button"
-                  className="glass-button"
-                  onClick={() => {
-                    setContactOpen(true);
-                    onOpen();
-                  }}
-                >
-                  Ask PUNI to help
-                </button>
-              )}
-              <button
-                type="button"
-                className="harness-text-button"
-                disabled={isPending}
-                onClick={() => void keepExploring()}
-              >
-                Keep exploring
-              </button>
-            </div>
             {isContactOpen && (
               <form onSubmit={(event) => void submitRequest(event)}>
-                <label className="proposal-label" htmlFor={`${id}-email`}>
+                <label className="visually-hidden" htmlFor={`${id}-email`}>
                   Email
                 </label>
                 <div className="proposal-actions">
                   <div className="glass-field">
                     <input
+                      ref={emailField}
                       id={`${id}-email`}
                       type="email"
                       autoComplete="email"
+                      placeholder="you@example.com"
                       required
                       value={fields.email}
                       disabled={isPending}
@@ -723,12 +724,56 @@ export function RequestEditor({
                   </button>
                 </div>
                 <p className="proposal-privacy">
-                  Danylo Fedorov · <a href="mailto:dany@puni.dev">dany@puni.dev</a>. We use your
-                  email to discuss this request. No newsletter signup.{' '}
-                  <a href={`${siteOrigin}/privacy/`}>Privacy</a> ·{' '}
-                  <a href="/manual">Recover a receipt</a>
+                  {emailOnly ? (
+                    <>A person at PUNI will reply about your request. </>
+                  ) : (
+                    <>
+                      Danylo Fedorov · <a href="mailto:dany@puni.dev">dany@puni.dev</a>. We use your
+                      email to discuss this request. No newsletter signup.{' '}
+                    </>
+                  )}
+                  <a href={`${siteOrigin}/privacy/`}>Privacy</a>
+                  {!emailOnly && (
+                    <>
+                      {' '}
+                      · <a href="/manual">Recover a receipt</a>
+                    </>
+                  )}
                 </p>
               </form>
+            )}
+            {!emailOnly && (
+              <div className="scoping-answers request-actions">
+                <button
+                  type="button"
+                  className="harness-text-button"
+                  onClick={() => {
+                    setEditing(true);
+                  }}
+                >
+                  Change this
+                </button>
+                {!isContactOpen && (
+                  <button
+                    type="button"
+                    className="glass-button"
+                    onClick={() => {
+                      setContactOpen(true);
+                      onOpen();
+                    }}
+                  >
+                    Ask PUNI to help
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="harness-text-button"
+                  disabled={isPending}
+                  onClick={() => void keepExploring()}
+                >
+                  Keep exploring
+                </button>
+              </div>
             )}
           </>
         )}
