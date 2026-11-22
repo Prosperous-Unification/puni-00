@@ -1,5 +1,10 @@
 import { readSpaceRollUps } from '@wbs/contracts';
-import { bindCatalogueStep, createProject, listStepCatalogue } from '@wbs/contracts';
+import {
+  bindCatalogueStep,
+  createProject,
+  listStepCatalogue,
+  readWorkPackage,
+} from '@wbs/contracts';
 
 import type { Answer, OrganizationHarness } from './organization-harness';
 
@@ -63,6 +68,23 @@ export function readSpaceReply(
   ...request: Parameters<OrganizationHarness['call']>
 ): Promise<Answer> {
   return readSpaceFigures(harness.call(...request), request[2]);
+}
+
+/** Validates the mounted Work Package read after fixture Project bindings have been written. */
+export async function readFixturePackage(
+  harness: OrganizationHarness,
+  username: string,
+  id: string,
+) {
+  const answer = await harness.call(username, 'GET', `/api/work-packages/${id}`);
+  if (answer.status !== 200)
+    throw new Error('fixture work package read refused', { cause: answer });
+  const checked = await readWorkPackage.responses[0].schema.validator['~standard'].validate(
+    answer.body,
+  );
+  if (checked.issues !== undefined)
+    throw new Error('fixture work package reply malformed', { cause: checked.issues });
+  return checked.value;
 }
 
 /** Creates an actual engagement/package and explicitly installs the fixture's two catalogue steps. */

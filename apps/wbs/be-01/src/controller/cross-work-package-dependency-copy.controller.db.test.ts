@@ -6,8 +6,10 @@ import {
   closeFixture,
   harness,
   openFixture,
+  readFixtureSteps,
   readIncidentRows,
   readTables,
+  restrictFixturePackage,
   seedIncidents,
   setRequestAdmissionObserver,
 } from './cross-work-package-dependency-fixture';
@@ -423,14 +425,10 @@ test('semantic retained batch refreshes local prerequisite revisions and copied 
 
 test('semantic copy requires write on a restricted predecessor before copying its relationship', async () => {
   const fixture = await seedIncidents();
-  await harness.register('grace');
-  harness.member('org-a', 'grace', 'member', ['project-contributor', 'org-viewer']);
   harness.sqlite
     .query('UPDATE organization_membership SET role=? WHERE organization_id=? AND user_id=?')
     .run('member', 'org-a', fixture.principal.id);
-  harness.sqlite
-    .query('UPDATE work_package SET owner_id=?,restricted=1 WHERE id=?')
-    .run(harness.userId('grace'), fixture.predecessor.workPackageId);
+  restrictFixturePackage(fixture.predecessor.workPackageId);
   expect(
     (
       await fixture.request(`/api/work-packages/${fixture.predecessor.workPackageId}/commands`, {
@@ -654,11 +652,7 @@ for (const fault of ['wrong owner', 'descendant leaf'] as const)
 for (const sameStep of [false, true])
   test(`semantic copy ${sameStep ? 'refuses true self-node expansion' : 'retains ordered nodes on one work item'}`, async () => {
     const fixture = await openFixture();
-    const steps = harness.sqlite
-      .query<{ id: string }, [string]>(
-        'SELECT id FROM step WHERE work_package_id=? ORDER BY position',
-      )
-      .all(fixture.owner.workPackageId);
+    const steps = readFixtureSteps(fixture.owner.workPackageId);
     const first = steps.at(0);
     const second = steps.at(1);
     if (first === undefined || second === undefined)

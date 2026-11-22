@@ -4,7 +4,7 @@ import type { StoredTypedDependency } from '@wbs/core';
 import { readCommand, readPayload, readPreconditions } from '@wbs/core/service/compensating';
 import { ConnectedDependencyGraphReader } from '@wbs/core/service/connected-dependency-graph';
 import { DependencyGraphGuard } from '@wbs/core/service/dependency-graph';
-import { formatStepNodeId } from '@wbs/domain';
+import { sliceKey } from '@wbs/domain';
 import { afterEach, expect, test } from 'bun:test';
 import { decodeJwt } from 'jose';
 
@@ -12,8 +12,10 @@ import {
   closeFixture,
   harness,
   openFixture,
+  readFixtureStep,
   readIncidentRows,
   readTables,
+  restrictFixturePackage,
   runSemantic,
   seedIncidents,
   setRequestAdmissionObserver,
@@ -22,12 +24,7 @@ afterEach(closeFixture);
 test('actual first child hands an outgoing node to its child and undo redo preserves the remote row', async () => {
   const fixture = await openFixture();
   const boundary = harness.publicWrites();
-  const step = harness.sqlite
-    .query<{ id: string }, [string]>(
-      'SELECT id FROM step WHERE work_package_id=? ORDER BY position LIMIT 1',
-    )
-    .get(fixture.owner.workPackageId);
-  if (step === null) throw new Error('fixture owner step missing');
+  const step = readFixtureStep(fixture.owner.workPackageId);
   const outgoing: StoredTypedDependency = {
     id: 'outgoing',
     workPackageId: fixture.successor.workPackageId,
@@ -138,8 +135,8 @@ test('mixed incident handdown preserves scopes steps both owners history and loc
   if (!created.ok) throw new Error('fixture child refused');
   expect(created.stepNodeMapping).toEqual(
     fixture.steps.map(({ id }) => ({
-      from: formatStepNodeId({ workItemId: fixture.owner.workItemId, stepId: id }),
-      to: formatStepNodeId({ workItemId: created.value.id, stepId: id }),
+      from: sliceKey(fixture.owner.workItemId, id),
+      to: sliceKey(created.value.id, id),
     })),
   );
   const mapped = await readIncidentRows(owner);
@@ -521,9 +518,9 @@ test('compound handdown carries local statement estimate and progress facts with
     )
     .get(owner);
   if (journal === null) throw new Error('fixture journal missing');
-  expect(readPreconditions(JSON.parse(journal.preconditions) as unknown).estimateUnits).toEqual({
-    [step.id]: 'workdays',
-  });
+  expect(readPreconditions(JSON.parse(journal.preconditions) as unknown).estimateUnits).toEqual(
+    Object.fromEntries(fixture.steps.map(({ id }) => [id, 'workdays'])),
+  );
   expect(harness.sqlite.query('SELECT work_item_id FROM estimate').all()).toEqual([
     { work_item_id: created.value.id },
   ]);
@@ -752,9 +749,7 @@ test('synthetic mounted undo refuses a legally destroyed predecessor before rest
   harness.sqlite
     .query('UPDATE organization_membership SET role=? WHERE organization_id=? AND user_id=?')
     .run('member', 'org-a', fixture.principal.id);
-  harness.sqlite
-    .query('UPDATE work_package SET owner_id=?,restricted=1 WHERE id=?')
-    .run(harness.userId('grace'), fixture.predecessor.workPackageId);
+  restrictFixturePackage(fixture.predecessor.workPackageId);
   harness.grant(
     'org-a',
     'ada',
@@ -867,12 +862,7 @@ for (const direction of ['undo', 'redo'] as const)
       const x = await createPeer(b.workPackageId, 'Cycle bridge X');
       const y = await createPeer(a.workPackageId, 'Cycle bridge Y');
       const readNode = (address: typeof a) => {
-        const step = harness.sqlite
-          .query<{ id: string }, [string]>(
-            "SELECT id FROM step WHERE work_package_id=? AND name='Dev'",
-          )
-          .get(address.workPackageId);
-        if (step === null) throw new Error('fixture Dev step missing');
+        const step = readFixtureStep(address.workPackageId);
         return { ...address, scope: 'node' as const, stepId: step.id };
       };
       const createAddCommand = (predecessor: typeof a, successor: typeof a) => ({

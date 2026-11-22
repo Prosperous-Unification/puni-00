@@ -13,8 +13,10 @@ import {
   closeFixture,
   harness,
   openFixture,
+  readFixtureStep,
   readTables,
   requireOwnerEdit,
+  restrictFixturePackage,
   runSemantic,
   seedIncidents,
 } from './cross-work-package-dependency-fixture';
@@ -24,34 +26,25 @@ test('bound first-child incident transition derives both directions and retains 
   const boundary = harness.publicWrites();
   const owner = fixture.owner.workPackageId;
   const parent = fixture.owner.workItemId;
-  const readStepId = (workPackageId: string) => {
-    const step = harness.sqlite
-      .query<{ id: string }, [string]>(
-        'SELECT id FROM step WHERE work_package_id=? ORDER BY position LIMIT 1',
-      )
-      .get(workPackageId);
-    if (step === null) throw new Error('fixture step missing');
-    return step.id;
-  };
   const incoming: StoredTypedDependency = {
     id: 'incoming',
     workPackageId: owner,
     predecessor: {
       ...fixture.predecessor,
       scope: 'node',
-      stepId: readStepId(fixture.predecessor.workPackageId),
+      stepId: readFixtureStep(fixture.predecessor.workPackageId).id,
     },
-    successor: { ...fixture.owner, scope: 'node', stepId: readStepId(owner) },
+    successor: { ...fixture.owner, scope: 'node', stepId: readFixtureStep(owner).id },
     type: 'SS',
   };
   const outgoing: StoredTypedDependency = {
     id: 'outgoing',
     workPackageId: fixture.successor.workPackageId,
-    predecessor: { ...fixture.owner, scope: 'node', stepId: readStepId(owner) },
+    predecessor: { ...fixture.owner, scope: 'node', stepId: readFixtureStep(owner).id },
     successor: {
       ...fixture.successor,
       scope: 'node',
-      stepId: readStepId(fixture.successor.workPackageId),
+      stepId: readFixtureStep(fixture.successor.workPackageId).id,
     },
     type: 'FF',
   };
@@ -250,20 +243,13 @@ for (const fault of ['existing-destination', 'foreign-destination', 'detached-ch
 
 test('restricted readable remote successor refuses derived handdown until both remote write grants exist', async () => {
   const fixture = await seedIncidents();
-  await harness.register('grace');
-  harness.member('org-a', 'grace', 'member', ['project-contributor', 'org-viewer']);
   harness.sqlite
     .query(
       "UPDATE organization_membership SET role='member' WHERE organization_id='org-a' AND user_id=?",
     )
     .run(fixture.principal.id);
-  harness.sqlite
-    .query('UPDATE work_package SET owner_id=?,restricted=1 WHERE id IN (?,?)')
-    .run(
-      harness.userId('grace'),
-      fixture.successor.workPackageId,
-      fixture.secondSuccessor.workPackageId,
-    );
+  for (const endpoint of [fixture.successor, fixture.secondSuccessor])
+    restrictFixturePackage(endpoint.workPackageId);
   expect(
     (
       await fixture.request(`/api/work-packages/${fixture.successor.workPackageId}/commands`, {
@@ -545,12 +531,7 @@ test('incident transition refuses delivery after its genuine retained refresh re
   const fixture = await openFixture();
   const boundary = harness.publicWrites();
   const owner = fixture.owner.workPackageId;
-  const step = harness.sqlite
-    .query<{ id: string }, [string]>(
-      'SELECT id FROM step WHERE work_package_id=? ORDER BY position LIMIT 1',
-    )
-    .get(owner);
-  if (step === null) throw new Error('fixture step missing');
+  const step = readFixtureStep(owner);
   await boundary.uow.run(async (scope) => {
     await scope.stores.typedDependencies.add(
       {
@@ -709,12 +690,7 @@ test('modeled structural refusal makes the compound capability refuse at its top
   const fixture = await openFixture();
   const boundary = harness.publicWrites();
   const owner = fixture.owner.workPackageId;
-  const step = harness.sqlite
-    .query<{ id: string }, [string]>(
-      'SELECT id FROM step WHERE work_package_id=? ORDER BY position LIMIT 1',
-    )
-    .get(owner);
-  if (step === null) throw new Error('fixture step missing');
+  const step = readFixtureStep(owner);
   await boundary.uow.run(async (scope) => {
     await scope.stores.typedDependencies.add(
       {
@@ -913,14 +889,10 @@ test('incident pending-state read cannot return after its observation closes', a
 test('synthetic mounted successor deletion removes only owned links and restores exact identities through undo redo', async () => {
   const fixture = await openFixture({ syntheticExternalCommands: true });
   activateTestStepBlockages(harness.databasePath());
-  await harness.register('grace');
-  harness.member('org-a', 'grace', 'member', ['project-contributor', 'org-viewer']);
   harness.sqlite
     .query('UPDATE organization_membership SET role=? WHERE organization_id=? AND user_id=?')
     .run('member', 'org-a', fixture.principal.id);
-  harness.sqlite
-    .query('UPDATE work_package SET owner_id=?,restricted=1 WHERE id=?')
-    .run(harness.userId('grace'), fixture.predecessor.workPackageId);
+  restrictFixturePackage(fixture.predecessor.workPackageId);
   harness.grant(
     'org-a',
     'ada',
@@ -1106,14 +1078,10 @@ for (const scenario of ['replay', 'stale', 'outgoing'] as const) {
     const pushes: string[] = [];
     const fixture = await openFixture({ syntheticExternalCommands: true, pushes });
     activateTestStepBlockages(harness.databasePath());
-    await harness.register('grace');
-    harness.member('org-a', 'grace', 'member', ['project-contributor', 'org-viewer']);
     harness.sqlite
       .query('UPDATE organization_membership SET role=? WHERE organization_id=? AND user_id=?')
       .run('member', 'org-a', fixture.principal.id);
-    harness.sqlite
-      .query('UPDATE work_package SET owner_id=?,restricted=1 WHERE id=?')
-      .run(harness.userId('grace'), fixture.predecessor.workPackageId);
+    restrictFixturePackage(fixture.predecessor.workPackageId);
     harness.grant(
       'org-a',
       'ada',
@@ -1396,8 +1364,8 @@ for (const scenario of ['replay', 'stale', 'outgoing'] as const) {
     );
     if (scenario === 'stale') {
       harness.sqlite
-        .query('UPDATE work_package SET owner_id=?,restricted=0 WHERE id=?')
-        .run(fixture.principal.id, fixture.predecessor.workPackageId);
+        .query('UPDATE work_package SET restricted=0 WHERE id=?')
+        .run(fixture.predecessor.workPackageId);
       expect(
         (
           await fixture.request(

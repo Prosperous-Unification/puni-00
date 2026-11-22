@@ -8,6 +8,7 @@ import {
   type HarnessMachineGrants,
   OrganizationHarness,
 } from '../testing/organization-harness';
+import { createFixturePackage, readFixturePackage } from '../testing/space-rollup';
 
 const T = 1_900_000_000_000;
 let now = T;
@@ -50,10 +51,8 @@ beforeEach(async () => {
   h.member('org-a', 'dany', 'super_admin', ['org-super-admin']);
   h.bind('dany', 'org-a');
   h.activate();
-  const created = await h.call('dany', 'POST', '/api/work-packages', { name: 'Plan of A' });
-  if (created.status !== 200) throw new Error(`create refused: ${JSON.stringify(created)}`);
-  const plan = created.body as { workPackage: { id: string }; steps: { id: string }[] };
-  workPackageId = plan.workPackage.id;
+  workPackageId = await createFixturePackage(h, 'dany', 'Plan of A');
+  const plan = await readFixturePackage(h, 'dany', workPackageId);
   const firstStep = plan.steps.at(0);
   if (firstStep === undefined) throw new Error('work package omitted its first workflow step');
   stepId = firstStep.id;
@@ -124,10 +123,8 @@ function claimsChangedWorkPackages(): string[] {
 async function createLeaf(
   name: string,
 ): Promise<{ workPackage: string; leaf: string; step: string }> {
-  const created = await h.call('dany', 'POST', '/api/work-packages', { name });
-  if (created.status !== 200) throw new Error(`create refused: ${JSON.stringify(created)}`);
-  const plan = created.body as { workPackage: { id: string }; steps: { id: string }[] };
-  const workPackage = plan.workPackage.id;
+  const workPackage = await createFixturePackage(h, 'dany', name);
+  const plan = await readFixturePackage(h, 'dany', workPackage);
   const step = plan.steps.at(0)?.id;
   if (step === undefined) throw new Error('work package omitted its first workflow step');
   const rows = await h.call('dany', 'POST', `/api/work-packages/${workPackage}/commands`, {

@@ -12,6 +12,7 @@ import { CommandIdCodec } from '../record-codecs';
 import { decodeAdmission } from '../record-codecs';
 import { decodeDecision, decodeExecutionFact, decodeReceipt } from '../record-codecs';
 import { organizationId, ownerId, projectId, runId, workItemId } from '../record-codecs';
+import type { Ownership } from '../records';
 import type { RecoveryBeginCall } from '../recovery-records';
 import {
   createCompletion,
@@ -65,6 +66,14 @@ for (const provider of ['memory', 'sqlite'] as const)
     }
   });
 
+type TurnCause = NonNullable<Parameters<typeof stageFixtureTurn>[1]>;
+type IdentityTurn = Pick<
+  Awaited<
+    ReturnType<typeof prepareTurn<Awaited<ReturnType<typeof bootstrapSqliteStores>>['runs']>>
+  >,
+  'admission' | 'claim' | 'currentGuard' | 'quiescence' | 'run' | 'runs'
+>;
+
 async function createIdentityFixture(provider: 'memory' | 'sqlite' = 'sqlite', capacity = 10) {
   const directory = mkdtempSync(join(tmpdir(), 'identity-keys-proof-'));
   const owner = createStoreDirectory(directory, { recursive: true });
@@ -95,6 +104,37 @@ async function createIdentityFixture(provider: 'memory' | 'sqlite' = 'sqlite', c
   return {
     options,
     stores,
+    async prepareTurn(ownership: Ownership, suffix: string) {
+      const bundle = { ...stores, clock: options.clock };
+      const context = { ownership, suffix };
+      if ('sourceDirectory' in stores) {
+        // The verified format-5 fixture produces the v1 request accepted by these stores.
+        const loaded: unknown = await import(
+          join(
+            stores.sourceDirectory,
+            'apps/twilight-structure/twilight-dash/cli/src/runs/testing/fixtures.ts',
+          )
+        );
+        // The source verification pins both functions and their historical fixture ABI.
+        const predecessor = loaded as {
+          prepareTurn: (
+            bundle: typeof stores & { clock: FixtureClock },
+            selection: typeof context,
+          ) => Promise<IdentityTurn>;
+          stageFixtureTurn: (turn: IdentityTurn, cause: TurnCause, key: string) => Promise<unknown>;
+        };
+        const turn = await predecessor.prepareTurn(bundle, context);
+        return {
+          ...turn,
+          stage: (cause: TurnCause, key: string) => predecessor.stageFixtureTurn(turn, cause, key),
+        };
+      }
+      const turn = await prepareTurn({ ...stores, clock: options.clock }, context);
+      return {
+        ...turn,
+        stage: (cause: TurnCause, key: string) => stageFixtureTurn(turn, cause, key),
+      };
+    },
     reopen: async () => retain(await openSqliteStores(options)),
     close: () => owner.close(),
   };
@@ -306,9 +346,9 @@ for (const provider of ['memory', 'sqlite'] as const)
         const ownership = unwrapReply(
           await fixture.stores.runs.acquireOwnership(ownerId('owner'), 0),
         );
-        const setup = await prepareTurn<typeof fixture.stores.runs>(
-          { ...fixture.stores, clock: fixture.options.clock },
-          { ownership, suffix: identity.length === 256 ? String(index) : identity },
+        const setup = await fixture.prepareTurn(
+          ownership,
+          identity.length === 256 ? String(index) : identity,
         );
         const command = createExecutionCommand(
           decodeExecutionFact({
@@ -351,11 +391,7 @@ for (const provider of ['memory', 'sqlite'] as const)
           kind: 'duplicate',
           value: resumed,
         });
-        await stageFixtureTurn(
-          setup,
-          { kind: 'decision', decisionId: decision.decisionId },
-          'continuation',
-        );
+        await setup.stage({ kind: 'decision', decisionId: decision.decisionId }, 'continuation');
         const secondWaiting = createExecutionCommand(
           decodeExecutionFact({
             kind: 'waiting',
@@ -379,8 +415,7 @@ for (const provider of ['memory', 'sqlite'] as const)
         unwrapReply(
           await setup.runs.consumeDecision(await setup.currentGuard(), secondDecision.decisionId),
         );
-        await stageFixtureTurn(
-          setup,
+        await setup.stage(
           { kind: 'decision', decisionId: secondDecision.decisionId },
           'second-continuation',
         );
@@ -607,10 +642,7 @@ test('encoded completion ordering cannot admit a collision across two completed 
     const ownership = unwrapReply(await fixture.stores.runs.acquireOwnership(ownerId('owner'), 0));
     const completed = [];
     for (const identity of ['\0', 'A']) {
-      const setup = await prepareTurn<typeof fixture.stores.runs>(
-        { ...fixture.stores, clock: fixture.options.clock },
-        { ownership, suffix: identity },
-      );
+      const setup = await fixture.prepareTurn(ownership, identity);
       const initial = createCompletion(setup.claim, setup.quiescence);
       const completion = createCompletion(setup.claim, setup.quiescence, {
         intent: { ...initial.intent, commandId: parseOrThrow(CommandIdCodec, identity) },

@@ -1,12 +1,16 @@
+import { createProject } from '@wbs/contracts';
 import { formatStepNodeId } from '@wbs/domain';
 import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
 import { activateTestStepBlockages } from '@wbs/store-sqlite/testing/step-blockage-activation';
 import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 
+import { bindDevQaFixture } from '../testing/dev-qa-fixture';
 import { type Answer, OrganizationHarness } from '../testing/organization-harness';
+import { readFixturePackage } from '../testing/space-rollup';
 
 let h: OrganizationHarness;
 let workPackage: string;
+let projectId: string;
 let dev: string;
 let qa: string;
 let strip: string;
@@ -30,13 +34,28 @@ async function populate(): Promise<void> {
   h.grantPermissions('org-a', 'ada', ['organization.create_project']);
   h.bind('ada', 'org-a');
   h.activate();
-  const created = await h.call('ada', 'POST', '/api/work-packages', { name: 'Rewire the shed' });
-  if (created.status !== 200) throw new Error(`create refused: ${JSON.stringify(created)}`);
-  const body = created.body as {
-    workPackage: { id: string };
-    steps: { id: string; name: string }[];
-  };
-  workPackage = body.workPackage.id;
+  const created = await h.call('ada', 'POST', '/api/projects', {
+    name: 'Shed renovation',
+    workPackage: { name: 'Rewire the shed' },
+  });
+  if (created.status !== 201) throw new Error('fixture project refused', { cause: created });
+  const checked = await createProject.responses[0].schema.validator['~standard'].validate(
+    created.body,
+  );
+  if (checked.issues !== undefined)
+    throw new Error('fixture project reply malformed', { cause: checked.issues });
+  const pack = checked.value.workPackage;
+  if (pack === undefined) throw new Error('fixture project omitted its work package');
+  await h.publicWrites().uow.run(async ({ stores }) => {
+    await bindDevQaFixture(stores.stepCatalogue, 'org-a', checked.value.project.id, {
+      at: 1,
+      by: h.userId('ada'),
+    });
+    return { commit: true, value: undefined };
+  });
+  projectId = checked.value.project.id;
+  workPackage = pack.id;
+  const body = await readFixturePackage(h, 'ada', workPackage);
   dev = stepNamed(body.steps, 'Dev');
   qa = stepNamed(body.steps, 'QA');
   const leaf = await batch([
@@ -242,12 +261,25 @@ describe('public step blockage commands over mounted SQLite', () => {
   );
 
   it.each(['undo', 'redo'] as const)(
-    'refuses %s after the recorded step is removed',
+    'refuses %s after the recorded step is no longer bound',
     async (direction) => {
       await batch([{ kind: 'setStepBlocked', workItemId: strip, stepId: dev, isBlocked: true }]);
       if (direction === 'redo') await flip('undo');
       h.sqlite.run('DELETE FROM step_blockage');
-      h.sqlite.run('DELETE FROM step WHERE id = ?', [dev]);
+      const binding = h.sqlite
+        .query<{ id: string }, [string, string]>(
+          "SELECT id FROM step_binding WHERE scope_kind='project' AND scope_id=? AND step_id=?",
+        )
+        .get(projectId, dev);
+      if (binding === null) throw new Error('project Dev binding missing');
+      expect(
+        await h.call('ada', 'DELETE', '/api/organization/step-bindings/' + binding.id, {
+          dryRun: false,
+        }),
+      ).toEqual({ status: 204, body: null });
+      expect((await readFixturePackage(h, 'ada', workPackage)).steps.map(({ id }) => id)).toEqual([
+        qa,
+      ]);
       h.sqlite.run(
         "UPDATE command_journal SET preconditions = json_set(preconditions, '$.expected', json('{}'))",
       );
@@ -378,10 +410,15 @@ describe('public step blockage commands with disabled writer admission', () => {
     );
     expect(exported.status).toBe(200);
     expect(exported.body).toMatchObject({
-      document: { version: 11 },
+      document: { version: 15 },
       stepBlockages: [{ workItemId: strip, stepId: dev, blockedAt: blocked[0]?.blocked_at }],
     });
-    expect(await h.call('ada', 'POST', '/api/work-packages/import', exported.body)).toEqual({
+    expect(
+      await h.call('ada', 'POST', '/api/work-packages/import', {
+        projectId,
+        document: exported.body,
+      }),
+    ).toEqual({
       status: 409,
       body: { error: 'step_blockage_inactive' },
     });

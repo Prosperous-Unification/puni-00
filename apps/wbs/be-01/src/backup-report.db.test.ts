@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { openDatabase, openReadOnlyDatabase } from '@wbs/store-sqlite/db';
-import { runMigrations } from '@wbs/store-sqlite/migrate';
+import { migrateEmptyCatalogueFixture } from '@wbs/store-sqlite/testing/catalogue-database';
 import { afterEach, expect, test } from 'bun:test';
 
 const APP_ROOT = dirname(fileURLToPath(new URL('../package.json', import.meta.url)));
@@ -19,7 +19,10 @@ function fixture() {
   const root = mkdtempSync(join(tmpdir(), 'wbs-window-report-'));
   roots.push(root);
   const sourcePath = join(root, 'wbs.db');
-  runMigrations(sourcePath, join(APP_ROOT, 'drizzle'));
+  migrateEmptyCatalogueFixture(
+    { path: sourcePath, directory: root, reportedAt: 1 },
+    { hasUnknownOwner: false },
+  );
   const database = openDatabase(sourcePath);
   try {
     database.run('CREATE TABLE window_marker (value TEXT NOT NULL)');
@@ -38,7 +41,12 @@ async function backup(sourcePath: string, snapshotPath: string, reportPath: stri
   // Target first makes the pre-implementation CLI create only the intended temporary snapshot.
   const child = Bun.spawn(
     [process.execPath, 'run', 'src/backup-db-cli.ts', snapshotPath, `--report=${reportPath}`],
-    { cwd: APP_ROOT, env: { ...process.env, DB_PATH: sourcePath }, stdout: 'pipe', stderr: 'pipe' },
+    {
+      cwd: APP_ROOT,
+      env: { ...process.env, FORCE_COLOR: '0', NO_COLOR: '1', DB_PATH: sourcePath },
+      stdout: 'pipe',
+      stderr: 'pipe',
+    },
   );
   const [exitCode, stdout, stderr] = await Promise.all([
     child.exited,
@@ -69,10 +77,10 @@ test('writes actual source snapshot and complete ledger identities into a window
   const paths = fixture();
   const answer = await backup(paths.sourcePath, paths.snapshotPath, paths.reportPath);
   expect(answer.exitCode).toBe(0);
-  expect(answer.stderr).toContain('window backup retained artifacts:');
-  const diagnostic: unknown = JSON.parse(
-    answer.stderr.trim().slice('window backup retained artifacts:'.length),
-  );
+  const prefix = 'window backup retained artifacts:';
+  const line = answer.stderr.split('\n').find((entry) => entry.startsWith(prefix));
+  if (line === undefined) throw new Error('window backup retained-artifact diagnostic missing');
+  const diagnostic: unknown = JSON.parse(line.slice(prefix.length));
   const pathMatcher: unknown = expect.any(String);
   expect(diagnostic).toMatchObject({
     snapshotPath: paths.snapshotPath,
@@ -164,7 +172,7 @@ test('no-flag backup keeps its original snapshot stdout without window retention
   const paths = fixture();
   const child = Bun.spawn([process.execPath, 'run', 'src/backup-db-cli.ts', paths.snapshotPath], {
     cwd: APP_ROOT,
-    env: { ...process.env, DB_PATH: paths.sourcePath },
+    env: { ...process.env, FORCE_COLOR: '0', NO_COLOR: '1', DB_PATH: paths.sourcePath },
     stdout: 'pipe',
     stderr: 'pipe',
   });

@@ -3,6 +3,7 @@ import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-ac
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { type Answer, OrganizationHarness } from '../testing/organization-harness';
+import { createFixturePackage } from '../testing/space-rollup';
 
 /**
  * The work package rank routes (`share-people-across-work-packages`, slice 3) over
@@ -30,9 +31,9 @@ interface RankBody {
 const names = (answer: Answer) => (answer.body as RankBody).workPackages.map((each) => each.name);
 
 async function create(username: string, name: string): Promise<string> {
-  const answer = await h.call(username, 'POST', '/api/work-packages', { name });
-  if (answer.status !== 200) throw new Error(`create refused: ${JSON.stringify(answer)}`);
-  return (answer.body as { workPackage: { id: string } }).workPackage.id;
+  return await createFixturePackage(h, username, name, (method, path, body) =>
+    h.call(path === '/api/projects' || username !== 'mel' ? username : 'ada', method, path, body),
+  );
 }
 
 async function seedSharedAna(workPackageIds: readonly string[]): Promise<void> {
@@ -217,7 +218,7 @@ describe('the work package rank', () => {
       .query('SELECT * FROM event_sequencer ORDER BY subscription')
       .all();
     h.sqlite.run(
-      `CREATE TRIGGER fail_rank_fanout BEFORE INSERT ON event_log WHEN NEW.subscription = 'work_package:${second}' BEGIN SELECT RAISE(FAIL, 'injected rank fan-out failure'); END`,
+      `CREATE TRIGGER fail_rank_fanout BEFORE INSERT ON event_log WHEN NEW.subscription = 'work-package:${second}' BEGIN SELECT RAISE(FAIL, 'injected rank fan-out failure'); END`,
     );
     try {
       expect(await h.call('ada', 'POST', move(search), { afterWorkPackageId: null })).toMatchObject(
@@ -297,7 +298,7 @@ describe('the work package rank', () => {
     captureActive = true;
     changeAfterResolution = () => {
       h.sqlite.run(
-        "UPDATE access_grant SET role_id='org-viewer' WHERE organization_id='org-a' AND subject_kind='user' AND subject_id=?",
+        "UPDATE access_grant SET role_id='org-viewer' WHERE organization_id='org-a' AND scope_kind='organization' AND scope_id='org-a' AND subject_kind='user' AND subject_id=? AND role_id='org-admin'",
         [h.userId('ada')],
       );
       resolved.resolve(undefined);
@@ -521,7 +522,7 @@ it('rolls dependency rank events and rank writes back when the second recipient 
   const second = [platform, billing, search].sort().at(1);
   if (second === undefined) throw new Error('dependency rank fixture lacks second recipient');
   h.sqlite.run(
-    `CREATE TRIGGER fail_dependency_rank BEFORE INSERT ON event_log WHEN NEW.subscription = 'work_package:${second}' BEGIN SELECT RAISE(FAIL, 'injected second dependency rank recipient'); END`,
+    `CREATE TRIGGER fail_dependency_rank BEFORE INSERT ON event_log WHEN NEW.subscription = 'work-package:${second}' BEGIN SELECT RAISE(FAIL, 'injected second dependency rank recipient'); END`,
   );
   try {
     expect((await h.call('ada', 'POST', move(search), { afterWorkPackageId: null })).status).toBe(

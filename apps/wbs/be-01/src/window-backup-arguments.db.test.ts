@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { runMigrations } from '@wbs/store-sqlite/migrate';
+import { migrateEmptyCatalogueFixture } from '@wbs/store-sqlite/testing/catalogue-database';
 import { afterEach, expect, test } from 'bun:test';
 
 const APP_ROOT = dirname(fileURLToPath(new URL('../package.json', import.meta.url)));
@@ -27,7 +27,10 @@ for (const command of ['backup', 'assert'] as const) {
         const sourcePath = join(root, 'source.db');
         const snapshotPath = join(root, 'snapshot.db');
         const reportPath = join(root, 'report.json');
-        runMigrations(sourcePath, join(APP_ROOT, 'drizzle'));
+        migrateEmptyCatalogueFixture(
+          { path: sourcePath, directory: root, reportedAt: 1 },
+          { hasUnknownOwner: false },
+        );
         const before = readFileSync(sourcePath);
         let args =
           command === 'backup'
@@ -38,7 +41,12 @@ for (const command of ['backup', 'assert'] as const) {
           args = command === 'backup' ? [snapshotPath, '--report='] : ['--report='];
         if (malformed === 'unknown-option') args.unshift('--unknown=denied');
         if (malformed === 'duplicate-option') args.push('--report=' + reportPath);
-        const environment: NodeJS.ProcessEnv = { ...process.env, DB_PATH: sourcePath };
+        const environment: NodeJS.ProcessEnv = {
+          ...process.env,
+          FORCE_COLOR: '0',
+          NO_COLOR: '1',
+          DB_PATH: sourcePath,
+        };
         if (malformed === 'missing-db') delete environment['DB_PATH'];
         const child = Bun.spawn(
           [
@@ -86,13 +94,16 @@ test('refuses two backup targets before changing either artifact', async () => {
   const root = mkdtempSync(join(tmpdir(), 'window-two-targets-'));
   roots.push(root);
   const sourcePath = join(root, 'source.db');
-  runMigrations(sourcePath, join(APP_ROOT, 'drizzle'));
+  migrateEmptyCatalogueFixture(
+    { path: sourcePath, directory: root, reportedAt: 1 },
+    { hasUnknownOwner: false },
+  );
   const before = readFileSync(sourcePath);
   const first = join(root, 'first.db');
   const second = join(root, 'second.db');
   const child = Bun.spawn([process.execPath, 'run', 'src/backup-db-cli.ts', first, second], {
     cwd: APP_ROOT,
-    env: { ...process.env, DB_PATH: sourcePath },
+    env: { ...process.env, FORCE_COLOR: '0', NO_COLOR: '1', DB_PATH: sourcePath },
     stdout: 'pipe',
     stderr: 'pipe',
   });
@@ -120,7 +131,7 @@ test('refuses a FIFO source without waiting for a writer or creating artifacts',
     [process.execPath, 'run', 'src/backup-db-cli.ts', snapshotPath, '--report=' + reportPath],
     {
       cwd: APP_ROOT,
-      env: { ...process.env, DB_PATH: sourcePath },
+      env: { ...process.env, FORCE_COLOR: '0', NO_COLOR: '1', DB_PATH: sourcePath },
       stdout: 'pipe',
       stderr: 'pipe',
       signal: AbortSignal.timeout(3500),
@@ -145,7 +156,10 @@ test('reports retained artifacts on actual CLI failure after snapshot publicatio
   const root = mkdtempSync(join(tmpdir(), 'window-cli-retention-'));
   roots.push(root);
   const sourcePath = join(root, 'source.db');
-  runMigrations(sourcePath, join(APP_ROOT, 'drizzle'));
+  migrateEmptyCatalogueFixture(
+    { path: sourcePath, directory: root, reportedAt: 1 },
+    { hasUnknownOwner: false },
+  );
   const before = readFileSync(sourcePath);
   const snapshotPath = join(root, 'snapshot.db');
   const parent = join(root, 'report-parent');
@@ -157,7 +171,7 @@ test('reports retained artifacts on actual CLI failure after snapshot publicatio
       [process.execPath, 'run', 'src/backup-db-cli.ts', snapshotPath, '--report=' + reportPath],
       {
         cwd: APP_ROOT,
-        env: { ...process.env, DB_PATH: sourcePath },
+        env: { ...process.env, FORCE_COLOR: '0', NO_COLOR: '1', DB_PATH: sourcePath },
         stdout: 'pipe',
         stderr: 'pipe',
         signal: AbortSignal.timeout(3500),

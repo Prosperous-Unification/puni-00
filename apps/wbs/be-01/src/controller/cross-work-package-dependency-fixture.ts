@@ -36,6 +36,48 @@ export function restrictFixtureGrants(workPackageId: string, manager: string): v
   harness.grant('org-a', 'ada', 'package-viewer', 'work_package', workPackageId);
   harness.grant('org-a', manager, 'package-manager', 'work_package', workPackageId);
 }
+
+/** Returns the every-type Steps bound by the fixture's dedicated Project, in binding order. */
+export function readFixtureSteps(workPackageId: string): { id: string }[] {
+  return harness.sqlite
+    .query<{ id: string }, [string]>(
+      `SELECT definition.id FROM work_package AS package
+       JOIN project ON project.id=package.project_id
+       JOIN step_binding AS binding ON binding.organization_id=project.organization_id
+         AND binding.scope_kind='project' AND binding.scope_id=project.id
+       JOIN step_definition AS definition ON definition.id=binding.step_id
+         AND definition.organization_id=binding.organization_id
+       WHERE package.id=? AND binding.work_item_type_id IS NULL
+       ORDER BY binding.position, definition.id`,
+    )
+    .all(workPackageId);
+}
+
+export function readFixtureStep(workPackageId: string): { id: string } {
+  const step = readFixtureSteps(workPackageId).at(0);
+  if (step === undefined) throw new Error('fixture step missing');
+  return step;
+}
+
+/** Removes Ada's creation grants for this fixture package and its dedicated project. Her organization grant still gives read access. */
+export function restrictFixturePackage(workPackageId: string): void {
+  harness.sqlite.transaction(() => {
+    const restricted = harness.sqlite.run('UPDATE work_package SET restricted=1 WHERE id=?', [
+      workPackageId,
+    ]);
+    expect(restricted.changes).toBe(1);
+    const revoked = harness.sqlite.run(
+      `DELETE FROM access_grant
+       WHERE organization_id='org-a' AND subject_kind='user' AND subject_id=? AND origin='creation'
+         AND ((scope_kind='work_package' AND role_id='package-manager' AND scope_id=?)
+           OR (scope_kind='project' AND role_id='project-manager'
+             AND scope_id=(SELECT project_id FROM work_package WHERE id=?)))`,
+      [harness.userId('ada'), workPackageId, workPackageId],
+    );
+    expect(revoked.changes).toBe(2);
+  })();
+}
+
 export async function openFixture(options?: {
   syntheticExternalCommands?: true;
   dependencyCapability?: DependencyRuntimeCapability;
@@ -238,15 +280,8 @@ export async function seedIncidents(options?: Parameters<typeof openFixture>[0])
     if (row === null) throw new Error('fixture named row missing');
     return row.id;
   };
-  const readSteps = (workPackageId: string) =>
-    harness.sqlite
-      .query<{ id: string }, [string]>(
-        'SELECT id FROM step WHERE work_package_id=? ORDER BY position',
-      )
-      .all(workPackageId);
   const createNodeEndpoint = (address: { workPackageId: string; workItemId: string }) => {
-    const step = readSteps(address.workPackageId).at(0);
-    if (step === undefined) throw new Error('fixture step missing');
+    const step = readFixtureStep(address.workPackageId);
     return { ...address, scope: 'node' as const, stepId: step.id };
   };
   const localPeer = readWorkItemId('Local peer');
@@ -312,7 +347,7 @@ export async function seedIncidents(options?: Parameters<typeof openFixture>[0])
       await scope.stores.typedDependencies.add(relationship, { at: 10, by: fixture.principal.id });
     return { commit: true, value: undefined };
   });
-  return { ...fixture, links, localPeer, ancestor, steps: readSteps(ownerId) };
+  return { ...fixture, links, localPeer, ancestor, steps: readFixtureSteps(ownerId) };
 }
 
 export async function readIncidentRows(workPackageId: string) {
