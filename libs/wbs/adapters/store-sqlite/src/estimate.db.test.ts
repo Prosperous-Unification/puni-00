@@ -1,8 +1,9 @@
+import { rejects } from 'node:assert';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { Step, WorkItem, WorkPackage, WriteStamp } from '@wbs/core';
+import type { WorkItem, WriteStamp } from '@wbs/core';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
 import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
@@ -10,13 +11,11 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { openDrizzle } from './db';
 import { EstimateRepository } from './estimate';
 import { OPEN } from './gate';
-import { runMigrations } from './migrate';
-import { seedLegacyPackageParent } from './testing/legacy-package-parent';
-import { UserRepository } from './user';
+import { seedCurrentProjectFixture } from './testing/current-project-fixture';
 import { WorkItemRepository } from './work-item';
 import { WorkPackageRepository } from './work-package';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+const custody = { hasUnknownOwner: false };
 
 let dir: string;
 let repo: EstimateRepository;
@@ -55,48 +54,48 @@ const insertItem = async (
 beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-estimate-'));
   const path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
-  seedLegacyPackageParent(path, 'fixture-legacy-org', 'fixture-project');
+  custody.hasUnknownOwner = false;
+  ownerId = crypto.randomUUID();
+  workPackageId = crypto.randomUUID();
+  // Make key order differ from authored step order to exercise the production projection.
+  devId = `z-dev-${crypto.randomUUID()}`;
+  qaId = `a-qa-${crypto.randomUUID()}`;
+  await seedCurrentProjectFixture(
+    {
+      path,
+      directory: dir,
+      organizationId: 'fixture-legacy-org',
+      projectId: 'fixture-project',
+      stamp: wrote(),
+      definitions: [
+        {
+          id: devId,
+          code: 'dev',
+          name: 'Dev',
+          position: 10,
+          defaultAllowancePercent: 0,
+          defaultEstimateUnit: 'workdays',
+        },
+        {
+          id: qaId,
+          code: 'qa',
+          name: 'QA',
+          position: 20,
+          defaultAllowancePercent: 0,
+          defaultEstimateUnit: 'workdays',
+        },
+      ],
+    },
+    custody,
+  );
   const db = openDrizzle(path);
   repo = new EstimateRepository(db, OPEN);
   const workItems = new WorkItemRepository(db, OPEN);
-
-  ownerId = crypto.randomUUID();
-  await new UserRepository(db, OPEN).create(
-    { id: ownerId, username: 'owner', passwordHash: 'x', createdAt: 1 },
+  await new WorkPackageRepository(db, OPEN).create(
+    workPackageRow({ id: workPackageId, projectId: 'fixture-project' }),
+    [],
     wrote(),
   );
-  workPackageId = crypto.randomUUID();
-  // Ids chosen so that sorting them disagrees with step order: `Dev` runs first
-  // and sorts last. Random UUIDs would agree by luck about half the time, and a
-  // read that fell back to the primary key's own order would pass on those runs.
-  devId = `z-dev-${crypto.randomUUID()}`;
-  qaId = `a-qa-${crypto.randomUUID()}`;
-  const workPackage: WorkPackage = workPackageRow({
-    id: workPackageId,
-    projectId: 'fixture-project',
-  });
-  const steps: Step[] = [
-    {
-      id: devId,
-      workPackageId,
-      name: 'Dev',
-      position: 10,
-      code: 'dev',
-      allowancePercent: 0,
-      estimateUnit: 'workdays' as const,
-    },
-    {
-      id: qaId,
-      workPackageId,
-      name: 'QA',
-      position: 20,
-      code: 'qa',
-      allowancePercent: 0,
-      estimateUnit: 'workdays' as const,
-    },
-  ];
-  await new WorkPackageRepository(db, OPEN).create(workPackage, steps, wrote());
 
   stripId = crypto.randomUUID();
   sandId = crypto.randomUUID();
@@ -105,7 +104,7 @@ beforeEach(async () => {
 });
 
 afterEach(() => {
-  rmSync(dir, { recursive: true, force: true });
+  if (!custody.hasUnknownOwner) rmSync(dir, { recursive: true, force: true });
 });
 
 describe('EstimateRepository', () => {
@@ -223,23 +222,19 @@ describe('EstimateRepository', () => {
     expect(held.map((each) => each.stepId)).toEqual([devId, qaId]);
   });
 
-  it('reads a work package’s estimates in one statement, with no parameter per row', async () => {
-    // The four satellite reads were two statements each until 2026-09-02: every
-    // work item id, then `IN (…)` over the lot. Twenty work items rather than
-    // two, because the fault is a bound parameter per row and at two rows "one
-    // parameter" and "one per row" differ by one.
-    //
-    // Both halves matter. The count rules out the second query coming back, and
-    // the SQL check rules out an `IN` list wearing a join's clothes: a plan of
-    // 33,000 rows would exceed SQLite's parameter ceiling and refuse the read
-    // outright, and the ceiling is not something a test on this machine can
-    // reach.
-    //
-    // Proof: the join replaced by the two-query shape it had before, watched
-    // failing on `expect(received).toHaveLength(expected) · Expected length: 1
-    // · Received length: 2`; and with the workPackage's own `where` written as
-    // `inArray(workItem.workPackageId, [workPackageId])` — one statement, an `IN` list
-    // of one — on `Expected to not contain: "in ("`. Observed 2026-09-02.
+  it('reads estimate facts with one join and bounds catalogue reads independently of row count', async () => {
+    const queries: { sql: string; bindings: number }[] = [];
+    const counted = new EstimateRepository(
+      openDrizzle(join(dir, 'test.db'), {
+        logQuery(query, params) {
+          queries.push({ sql: query, bindings: params.length });
+        },
+      }),
+      OPEN,
+    );
+    await repo.set({ workItemId: stripId, stepId: devId, ...DAYS }, wrote());
+    expect(await counted.listByWorkPackage(workPackageId)).toHaveLength(1);
+    const one = queries.splice(0);
     const workItems = new WorkItemRepository(openDrizzle(join(dir, 'test.db')), OPEN);
     for (let made = 0; made < 20; made += 1) {
       const id = `row-${String(made)}`;
@@ -249,35 +244,18 @@ describe('EstimateRepository', () => {
         wrote(),
       );
     }
-    const statements: string[] = [];
-    const counted = new EstimateRepository(
-      openDrizzle(join(dir, 'test.db'), {
-        logQuery(query) {
-          statements.push(query);
-        },
-      }),
-      OPEN,
-    );
 
-    const held = await counted.listByWorkPackage(workPackageId);
-
-    // The precondition: a read that answered nothing would also cost one
-    // statement, and the count would prove nothing about the join.
-    expect(held).toHaveLength(20);
-    expect(statements).toHaveLength(1);
-    expect(statements[0]).not.toContain('in (');
+    expect(await counted.listByWorkPackage(workPackageId)).toHaveLength(21);
+    // Proof: adding one bound SELECT per fact to the actual reader failed this equality.
+    expect(queries).toEqual(one);
+    const facts = queries.filter(({ sql }) => sql.includes('FROM estimate f'));
+    expect(facts).toHaveLength(1);
+    expect(facts[0]?.sql).toContain('JOIN work_item');
+    expect(facts[0]?.sql.toLowerCase()).not.toContain('in (');
+    expect(facts[0]?.bindings).toBe(1);
   });
 });
 
-/**
- * D6: a reference-specific outcome, said by the method it happened in.
- *
- * SQLite answers `FOREIGN KEY constraint failed` and names no column, so a
- * caller cannot tell a step that has gone from a work item that has. The store
- * can: it re-reads the step it just named, and only when that row is missing is
- * the refusal the step's. Anything else is an invariant nothing should have
- * been able to break, and is thrown.
- */
 describe('what a broken reference means', () => {
   it('answers unknown_step for a step that has gone, and throws for anything else', async () => {
     // The step is gone, the work item is there: the modeled outcome.
@@ -285,17 +263,9 @@ describe('what a broken reference means', () => {
       'unknown_step',
     );
 
-    // The work item is gone, the step is there: an unknown, and thrown.
-    // Proof: the step re-read in `writingStep` bypassed (`rows.length > 0 &&
-    // false`), so every foreign key reads as the step's — this case failed on
-    // `Expected promise that rejects · Received promise that resolved` — an
-    // absent **work item** reported to the caller as an absent step, and
-    // nothing thrown at all. Watched 2026-09-08. The message asserted on is
-    // drizzle's wrapper rather than SQLite's own `FOREIGN KEY constraint
-    // failed`, which it carries as the cause; what the case is about is that
-    // this reaches the caller as a fault rather than as a refusal.
-    const orphaned = repo.set({ workItemId: 'no-such-work-item', stepId: devId, ...DAYS }, wrote());
-    expect(orphaned).rejects.toThrow(/insert into "estimate"/);
-    await orphaned.catch(() => undefined);
+    // The catalogue writer inspects the work item before resolving its step.
+    await rejects(repo.set({ workItemId: 'no-such-work-item', stepId: devId, ...DAYS }, wrote()), {
+      message: 'step write work item is absent or inconsistent',
+    });
   });
 });

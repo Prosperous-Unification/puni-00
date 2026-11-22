@@ -15,12 +15,10 @@ import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { sql } from 'drizzle-orm';
 
-import { runMigrations } from './migrate';
 import { openSqliteSource, type SqliteSource } from './source';
+import { seedCurrentProjectFixture } from './testing/current-project-fixture';
 import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
-import { seedLegacyPackageParent } from './testing/legacy-package-parent';
 
-const folder = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const F = 'account-f';
 const G = 'account-g';
 const BOUND = new Map([
@@ -32,19 +30,47 @@ const RAM = 'resource-ram';
 let directory: string;
 let source: SqliteSource;
 
-beforeEach(() => {
+let opened: SqliteSource | undefined;
+let custody = { hasUnknownOwner: false };
+
+beforeEach(async () => {
+  opened = undefined;
+  custody = { hasUnknownOwner: false };
   directory = mkdtempSync(join(tmpdir(), 'claim-occupancy-race-'));
   const dbPath = join(directory, 'plan.db');
-  runMigrations(dbPath, folder);
-  seedLegacyPackageParent(dbPath, 'fixture-legacy-org', 'fixture-project');
+  await seedCurrentProjectFixture(
+    {
+      path: dbPath,
+      directory,
+      organizationId: 'fixture-legacy-org',
+      projectId: 'fixture-project',
+      stamp: { at: 1, by: F },
+      definitions: [
+        {
+          id: 'dev',
+          code: 'dev',
+          name: 'Dev',
+          position: 1,
+          defaultEstimateUnit: 'workdays',
+          defaultAllowancePercent: 0,
+        },
+      ],
+    },
+    custody,
+  );
+  custody.hasUnknownOwner = true;
   source = openSqliteSource({
     dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
     dbPath,
   });
+  opened = source;
+  custody.hasUnknownOwner = false;
 });
 
 afterEach(async () => {
-  await source.close();
+  await opened?.close();
+  if (custody.hasUnknownOwner)
+    throw new Error('race fixture owner uncertain; retained ' + directory);
   rmSync(directory, { recursive: true, force: true });
 });
 
@@ -69,12 +95,10 @@ async function seeded(hold: Hold) {
     dependencyContext: createLocalDependencyContext(source.stores),
   };
   const graph = servicesOver(source.stores, options);
-  for (const id of [F, G]) {
-    await source.stores.users.create(
-      { id, username: id, passwordHash: 'x', createdAt: 1 },
-      { at: 1, by: id },
-    );
-  }
+  await source.stores.users.create(
+    { id: G, username: G, passwordHash: 'x', createdAt: 1 },
+    { at: 1, by: G },
+  );
   const created = expectCreated(await graph.workPackages.create('Race', 'fixture-project', F));
   const workPackageId = created.workPackage.id;
   for (const id of ['claire', 'codex']) {

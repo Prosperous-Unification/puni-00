@@ -10,32 +10,35 @@ import { type Connection, openConnection } from './db';
 import { DirectoryRepository } from './directory';
 import { OPEN } from './gate';
 import { runMigrations } from './migrate';
+import { seedCurrentProjectFixture } from './testing/current-project-fixture';
+import { copyRecoveryPrefix } from './testing/recovery-state';
 
-const folder = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+let path: string;
+let custody = { hasUnknownOwner: false };
+let opened: Connection | undefined;
 let directory: string;
 let connection: Connection;
 let store: ClaimRepository;
 
 beforeEach(() => {
   directory = mkdtempSync(join(tmpdir(), 'claim-db-'));
-  const path = join(directory, 'plan.db');
-  runMigrations(path, folder);
-  connection = openConnection(path);
-  for (const statement of [
-    "INSERT INTO users (id,username,password_hash,created_at) VALUES ('u','u','x',1)",
-    "INSERT INTO work_package (id,name,owner_id,revision,created_at) VALUES ('p','Plan','u',0,1),('q','Other','u',0,1)",
-    "INSERT INTO step (id,work_package_id,name,position) VALUES ('dev','p','Dev',1),('qa','p','QA',2),('foreign','q','Foreign',1)",
-    "INSERT INTO work_item (id,work_package_id,name,position,revision) VALUES ('root','p','Root',1,0),('free','p','Free',2,0)",
-    "INSERT INTO work_item (id,work_package_id,parent_id,name,position,revision) VALUES ('leaf','p','root','Leaf',1,0)",
-    "INSERT INTO person (id,name) VALUES ('claire','claire'),('worker','worker')",
-  ])
-    connection.db.run(statement);
-  store = new ClaimRepository(connection.db, OPEN);
+  path = join(directory, 'plan.db');
+  custody = { hasUnknownOwner: false };
+  opened = undefined;
 });
 
+function openFixture() {
+  custody.hasUnknownOwner = true;
+  connection = openConnection(path);
+  opened = connection;
+  custody.hasUnknownOwner = false;
+}
+
 afterEach(() => {
-  connection.close();
-  rmSync(directory, { recursive: true, force: true });
+  opened?.close();
+  if (custody.hasUnknownOwner)
+    throw new Error('claim fixture owner uncertain; retained ' + directory);
+  rmSync(directory, { recursive: true });
 });
 
 const insert = (
@@ -62,6 +65,20 @@ const ids = () =>
 // Proof (migration.sql): each clause below removed from a copy of the migration
 // made its named case here stop throwing; watched 2026-10-19.
 describe('the claim table', () => {
+  beforeEach(() => {
+    runMigrations(path, copyRecoveryPrefix(directory, '20261019120000_add_claim'));
+    openFixture();
+    for (const statement of [
+      "INSERT INTO users (id,username,password_hash,created_at) VALUES ('u','u','x',1)",
+      "INSERT INTO project (id,name,owner_id,revision,created_at) VALUES ('p','Plan','u',0,1),('q','Other','u',0,1)",
+      "INSERT INTO step (id,project_id,name,position) VALUES ('dev','p','Dev',1),('qa','p','QA',2),('foreign','q','Foreign',1)",
+      "INSERT INTO work_item (id,project_id,name,position,revision) VALUES ('root','p','Root',1,0),('free','p','Free',2,0)",
+      "INSERT INTO work_item (id,project_id,parent_id,name,position,revision) VALUES ('leaf','p','root','Leaf',1,0)",
+      "INSERT INTO person (id,name) VALUES ('claire','claire'),('worker','worker')",
+    ])
+      connection.db.run(statement);
+  });
+
   it('holds one claim per step of a work item', () => {
     insert('a', 'leaf', 'dev');
     expect(() => insert('b', 'leaf', 'dev')).toThrow();
@@ -80,13 +97,11 @@ describe('the claim table', () => {
   });
 
   it('refuses a step of another work package, on insert and on update', () => {
-    expect(causeOf(() => insert('a', 'leaf', 'foreign'))).toContain(
-      'claim step work package mismatch',
-    );
+    expect(causeOf(() => insert('a', 'leaf', 'foreign'))).toContain('claim step project mismatch');
     insert('b', 'leaf', 'dev');
     expect(
       causeOf(() => connection.db.run("UPDATE claim SET step_id='foreign' WHERE id='b'")),
-    ).toContain('claim step work package mismatch');
+    ).toContain('claim step project mismatch');
   });
 
   it('refuses a claim that is its own parent', () => {
@@ -105,6 +120,55 @@ describe('the claim table', () => {
 });
 
 describe('ClaimRepository', () => {
+  beforeEach(async () => {
+    await seedCurrentProjectFixture(
+      {
+        path,
+        directory,
+        organizationId: 'org',
+        projectId: 'project',
+        stamp: { at: 1, by: 'u' },
+        definitions: [
+          {
+            id: 'dev',
+            code: 'dev',
+            name: 'Dev',
+            position: 1,
+            defaultEstimateUnit: 'workdays',
+            defaultAllowancePercent: 0,
+          },
+        ],
+      },
+      custody,
+    );
+    openFixture();
+    for (const statement of [
+      "INSERT INTO work_package(id,project_id,name,created_by,revision,created_at) VALUES ('p','project','Plan','u',0,1)",
+      "INSERT INTO work_package_step(work_package_id,step_id,estimate_unit,allowance_bps,allowance_revision) VALUES ('p','dev','workdays',0,0)",
+      "INSERT INTO work_item (id,work_package_id,name,position,revision) VALUES ('root','p','Root',1,0),('free','p','Free',2,0)",
+      "INSERT INTO work_item (id,work_package_id,parent_id,name,position,revision) VALUES ('leaf','p','root','Leaf',1,0)",
+      "INSERT INTO person (id,name) VALUES ('claire','claire'),('worker','worker')",
+    ])
+      connection.db.run(statement);
+    store = new ClaimRepository(connection.db, OPEN);
+  });
+
+  it('requires a package-step membership on claim insert and update', () => {
+    connection.db.run(
+      "INSERT INTO work_package(id,project_id,name,created_by,revision,created_at) VALUES ('q','project','Other','u',0,1)",
+    );
+    connection.db.run(
+      "INSERT INTO work_item(id,work_package_id,name,position,revision) VALUES ('other','q','Other',1,0)",
+    );
+    expect(causeOf(() => insert('a', 'other', 'dev'))).toContain(
+      'claim step work_package mismatch',
+    );
+    insert('b', 'leaf', 'dev');
+    expect(
+      causeOf(() => connection.db.run("UPDATE claim SET work_item_id='other' WHERE id='b'")),
+    ).toContain('claim step work_package mismatch');
+  });
+
   it('refuses a stored claim with no writing account', async () => {
     insert('a', 'leaf', 'dev');
     connection.db.run("UPDATE claim SET created_by=NULL WHERE id='a'");

@@ -11,20 +11,33 @@ import { afterEach, beforeEach, expect, test } from 'bun:test';
 
 import { createLivePlanStore } from './chain-snapshot';
 import { openDatabase, openReadOnlyConnection } from './db';
-import { runMigrations } from './migrate';
 import { createReadSnapshotLifetime } from './read-snapshot-lifetime';
 import { openSqliteSource, openSqliteSourceWithCaptureReadSeam } from './source';
+import { migrateEmptyCatalogueFixture } from './testing/catalogue-database';
 import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
 
-const migrations = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 let directory: string,
   sqlite: ReturnType<typeof openDatabase>,
   source: ReturnType<typeof openSqliteSource>;
+let closeSqlite: (() => void) | undefined;
+let closeSource: (() => Promise<void>) | undefined;
+const custody = { hasUnknownOwner: false };
+
+async function releaseSource(): Promise<void> {
+  const close = closeSource;
+  closeSource = undefined;
+  await close?.();
+}
+
 beforeEach(async () => {
   directory = mkdtempSync(join(tmpdir(), 'plan-export-'));
   const path = join(directory, 'source.db');
-  runMigrations(path, migrations);
+  custody.hasUnknownOwner = false;
+  closeSqlite = undefined;
+  closeSource = undefined;
+  migrateEmptyCatalogueFixture({ path, directory, reportedAt: 1 }, custody);
   sqlite = openDatabase(path);
+  closeSqlite = sqlite.close.bind(sqlite, true);
   sqlite.run(
     "INSERT INTO users(id,username,created_at) VALUES('creator','Creator',1),('other','Other',1)",
   );
@@ -41,19 +54,22 @@ beforeEach(async () => {
     dbPath: path,
     dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
   });
-  await source.stores.workPackages.createInOrganization(
+  closeSource = source.close.bind(source);
+  const created = await source.stores.workPackages.createInOrganization(
     workPackageRow({ id: 'package', projectId: 'parent' }),
     [],
     { by: 'creator', at: 1 },
     'org',
     { id: 'grant', auditId: 'audit' },
   );
+  if (typeof created === 'string' || created.id !== 'package')
+    throw Error('plan export fixture package birth refused');
   sqlite.run("UPDATE organization SET legacy=1 WHERE id='org'");
 });
 afterEach(async () => {
-  await source.close();
-  sqlite.close();
-  rmSync(directory, { recursive: true });
+  await releaseSource();
+  closeSqlite?.();
+  if (!custody.hasUnknownOwner) rmSync(directory, { recursive: true });
 });
 const access = (id = 'creator'): ResourceAccess => ({
   kind: 'scoped',
@@ -105,7 +121,7 @@ test('retains nested authenticated access before actual pool acquisition', async
   sqlite.run(
     "UPDATE organization_activation SET state='activated',activated_at=1 WHERE singleton=1",
   );
-  await source.close();
+  await releaseSource();
   const caller = {
     kind: 'scoped' as const,
     scope: { organizationId: 'org', userId: 'creator', cap: null },
@@ -121,6 +137,7 @@ test('retains nested authenticated access before actual pool acquisition', async
       return openReadOnlyConnection(path);
     },
   });
+  closeSource = source.close.bind(source);
   expect((await reader().readExport('package', caller)).kind).toBe('local');
   expect(caller.principal.id).toBe('other');
 });
@@ -128,7 +145,7 @@ test('keeps actual parent and grant from one observation across a rival write an
   sqlite.run(
     "UPDATE organization_activation SET state='activated',activated_at=1 WHERE singleton=1",
   );
-  await source.close();
+  await releaseSource();
   let changed = false;
   source = openSqliteSourceWithCaptureReadSeam(
     {
@@ -146,6 +163,7 @@ test('keeps actual parent and grant from one observation across a rival write an
       },
     },
   );
+  closeSource = source.close.bind(source);
   const captured = await reader().readExport('package', access());
   expect(captured).toHaveProperty('document.project.name', 'Parent');
   if (captured.kind !== 'local') throw Error('missing local capture');
@@ -202,7 +220,7 @@ test('keeps foreign and absent target opaque and checks actual principal coheren
 });
 test('a retained purpose reader refuses acquisitions after its real Source closes', async () => {
   const plans = source.bindLivePlans({ schedulerOf: () => fastScheduler }).planExports;
-  await source.close();
+  await releaseSource();
   await rejects(plans.readExport('package', LEGACY_ACCESS), (cause: unknown) => {
     expect(() => {
       throw cause;
@@ -266,7 +284,7 @@ test('throws for the exact missing trusted parent after fixture constraints are 
   await rejects(reader().readExport('package', LEGACY_ACCESS), (cause: unknown) => {
     expect(() => {
       throw cause;
-    }).toThrow('parent is absent or malformed');
+    }).toThrow('settings target parent is absent, malformed or foreign');
     return true;
   });
 });

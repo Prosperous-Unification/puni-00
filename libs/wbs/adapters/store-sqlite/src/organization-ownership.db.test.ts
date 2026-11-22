@@ -4,12 +4,14 @@ import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
-import { openDatabase, openDrizzle } from './db';
+import { openConnection, openDatabase } from './db';
 import { runMigrations } from './migrate';
 import { rollbackTo } from './migrate-down';
 import { OrganizationOwnershipRepository, type UnmappedRoot } from './organization-ownership';
+import { migrateEmptyCatalogueFixture } from './testing/catalogue-database';
+import { copyRecoveryPrefix } from './testing/recovery-state';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+const INITIAL_ACCESS_OFFERS = '20261103110000_add_initial_access_offers';
 const ORGANIZATION_RECORDS = '20260927120000_add_organization_records';
 const ORGANIZATION_OWNERSHIP = '20260927130000_add_organization_ownership';
 const ORGANIZATION_ACTIVATION = '20260927180000_add_organization_activation';
@@ -31,58 +33,55 @@ const TYPED_DEPENDENCY = '20260927213000_add_typed_dependency';
 
 let dir: string;
 let path: string;
+let migrations: string;
+const custody = { hasUnknownOwner: false };
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-organization-ownership-'));
   path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
+  custody.hasUnknownOwner = false;
 });
 
 afterEach(() => {
-  rmSync(dir, { recursive: true, force: true });
+  if (!custody.hasUnknownOwner) rmSync(dir, { recursive: true, force: true });
 });
 
-/** One root of every kind, written the way the outgoing release writes them: unmapped. */
-const ROOTS = [
-  "INSERT INTO users (id, username, created_at) VALUES ('u1', 'u1', 1)",
-  "INSERT INTO work_package (id, name, owner_id, created_at) VALUES ('p1', 'Plan', 'u1', 1)",
+const ROOT_USER = "INSERT INTO users (id, username, created_at) VALUES ('u1', 'u1', 1)";
+const CATALOG_ROOTS = [
   "INSERT INTO person (id, name) VALUES ('pe1', 'Ada')",
   "INSERT INTO service_team (id, name) VALUES ('st1', 'Platform')",
   "INSERT INTO service (id, name) VALUES ('s1', 'Billing')",
   "INSERT INTO tag (id, name) VALUES ('t1', 'urgent')",
   "INSERT INTO work_item_type (id, name) VALUES ('w1', 'Bug')",
   "INSERT INTO external_system (id, name) VALUES ('e1', 'Jira')",
-  `INSERT INTO saved_plan (id, work_package_id, name, created_by, created_at, input_schema_version, input_bytes, input_sha256, schedule_absent_reason)
+];
+const HISTORICAL_ROOTS = [
+  ROOT_USER,
+  "INSERT INTO project (id, name, owner_id, created_at) VALUES ('p1', 'Plan', 'u1', 1)",
+  ...CATALOG_ROOTS,
+  `INSERT INTO saved_plan (id, project_id, name, created_by, created_at, input_schema_version, input_bytes, input_sha256, schedule_absent_reason)
    VALUES ('sp1', 'p1', 'Baseline', 'u1', 1, 1, 0, 'x', 'not-scheduled')`,
   "INSERT INTO organization (id, name, legacy, created_at) VALUES ('legacy', 'Legacy', 1, 1)",
   "INSERT INTO organization (id, name, created_at) VALUES ('org-b', 'B', 1)",
 ];
 
+/** Create the current package under its real parent before the preactivation bridge has a legacy owner. */
+const CURRENT_ROOTS = [
+  ROOT_USER,
+  "INSERT INTO organization (id, name, created_at) VALUES ('legacy', 'Legacy', 1)",
+  "INSERT INTO project (id, organization_id, name, created_at) VALUES ('parent', 'legacy', 'Parent', 1)",
+  "INSERT INTO work_package (id, project_id, name, created_by, created_at) VALUES ('p1', 'parent', 'Plan', 'u1', 1)",
+  ...CATALOG_ROOTS,
+  `INSERT INTO saved_plan (id, work_package_id, name, created_by, created_at, input_schema_version, input_bytes, input_sha256, schedule_absent_reason)
+   VALUES ('sp1', 'p1', 'Baseline', 'u1', 1, 1, 0, 'x', 'not-scheduled')`,
+];
+
 /**
- * A resource root (`20261020120000_add_resources`), kept apart from {@link ROOTS}
+ * A resource root (`20261020120000_add_resources`), kept apart from {@link HISTORICAL_ROOTS}
  * because most cases here reverse the schema below the migration that adds it.
  */
 const RESOURCE_ROOT =
   "INSERT INTO resource (id, name, kind, unit_label) VALUES ('r1', 'RAM', 'divisible', 'GB')";
-
-/**
- * Drops the bridge triggers in place, so roots written after the legacy
- * organization stay unmapped without reversing every newer migration.
- */
-function dropBridge(): void {
-  const db = openDatabase(path);
-  try {
-    const bridges = db
-      .query<{ name: string }, []>(
-        "SELECT name FROM sqlite_master WHERE type = 'trigger' AND name LIKE '%_organization%bridge'",
-      )
-      .all();
-    if (bridges.length === 0) throw new Error('the legacy bridge has no triggers to drop');
-    for (const { name } of bridges) db.run(`DROP TRIGGER \`${name}\``);
-  } finally {
-    db.close();
-  }
-}
 
 /** Every row of every table the previous release knows, as JSON, for byte comparison. */
 function legacyRows(): Record<string, unknown[]> {
@@ -116,21 +115,38 @@ function seed(statements: readonly string[]): void {
  * stay unmapped, as the outgoing release leaves them when no bridge exists.
  */
 function withoutBridge(): void {
-  rollbackTo(path, FOLDER, ORGANIZATION_ACTIVATION);
+  rollbackTo(path, migrations, ORGANIZATION_ACTIVATION);
+}
+
+function seedCurrentRoots(mappings: readonly string[]): void {
+  seed([
+    RESOURCE_ROOT,
+    ...CURRENT_ROOTS,
+    ...mappings,
+    "UPDATE organization SET legacy=1 WHERE id='legacy'",
+  ]);
+}
+
+async function findUnmappedRoots() {
+  const connection = openConnection(path);
+  try {
+    return await new OrganizationOwnershipRepository(connection.db).findUnmappedRoots();
+  } finally {
+    connection.close();
+  }
 }
 
 describe('OrganizationOwnershipRepository.findUnmappedRoots', () => {
+  beforeEach(() => {
+    migrateEmptyCatalogueFixture({ path, directory: dir, reportedAt: 1 }, custody);
+  });
+
   it('reports an unmapped root of every kind, and only the unmapped ones', async () => {
-    dropBridge();
-    seed([
-      RESOURCE_ROOT,
-      ...ROOTS,
+    seedCurrentRoots([
       "INSERT INTO tag (id, name) VALUES ('t2', 'mapped')",
       "INSERT INTO tag_organization VALUES ('t2', 'legacy', 'mapped')",
     ]);
-    const unmapped = await new OrganizationOwnershipRepository(
-      openDrizzle(path),
-    ).findUnmappedRoots();
+    const unmapped = await findUnmappedRoots();
 
     // Written out rather than read from `OWNED_ROOT_KINDS`, so a kind dropped
     // from the production list is a red here and not a shorter expectation.
@@ -145,14 +161,13 @@ describe('OrganizationOwnershipRepository.findUnmappedRoots', () => {
       { kind: 'saved_plan', id: 'sp1' },
       { kind: 'resource', id: 'r1' },
     ];
+    // The external-system migration also seeds five unmapped vocabulary rows.
     for (const root of expected) expect(unmapped).toContainEqual(root);
     expect(unmapped).not.toContainEqual({ kind: 'tag', id: 't2' });
   });
 
   it('answers empty once every root is mapped', async () => {
-    seed([
-      RESOURCE_ROOT,
-      ...ROOTS,
+    seedCurrentRoots([
       "INSERT INTO work_package_organization SELECT id, 'legacy' FROM work_package",
       "INSERT INTO saved_plan_organization SELECT id, 'legacy' FROM saved_plan",
       ...[
@@ -166,20 +181,23 @@ describe('OrganizationOwnershipRepository.findUnmappedRoots', () => {
       ].map((table) => `INSERT INTO ${table}_organization SELECT id, 'legacy', name FROM ${table}`),
     ]);
 
-    expect(
-      await new OrganizationOwnershipRepository(openDrizzle(path)).findUnmappedRoots(),
-    ).toEqual([]);
+    expect(await findUnmappedRoots()).toEqual([]);
   });
 });
 
 describe('20260927130000_add_organization_ownership', () => {
+  beforeEach(() => {
+    migrations = copyRecoveryPrefix(dir, INITIAL_ACCESS_OFFERS);
+    runMigrations(path, migrations);
+  });
+
   it('holds the same catalog name in two organizations, once each', () => {
     withoutBridge();
     // Storage capability only: the legacy `tag_name` index still refuses a
     // second `tag.name`, so each organization's `urgent` is a separate backing
     // row. Live two-organization naming is task 3.2's mounted test.
     seed([
-      ...ROOTS,
+      ...HISTORICAL_ROOTS,
       "INSERT INTO tag (id, name) VALUES ('t2', 'urgent-b')",
       "INSERT INTO tag (id, name) VALUES ('t3', 'urgent-again')",
       "INSERT INTO tag_organization VALUES ('t1', 'legacy', 'urgent')",
@@ -199,7 +217,7 @@ describe('20260927130000_add_organization_ownership', () => {
   });
 
   const ROOT_IDS: readonly (readonly [string, string])[] = [
-    ['work_package', 'p1'],
+    ['project', 'p1'],
     ['person', 'pe1'],
     ['service_team', 'st1'],
     ['service', 's1'],
@@ -227,8 +245,8 @@ describe('20260927130000_add_organization_ownership', () => {
     it(`refuses a malformed ${table} ownership row`, () => {
       // Without the freeze, whose insert trigger would answer before this
       // migration's own primary key could be seen to.
-      rollbackTo(path, FOLDER, ORGANIZATION_BRIDGE);
-      seed(ROOTS);
+      rollbackTo(path, migrations, ORGANIZATION_BRIDGE);
+      seed(HISTORICAL_ROOTS);
       const db = openDatabase(path);
       try {
         expect(() => db.run(mapping(table, id, null))).toThrow('NOT NULL constraint failed');
@@ -250,7 +268,10 @@ describe('20260927130000_add_organization_ownership', () => {
   for (const table of CATALOGS)
     it(`refuses one ${table} name twice in one organization`, () => {
       withoutBridge();
-      seed([...ROOTS, `INSERT INTO ${table} (id, name) VALUES ('second', 'second-name')`]);
+      seed([
+        ...HISTORICAL_ROOTS,
+        `INSERT INTO ${table} (id, name) VALUES ('second', 'second-name')`,
+      ]);
       const db = openDatabase(path);
       try {
         const [, first] = ROOT_IDS.find(([kind]) => kind === table) ?? [];
@@ -267,7 +288,7 @@ describe('20260927130000_add_organization_ownership', () => {
     });
 
   it('lets the outgoing release delete a mapped root', () => {
-    seed([...ROOTS, "INSERT INTO tag_organization VALUES ('t1', 'legacy', 'urgent')"]);
+    seed([...HISTORICAL_ROOTS, "INSERT INTO tag_organization VALUES ('t1', 'legacy', 'urgent')"]);
     const db = openDatabase(path);
     try {
       db.run("DELETE FROM tag WHERE id = 't1'");
@@ -282,7 +303,7 @@ describe('20260927130000_add_organization_ownership', () => {
   it('round-trips a populated previous schema, leaving every legacy row as it was', () => {
     // The previous release's schema, populated the way it populates it, then
     // this migration applied, used by both releases, and reversed.
-    expect(rollbackTo(path, FOLDER, ORGANIZATION_RECORDS)).toEqual([
+    expect(rollbackTo(path, migrations, ORGANIZATION_RECORDS)).toEqual([
       '20261103110000_add_initial_access_offers',
       '20261102130000_widen_organization_audit_access',
       '20261102120000_add_access_grants',
@@ -301,9 +322,9 @@ describe('20260927130000_add_organization_ownership', () => {
       '20261023140000_add_measure',
       '20261023100000_add_claim_lease',
       '20261022213000_add_optimization_boundary_certificates',
-      '20261022212000_add_cross_work_package_dependency_activation',
+      '20261022212000_add_cross_project_dependency_activation',
       '20261022211000_add_external_dependencies',
-      '20261022210000_add_work_package_abbreviations',
+      '20261022210000_add_project_abbreviations',
       '20261022140100_widen_organization_audit_compute_providers',
       '20261022140000_add_resource_provider',
       '20261022130100_widen_organization_audit_organization_limits',
@@ -333,13 +354,13 @@ describe('20260927130000_add_organization_ownership', () => {
       '20261011120000_add_browser_auth_lifecycle',
       '20261005110000_add_shared_people',
       '20261001010000_add_browser_credential_revocations',
-      '20260929180000_add_work_package_rank',
+      '20260929180000_add_project_rank',
       '20260929100000_add_spaces',
       '20260928200000_add_work_item_status_facts',
       '20260928040000_add_email_challenge',
       '20260928030000_add_delegation_use',
       '20260928020000_add_email_verification',
-      '20260928010000_add_work_package_solution',
+      '20260928010000_add_project_solution',
       '20260927220000_add_organization_audit',
       TYPED_DEPENDENCY,
       ORGANIZATION_FROZEN,
@@ -350,21 +371,21 @@ describe('20260927130000_add_organization_ownership', () => {
       ORGANIZATION_OWNERSHIP,
     ]);
     seed([
-      ...ROOTS,
-      "INSERT INTO work_item (id, work_package_id, parent_id, position, name) VALUES ('wi1', 'p1', NULL, 0, 'Root')",
+      ...HISTORICAL_ROOTS,
+      "INSERT INTO work_item (id, project_id, parent_id, position, name) VALUES ('wi1', 'p1', NULL, 0, 'Root')",
       "INSERT INTO work_item_tag (work_item_id, tag_id) VALUES ('wi1', 't1')",
     ]);
     const before = legacyRows();
 
-    runMigrations(path, FOLDER);
+    runMigrations(path, migrations);
     seed([
       "INSERT INTO tag_organization VALUES ('t1', 'legacy', 'urgent')",
-      "INSERT INTO work_package_organization VALUES ('p1', 'legacy')",
+      "INSERT INTO project_organization VALUES ('p1', 'legacy')",
       // The outgoing release keeps writing roots it cannot map.
       "INSERT INTO tag (id, name) VALUES ('t-old', 'written-by-old')",
       "DELETE FROM tag WHERE id = 't-old'",
     ]);
-    expect(rollbackTo(path, FOLDER, ORGANIZATION_RECORDS)).toEqual([
+    expect(rollbackTo(path, migrations, ORGANIZATION_RECORDS)).toEqual([
       '20261103110000_add_initial_access_offers',
       '20261102130000_widen_organization_audit_access',
       '20261102120000_add_access_grants',
@@ -383,9 +404,9 @@ describe('20260927130000_add_organization_ownership', () => {
       '20261023140000_add_measure',
       '20261023100000_add_claim_lease',
       '20261022213000_add_optimization_boundary_certificates',
-      '20261022212000_add_cross_work_package_dependency_activation',
+      '20261022212000_add_cross_project_dependency_activation',
       '20261022211000_add_external_dependencies',
-      '20261022210000_add_work_package_abbreviations',
+      '20261022210000_add_project_abbreviations',
       '20261022140100_widen_organization_audit_compute_providers',
       '20261022140000_add_resource_provider',
       '20261022130100_widen_organization_audit_organization_limits',
@@ -415,13 +436,13 @@ describe('20260927130000_add_organization_ownership', () => {
       '20261011120000_add_browser_auth_lifecycle',
       '20261005110000_add_shared_people',
       '20261001010000_add_browser_credential_revocations',
-      '20260929180000_add_work_package_rank',
+      '20260929180000_add_project_rank',
       '20260929100000_add_spaces',
       '20260928200000_add_work_item_status_facts',
       '20260928040000_add_email_challenge',
       '20260928030000_add_delegation_use',
       '20260928020000_add_email_verification',
-      '20260928010000_add_work_package_solution',
+      '20260928010000_add_project_solution',
       '20260927220000_add_organization_audit',
       TYPED_DEPENDENCY,
       ORGANIZATION_FROZEN,

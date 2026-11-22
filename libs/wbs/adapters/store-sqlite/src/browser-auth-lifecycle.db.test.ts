@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -12,8 +12,9 @@ import { openConnection, openReadOnlyConnection } from './db';
 import { WriteCoordinator } from './gate';
 import { runMigrations } from './migrate';
 import { rollbackTo } from './migrate-down';
+import { migrateEmptyCatalogueFixture } from './testing/catalogue-database';
+import { copyRecoveryPrefix } from './testing/recovery-state';
 
-const MIGRATIONS = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const PREVIOUS = '20261005110000_add_shared_people';
 const first: VerifiedOrganizationCredential = {
   kind: 'oidc',
@@ -28,7 +29,10 @@ let path: string;
 beforeEach(() => {
   folder = mkdtempSync(join(tmpdir(), 'wbs-browser-lifecycle-'));
   path = join(folder, 'test.db');
-  runMigrations(path, MIGRATIONS);
+  migrateEmptyCatalogueFixture(
+    { path, directory: folder, reportedAt: 1 },
+    { hasUnknownOwner: false },
+  );
 });
 afterEach(() => {
   rmSync(folder, { recursive: true, force: true });
@@ -363,16 +367,30 @@ test('absent correlation is typed refusal while malformed stored state is a serv
   }
 });
 
+function rollbackMigrations(): string {
+  const historical = join(folder, 'rollback');
+  mkdirSync(historical);
+  return copyRecoveryPrefix(historical, '20261103110000_add_initial_access_offers');
+}
+
+function rollbackFixture() {
+  const history = rollbackMigrations();
+  const predecessor = join(folder, 'historical.db');
+  runMigrations(predecessor, history);
+  return { history, predecessor };
+}
+
 test('rollback refuses retained lifecycle and association rows', async () => {
-  const connection = openConnection(path);
+  const { history, predecessor } = rollbackFixture();
+  const connection = openConnection(predecessor);
   try {
     const lifecycle = new SqliteBrowserAuthLifecycle(connection.db, new WriteCoordinator());
     await lifecycle.open('one', first, { openedAt: 1, reauthenticatedAt: null });
   } finally {
     connection.close();
   }
-  expect(() => rollbackTo(path, MIGRATIONS, PREVIOUS)).toThrow();
-  const retained = openConnection(path);
+  expect(() => rollbackTo(predecessor, history, PREVIOUS)).toThrow();
+  const retained = openConnection(predecessor);
   try {
     expect(retained.db.all(sql`SELECT * FROM browser_auth_lifecycle`)).toHaveLength(1);
   } finally {
@@ -381,9 +399,10 @@ test('rollback refuses retained lifecycle and association rows', async () => {
 });
 
 test('rollback independently refuses lifecycle-only and association-only residue', async () => {
+  const history = rollbackMigrations();
   for (const retainedTable of ['browser_auth_lifecycle', 'browser_auth_association'] as const) {
     const dbPath = join(folder, `${retainedTable}.db`);
-    runMigrations(dbPath, MIGRATIONS);
+    runMigrations(dbPath, history);
     const connection = openConnection(dbPath);
     try {
       const lifecycle = new SqliteBrowserAuthLifecycle(connection.db, new WriteCoordinator());
@@ -397,7 +416,7 @@ test('rollback independently refuses lifecycle-only and association-only residue
     } finally {
       connection.close();
     }
-    expect(() => rollbackTo(dbPath, MIGRATIONS, PREVIOUS)).toThrow();
+    expect(() => rollbackTo(dbPath, history, PREVIOUS)).toThrow();
     const retained = openConnection(dbPath);
     try {
       expect(retained.db.all(sql`SELECT * FROM ${sql.raw(retainedTable)}`)).toHaveLength(1);
@@ -413,7 +432,8 @@ test('rollback independently refuses lifecycle-only and association-only residue
 });
 
 test('rollback removes both empty lifecycle tables and their migration ledger entry', () => {
-  expect(rollbackTo(path, MIGRATIONS, PREVIOUS)).toEqual([
+  const { history, predecessor } = rollbackFixture();
+  expect(rollbackTo(predecessor, history, PREVIOUS)).toEqual([
     '20261103110000_add_initial_access_offers',
     '20261102130000_widen_organization_audit_access',
     '20261102120000_add_access_grants',
@@ -432,9 +452,9 @@ test('rollback removes both empty lifecycle tables and their migration ledger en
     '20261023140000_add_measure',
     '20261023100000_add_claim_lease',
     '20261022213000_add_optimization_boundary_certificates',
-    '20261022212000_add_cross_work_package_dependency_activation',
+    '20261022212000_add_cross_project_dependency_activation',
     '20261022211000_add_external_dependencies',
-    '20261022210000_add_work_package_abbreviations',
+    '20261022210000_add_project_abbreviations',
     '20261022140100_widen_organization_audit_compute_providers',
     '20261022140000_add_resource_provider',
     '20261022130100_widen_organization_audit_organization_limits',
@@ -463,7 +483,7 @@ test('rollback removes both empty lifecycle tables and their migration ledger en
     '20261011200000_add_shared_people_audit',
     '20261011120000_add_browser_auth_lifecycle',
   ]);
-  const connection = openConnection(path);
+  const connection = openConnection(predecessor);
   try {
     expect(
       connection.db.all<{ name: string }>(sql`SELECT name FROM sqlite_master

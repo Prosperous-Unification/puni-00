@@ -2166,3 +2166,12 @@ exact partial header and body state, with current catalogue identity evidence.
 Solution-link rollback uses the original project table and pinned historical
 migration names and ledger. The work-item type fixture uses the legacy birth
 path on the migrated schema so its real ownership bridge runs once.
+
+The focused SQLite Nx target passed 84 tests across browser lifecycle, SSO,
+claims and the two-actor race, estimates, ownership, export and saved-plan
+organization. Current fixtures use the catalogue and preserve their ownership,
+concurrency and access assertions. Historical constraints and rollback use the
+original schema and immutable migration names. The estimate read used the
+same SQL and bind counts for one and 21 facts. Injecting one bound query per
+fact failed that equality. The original reader was restored before the combined
+run. SQLite Nx typecheck passed.

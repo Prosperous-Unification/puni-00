@@ -8,13 +8,12 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { openConnection, openDatabase } from './db';
 import { OPEN } from './gate';
-import { runMigrations } from './migrate';
 import type { SavedPlanWrite } from './saved-plan';
 import { SavedPlanRepository } from './saved-plan';
+import { migrateEmptyCatalogueFixture } from './testing/catalogue-database';
 import { UserRepository } from './user';
 import { WorkPackageRepository } from './work-package';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const wrote: WriteStamp = { at: 1, by: 'owner' };
 
 const record = (id: string): SavedPlanWrite => ({
@@ -36,12 +35,14 @@ const record = (id: string): SavedPlanWrite => ({
 describe('a saved plan belongs to its work package’s organization', () => {
   let dir: string;
   let path: string;
+  const custody = { hasUnknownOwner: false };
   let birthAudit: readonly unknown[];
 
   beforeEach(async () => {
     dir = mkdtempSync(join(tmpdir(), 'wbs-saved-plan-organization-'));
     path = join(dir, 'test.db');
-    runMigrations(path, FOLDER);
+    custody.hasUnknownOwner = false;
+    migrateEmptyCatalogueFixture({ path, directory: dir, reportedAt: 1 }, custody);
     const seed = openConnection(path);
     const sqlite = openDatabase(path);
     try {
@@ -96,7 +97,7 @@ describe('a saved plan belongs to its work package’s organization', () => {
   });
 
   afterEach(() => {
-    rmSync(dir, { recursive: true, force: true });
+    if (!custody.hasUnknownOwner) rmSync(dir, { recursive: true, force: true });
   });
 
   const raw = () => openDatabase(path);
