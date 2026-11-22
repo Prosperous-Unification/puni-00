@@ -16,9 +16,8 @@ A Kubernetes Secret written by External Secrets Operator from a secret store pat
 _Avoid_: injected secret, mounted secret
 
 **Bootstrap set**:
-The credentials never sourced from the secret store: those it needs to start or be recovered,
-those consumed by stages that reconcile before it, and those that must keep working while it is
-down.
+The credentials the secret store itself reads before it can serve or be restored, applied by
+Ansible from SOPS decrypted on the controller and never sourced from the store.
 _Avoid_: seed secrets, root secrets
 
 **Secret reader**:
@@ -34,7 +33,12 @@ _Avoid_: root token, recovery key, unseal share
 One of the shares that together authorize `generate-root`. It cannot unseal the store.
 _Avoid_: cluster seal key, unseal key
 
-**OpenBao namespace**:
-An isolated area of the secret store with its own auth methods, policies and administrators,
-one per organization; PUNI itself is the first.
-_Avoid_: tenant namespace, Kubernetes namespace, organization
+**Tenant prefix**:
+The secret store path under which one tenant's secrets live, with the environment below it;
+together with its policy it is the tenant's boundary in the store.
+_Avoid_: OpenBao namespace, tenant namespace, Kubernetes namespace
+
+**Store mode**:
+Which of `first-init`, `steady` or `restore` the store runs in, deciding whether it may
+initialise itself and whether it may start on an empty data directory.
+_Avoid_: overlay, restore overlay

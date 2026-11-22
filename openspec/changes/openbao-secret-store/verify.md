@@ -1,6 +1,7 @@
 ## Verification status
 
-Design only, 2026-11-15. No implementation, rehearsal or live receipt exists; every task in
+Design only, first written 2026-11-15 and rewritten 2026-11-22 for the platform cluster of
+`separate-node-roles`. No implementation, rehearsal or live receipt exists; every task in
 [tasks](tasks.md) is open. This change installs nothing.
 
 ## Design review
@@ -54,8 +55,28 @@ Design only, 2026-11-15. No implementation, rehearsal or live receipt exists; ev
    contract task, Job selectors, Harbor in the rebuild order, partition risk, NetworkPolicy
    excludes the cluster's own node addresses.
 
+6. **Rewrite for the Argo CD cluster, 2026-11-22** (Opus 5.5, medium effort), after the plan
+   `separate-node-roles` merged (#968, #977, #978, #979, #986). Reviews 1 to 5 above read the
+   Flux design; this revision has not been reviewed yet. Changed to match the plan, which is
+   authoritative: D2 placement (one voter on `m1plat1`, the cluster's only server, with
+   `platform-services` and the `CriticalAddonsOnly` toleration on every store pod; h4claw,
+   h3mon, the ESO pin and the lab agent removed); D5 one role per reading namespace instead of
+   one templated policy, because the plan binds roles per namespace and the path now carries
+   tenant and environment; D6 tenant prefixes and a `ci` mount for the CI cluster in place of
+   OpenBao namespaces and workers clusters; D8 the tailnet, the in-cluster Service and a
+   NodePort admitted from the CI server alone, with no public route; D8a store modes with an
+   empty-directory refusal, replacing the Flux pin switch, because an etcd restore brings back
+   the store's objects and they run before any sync; D9 the registry CA and `otel-server-ca`
+   move into the store, as the plan's decision 5 sets; D10 the bootstrap set shrinks to the
+   four Secrets the store reads, applied by Ansible from SOPS on the controller; D12 the
+   consumer list taken from the plan, the CI change and `host-postgres`, with no migration on
+   the new cluster; D13 the plan's units at orders 4 to 6 in place of three Flux stages; D14
+   outage and single-server recovery. Provider names and regions were removed, since this
+   repository is public.
+
 Still unverified and owed by P1: ESO keeping a Secret when refresh fails (task 3.2), ESO 2.15
-against OpenBao 2.7 (task 3.11), certificate reload on renewal (task 3.10).
+against OpenBao 2.7 (task 3.11), certificate reload on renewal (task 3.10), the `bao` client's
+server name override through the Tailscale operator's exposure (task 3.13).
 
 ## Checks run on this change
 

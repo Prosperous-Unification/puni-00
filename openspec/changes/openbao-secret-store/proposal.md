@@ -1,39 +1,43 @@
 ## Why
 
-Platform credentials have no working home. puni-00 commits none: seventeen production
-Secrets (OTLP certificates, Elastic S3 keys, registry, Velero, Alertmanager) are declared
-`source: operator` and must be created by hand, which blocks the observability rollout.
-Host `.env` files are edited in place, and `tool-secrets` only prints commands against a
-placeholder age key. Whoever holds the cluster age key can read everything, nothing records
-who read what, revoking a person means rotating every secret they ever saw, and nothing can
-isolate one client's secrets from another's on the multi-tenant platform PUNI is building.
+The platform cluster that [`separate-node-roles`](../separate-node-roles/design.md) builds
+decrypts nothing in the cluster: Ansible applies only the bootstrap Secrets Argo CD and the
+secret store need, and every other Secret is an ExternalSecret from the first day (its R22).
+Its step A7, the observability, Rancher, Harbor, CI and app steps after it, and the database
+change all wait for a store with scoped, audited, revocable access that keeps one environment
+and one tenant from reading another's.
 
 ## What Changes
 
-Add OpenBao as the platform secret store and External Secrets Operator (ESO) as the only
-path from the store into pods, behind three new Flux stages, `secret-store`, `secret-operator` and `secret-sync`.
-Each namespace reads only its own paths through its own `SecretStore`. The store auto-unseals
-from a SOPS-held static key, writes an audit record of every request, and is snapshotted to
-object storage with an automated restore drill. Operator-provided Secrets migrate to
-`source: openbao` one at a time, starting with a canary, while a small bootstrap set stays in
-SOPS or Ansible so the store never depends on itself. The store runs on the new platform node and its bring-up never pulls from Harbor. `tool-secrets` is retired.
+Add OpenBao as the platform secret store and External Secrets Operator as the only path from
+the store into pods, as the plan's Argo CD units `openbao`, `external-secrets` and
+`secret-sync` (orders 4 to 6), synced on command. The store runs as one Raft voter on
+`m1plat1`, the platform cluster's only server, tolerating its `CriticalAddonsOnly` taint. Each
+namespace reads only its own path through its own `SecretStore` and role; a tenant is a path
+prefix and a policy. The store auto-unseals from a static key in a small bootstrap set that
+Ansible applies from SOPS on the controller, writes an audit record of every request, is
+snapshotted to object storage with an automated restore drill, and is reached in the cluster
+or on the tailnet, never publicly. Its bring-up never pulls from Harbor. Secret rules in
+`gate` and an attended store planner enforce all of it.
 
 ## Outcome
 
-Every platform Secret has one canonical copy with scoped, audited, revocable access; a sealed
-or missing store stops secret changes but never stops a running or restarting workload; the
-path to tenant namespaces, PKI and short-lived credentials exists without redesign.
+Every Secret of the new cluster has one canonical copy with scoped, audited, revocable access;
+a sealed or missing store stops secret changes but never a running or restarting workload; a
+lost server is rebuilt with its store from a snapshot; the path to more voters, PKI and
+short-lived credentials exists without redesign.
 
 ## Non-Goals
 
-High availability (three voters); OpenBao PKI issuance, dynamic credentials,
-GitHub Actions access and external tenant namespaces (all phase 5 or later); a host agent
-for `.env` files; moving WBS into the cluster; changing the live cluster in this change.
+High availability (three voters); OpenBao PKI issuance, dynamic credentials, GitHub Actions
+access and a second tenant (all phase 4 or later); any change to the old cluster, its workers
+clusters, `tool-secrets` or host `.env` files; changing a live cluster in this change.
 
 ## Constraints
 
-Design only on 2026-11-15; every live phase is attended. Assumed owner inputs, recorded in
-[the design](design.md#owner-inputs): one replica on the new platform node, Dany escrows the seal key and recovery
-shares, an Auth0 application for operator login. Decisions were made by a Fable 5.2 review at
-Dany's request; [ADR 0079](../../../docs/adr/0079-openbao-is-the-platform-secret-store.md)
-records the product and delivery choice.
+Design only; every live phase is attended and follows the plan's steps. The plan is
+authoritative where the two differ. This repository is public: bootstrap ciphertext lives in
+the private fleet repository, and no provider name, address or tailnet name is written here.
+Assumed owner inputs are in [the design](design.md#owner-inputs);
+[ADR 0079](../../../docs/adr/0079-openbao-is-the-platform-secret-store.md) records the product
+and delivery choice.
