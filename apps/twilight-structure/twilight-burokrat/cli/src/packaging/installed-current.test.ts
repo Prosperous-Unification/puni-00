@@ -622,15 +622,23 @@ describe('installed lint preflight ordering and cancellation', () => {
         const marker = join(bin, 'started');
         const realGit = Bun.which('git', { PATH: trustedPath });
         if (realGit === null) throw new Error('Git test prerequisite is absent');
-        const program =
-          createShebang() +
-          '\nimport {writeFileSync} from "node:fs"; const args = process.argv.slice(2); const stage = args[0] === "--version" ? "version" : "root"; if (stage === ' +
-          JSON.stringify(stage) +
-          ') { writeFileSync(' +
-          JSON.stringify(marker) +
-          ', String(process.pid)); setInterval(() => {}, 1000); } else { const child = Bun.spawnSync([' +
-          JSON.stringify(realGit) +
-          ', ...args], {stdout:"pipe",stderr:"pipe"}); process.stdout.write(child.stdout); process.stderr.write(child.stderr); process.exitCode = child.exitCode; }';
+        const program = `${createShebang()}
+import { renameSync, writeFileSync } from 'node:fs';
+const args = process.argv.slice(2);
+const stage = args[0] === '--version' ? 'version' : 'root';
+if (stage === ${JSON.stringify(stage)}) {
+  const marker = ${JSON.stringify(marker)};
+  const pending = marker + '.pending';
+  writeFileSync(pending, String(process.pid));
+  renameSync(pending, marker);
+  setInterval(() => {}, 1000);
+} else {
+  const child = Bun.spawnSync([${JSON.stringify(realGit)}, ...args], { stdout: 'pipe', stderr: 'pipe' });
+  process.stdout.write(child.stdout);
+  process.stderr.write(child.stderr);
+  process.exitCode = child.exitCode;
+}
+`;
         const git = join(bin, 'git');
         writeFileSync(git, program);
         chmodSync(git, 0o755);
@@ -655,16 +663,22 @@ describe('installed lint preflight ordering and cancellation', () => {
             };
           },
         });
+        let pid: number;
         try {
           for (let attempt = 0; attempt < 200 && !existsSync(marker); attempt++)
             await new Promise((resolve) => setTimeout(resolve, 10));
-          expect(existsSync(marker)).toBe(true);
+          // Proof: delaying the PID write after exposing an empty public marker failed both
+          // installed Git probes here. The same delay on the private file passed both.
+          const published = readFileSync(marker, 'utf8');
+          expect(published).toMatch(/^[1-9][0-9]*$/);
+          pid = Number(published);
+          expect(Number.isSafeInteger(pid)).toBe(true);
+          expect(process.kill(pid, 0)).toBe(true);
         } finally {
           for (const listener of listeners) listener('SIGTERM');
         }
         expect(await pending).toEqual({ kind: 'cancelled', status: 143 });
-        const pid = Number(readFileSync(marker, 'utf8'));
-        expect(() => process.kill(pid, 0)).toThrow();
+        expect(() => process.kill(pid, 0)).toThrow(expect.objectContaining({ code: 'ESRCH' }));
       },
       10_000,
     );
