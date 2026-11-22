@@ -9,9 +9,9 @@ import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { ActualRepository } from './actual';
-import { openDatabase, openDrizzle } from './db';
+import { openConnection, openDatabase, openDrizzle } from './db';
 import { EstimateRepository } from './estimate';
-import { OPEN } from './gate';
+import { OPEN, WriteCoordinator } from './gate';
 import { MeasureEstimateRepository } from './measure-estimate';
 import { StepCatalogueRepository } from './step-catalogue';
 import { StepMeasureRepository } from './step-measure';
@@ -114,6 +114,78 @@ function corrupt(statements: readonly string[], ignoreChecks = false): void {
     sqlite.close();
   }
 }
+
+it('retains the measure trio, money basis and audit stamp before its writer turn', async () => {
+  const connection = openConnection(path);
+  try {
+    const trios = new MeasureEstimateRepository(connection.db, new WriteCoordinator());
+    const stamp = { ...STAMP, at: 7 };
+    const trio = {
+      workItemId: ROW,
+      stepId: STEP,
+      key: 'cost',
+      optimistic: 2,
+      realistic: 3,
+      pessimistic: 4,
+      singlePoint: false,
+      basis: { currency: 'USD', rateCardDigest: 'original-card' },
+    };
+    const original = structuredClone(trio);
+    const pending = trios.set(trio, stamp);
+    trio.basis.rateCardDigest = 'later-card';
+    trio.realistic = 4;
+    stamp.at = 8;
+    expect(await pending).toBe('written');
+    expect(await trios.listByWorkPackage(WORK_PACKAGE)).toEqual([original]);
+    expect(connection.db.all('SELECT created_at FROM measure_estimate')).toEqual([
+      { created_at: 7 },
+    ]);
+  } finally {
+    connection.close();
+  }
+});
+
+it('classifies missing and unbound measure estimate steps at the writer without changing stored facts or revision', async () => {
+  const connection = openConnection(path);
+  try {
+    const gate = new WriteCoordinator();
+    const trios = new MeasureEstimateRepository(connection.db, gate);
+    const trio = {
+      workItemId: ROW,
+      stepId: STEP,
+      key: 'tokens',
+      optimistic: 2,
+      realistic: 2,
+      pessimistic: 2,
+      singlePoint: true,
+    };
+    expect(await trios.set(trio, STAMP)).toBe('written');
+    const snapshot = () => ({
+      trios: connection.db.all('SELECT * FROM measure_estimate'),
+      legacy: connection.db.all('SELECT * FROM step_measure'),
+      revisions: connection.db.all('SELECT id,revision FROM work_item'),
+    });
+    const before = snapshot();
+    expect(before.trios).toHaveLength(1);
+    expect(before.legacy).toHaveLength(1);
+    expect(await trios.set({ ...trio, stepId: 'missing-step' }, STAMP)).toBe('unknown_step');
+    expect(snapshot()).toEqual(before);
+
+    const unbind = gate.enter(() => {
+      connection.db.run("DELETE FROM step_binding WHERE step_id='targeted-step'");
+      return Promise.resolve();
+    });
+    const pending = trios.set(
+      { ...trio, optimistic: 1, pessimistic: 3, singlePoint: false },
+      STAMP,
+    );
+    await unbind;
+    expect(await pending).toBe('step_not_resolved');
+    expect(snapshot()).toEqual(before);
+  } finally {
+    connection.close();
+  }
+});
 
 describe('targeted SQLite readers reject malformed stored state', () => {
   it('seeks one immediate predecessor instead of aggregating the work package prefix', async () => {

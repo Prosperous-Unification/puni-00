@@ -1,3 +1,5 @@
+import { rejects } from 'node:assert/strict';
+
 import type { AvailableWorkItemService as WorkItemService } from '@wbs/core/testing/available-work-item-service';
 import { createTestServices } from '@wbs/core/testing/harness';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
@@ -122,5 +124,33 @@ describe('work-package-scoped assignment reads', () => {
     expect(await directory.assignmentsOf(['work-0'])).toEqual([
       { workItemId: 'work-0', stepId: 'step-0', personId: 'person-0' },
     ]);
+  });
+
+  it('models missing step identities without hiding other assignment failures', async () => {
+    const store = owned.source.stores.directory;
+    const revisions = () => owned.source.db.all('SELECT id,revision FROM work_item ORDER BY id');
+    const before = revisions();
+    expect(await store.assign('work-0', 'absent', 'person-0', STAMP)).toEqual({
+      ok: false,
+      reason: 'unknown_step',
+    });
+    expect(await store.assign('work-0', 'absent', 'missing-person', STAMP)).toEqual({
+      ok: false,
+      reason: 'unknown_person',
+    });
+    await rejects(store.assign('missing-owner', 'step-0', 'person-0', STAMP));
+    expect(revisions()).toEqual(before);
+    expect(await store.assignmentsOf(['work-0'])).toEqual([
+      { workItemId: 'work-0', stepId: 'step-0', personId: 'person-0' },
+    ]);
+
+    await new WorkItemRepository(owned.source.db, OPEN).insert(
+      workItemRow({ id: 'child-0', workPackageId: 'work-package-0', parentId: 'work-0' }),
+      [],
+      STAMP,
+    );
+    expect(await store.assign('work-0', 'step-0', null, STAMP)).toEqual({ ok: true });
+    expect(await store.assign('work-0', 'absent', null, STAMP)).toEqual({ ok: true });
+    expect(await store.assignmentsOf(['work-0'])).toEqual([]);
   });
 });

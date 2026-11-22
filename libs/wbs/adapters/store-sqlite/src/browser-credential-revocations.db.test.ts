@@ -11,9 +11,10 @@ import { openConnection, openReadOnlyConnection } from './db';
 import { WriteCoordinator } from './gate';
 import { runMigrations } from './migrate';
 import { rollbackTo } from './migrate-down';
+import { copyRecoveryPrefix } from './testing/recovery-state';
 
-const MIGRATIONS = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
-const PREVIOUS = '20260929100000_add_spaces';
+const REVOCATIONS = '20261001010000_add_browser_credential_revocations';
+const PREVIOUS = '20260929180000_add_project_rank';
 const credential: VerifiedOrganizationCredential = {
   kind: 'native',
   userId: 'ada',
@@ -22,11 +23,13 @@ const credential: VerifiedOrganizationCredential = {
 };
 let folder: string;
 let path: string;
+let migrations: string;
 
 beforeEach(() => {
   folder = mkdtempSync(join(tmpdir(), 'wbs-browser-revocation-'));
   path = join(folder, 'test.db');
-  runMigrations(path, MIGRATIONS);
+  migrations = copyRecoveryPrefix(folder, REVOCATIONS);
+  runMigrations(path, migrations);
 });
 afterEach(() => {
   rmSync(folder, { recursive: true, force: true });
@@ -184,12 +187,12 @@ test('rollback refuses even an expired row and preserves its ledger; empty rollb
       { ...credential, expiresAt: 1 },
       2,
     );
-    expect(() => rollbackTo(path, MIGRATIONS, PREVIOUS)).toThrow();
+    const ledger = connection.db.all('SELECT * FROM __drizzle_migrations ORDER BY id');
+    expect(() => rollbackTo(path, migrations, PREVIOUS)).toThrow('CHECK constraint failed');
+    expect(connection.db.all('SELECT * FROM __drizzle_migrations ORDER BY id')).toEqual(ledger);
     expect(connection.db.all(sql`SELECT kind FROM browser_credential_revocations`)).toHaveLength(1);
     connection.db.run(sql`DELETE FROM browser_credential_revocations`);
-    expect(rollbackTo(path, MIGRATIONS, PREVIOUS)).toContain(
-      '20261001010000_add_browser_credential_revocations',
-    );
+    expect(rollbackTo(path, migrations, PREVIOUS)).toEqual([REVOCATIONS]);
   } finally {
     connection.close();
   }

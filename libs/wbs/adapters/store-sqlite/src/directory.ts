@@ -87,6 +87,7 @@ import {
   serviceTeamOrganization,
   spacePerson,
   spaceTeam,
+  stepDefinition,
   tag,
   tagOrganization,
   teamService,
@@ -108,7 +109,6 @@ import {
 import { bumpSpaceRevision } from './space';
 import { readCatalogueStepsIn } from './step';
 import { captureCatalogueProjectIdsIn, touchCatalogueTargetsIn } from './step-catalogue-touch';
-import { writingStep } from './step-reference';
 import { LastSuperAdmin, requireSuperAdminIn } from './super-admin';
 import { WORK_ITEM_COLUMNS } from './work-item';
 
@@ -2663,50 +2663,43 @@ export class DirectoryRepository implements DirectoryStore {
     personId: string | null,
     stamp: WriteStamp,
   ): Promise<AssignmentWritten> {
-    // The step's own refusal comes back from {@link writingStep} rather than
-    // from a check in front of the write: the person is read inside the
-    // transaction below because a person can go between a check and a write,
-    // and the step is exactly the same race. What tells the two apart
-    // afterwards is which row is missing, which is what that helper re-reads
-    // (D6). Collected into a variable rather than returned through the helper
-    // because the helper's answer is about the **step** alone.
-    let refusal: AssignmentWritten = { ok: true };
-    const written = await writingStep(this.db, stepId, () =>
-      this.gate.enter(async () => {
-        await Promise.resolve();
-        refusal = this.db.transaction((tx) => {
-          if (personId !== null) {
-            const held = tx
-              .select({ id: person.id })
-              .from(person)
-              .where(eq(person.id, personId))
-              .all();
-            if (held.length === 0) return { ok: false, reason: 'unknown_person' } as const;
-          }
+    const act = { ...stamp };
+    return this.gate.enter(() =>
+      Promise.resolve(
+        this.db.transaction((tx): AssignmentWritten => {
           if (personId === null) {
-            // `and(...)`, not `&&`: the JS operator would evaluate to the second
-            // condition alone and delete every step's assignment on this work item.
+            // First-child hand-down also clears the previously assigned pair on its new parent.
             tx.delete(assignment)
               .where(and(eq(assignment.workItemId, workItemId), eq(assignment.stepId, stepId)))
               .run();
           } else {
+            const held = tx
+              .select({ id: person.id })
+              .from(person)
+              .where(eq(person.id, personId))
+              .get();
+            if (held === undefined) return { ok: false, reason: 'unknown_person' };
+            const defined = tx
+              .select({ id: stepDefinition.id })
+              .from(stepDefinition)
+              .where(eq(stepDefinition.id, stepId))
+              .get();
+            // Proof: omitting this decision made the production Source missing-step case throw
+            // the native foreign-key violation instead of returning unknown_step.
+            if (defined === undefined) return { ok: false, reason: 'unknown_step' };
             tx.insert(assignment)
-              .values({ workItemId, stepId, personId, ...auditOnCreate(stamp) })
-              // The pair is the primary key, so reassigning is an update rather
-              // than a constraint violation.
+              .values({ workItemId, stepId, personId, ...auditOnCreate(act) })
               .onConflictDoUpdate({
                 target: [assignment.workItemId, assignment.stepId],
-                set: { personId, ...auditOnUpdate(stamp) },
+                set: { personId, ...auditOnUpdate(act) },
               })
               .run();
           }
-          bumpWorkItems(tx, [workItemId], stamp);
-          return { ok: true } as const;
-        });
-      }),
+          bumpWorkItems(tx, [workItemId], act);
+          return { ok: true };
+        }),
+      ),
     );
-    if (written === 'unknown_step') return { ok: false, reason: 'unknown_step' };
-    return refusal;
   }
 }
 

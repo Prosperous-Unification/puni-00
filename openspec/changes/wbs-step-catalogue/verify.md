@@ -2280,3 +2280,22 @@ Nx typecheck passed.
   cases, including native admission and transaction rollback. Devsync also
   passed uncached Nx lint and the three native heavy-lock checkout scenarios
   after the test imported the existing dependency statically.
+
+### Current measure and assignment writes
+
+- The previous measure write reached `no such table: step` when a current
+  definition was absent. The actual writer now resolves applicability before
+  touching the trio, legacy mirror, or revision. Bypassing the decision
+  specifically after queued unbind returned `written` and failed the test.
+  The restored uncached Nx target passed all 15 targeted-reader tests,
+  including the money basis and audit retention witnesses.
+- The previous Source assignment also reached the retired table on a
+  missing-step write. Its current writer checks the definition in the same
+  transaction, after the person check. Removing only the decision reached
+  a native foreign-key refusal instead of `unknown_step`. The restored
+  uncached Nx target passed all three scoped assignment tests, including
+  absent-owner failure and clearing a previously assigned pair on a parent.
+- The focused uncached Nx target passed all 12 revocation and resource
+  schema cases. The historical fixtures use their original physical names
+  and migration ranges. The expired revocation refuses rollback and retains
+  the complete ledger before a separate empty rollback succeeds.
