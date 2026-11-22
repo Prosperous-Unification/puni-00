@@ -276,3 +276,40 @@ The cap's first hosted run (#964, job 136732392386) failed `gate workspace` afte
 Node heap. Inside the 12 GiB scope Node defaults to a 2240 MB heap. The steps therefore pin
 `--max-old-space-size=4096`, as the gate hosts have done since #956 (A-NODE-HEAP-1). That is the
 uncapped runner's default figure, so lint durations should match the earlier uncapped runs.
+
+## Task and CPU caps, 2026-11-21
+
+On main `b7ad74ab4` (run 44917747487) the capped `workspace` job took 20m41s, and the leaves
+`wbs-core` (7m32s), `tool-devsync` (20m46s) and `wbs-store-sqlite` (20m50s) passed. The
+`tool-fleet` leaf was lost again after 67 minutes, with no log, inside its memory cap
+([R5-32](checks-that-cannot-fail.md#a-lost-hosted-runner-leaves-no-step-conclusion-and-no-log)).
+
+A-CI-LEAF-MEMORYMAX-2 adds `TasksMax=4096` and `AllowedCPUs=0-2` to the same scope. The Nx phase
+now runs on three of the runner's four vCPUs, which changes no budget. If the phase were entirely
+CPU-bound, it would take at most 4/3 as long:
+
+| Shard        | Measured               | At 4/3   | Phase   |
+| ------------ | ---------------------- | -------- | ------- |
+| `tool-fleet` | 42.9 min task estimate | 57.2 min | 75 min  |
+| `workspace`  | 20m41s job (run above) | 27.6 min | 105 min |
+
+The other leaves are shorter than `tool-fleet`. The next hosted run's samples now carry the
+scope's `scopeCpuUsec`, so the real slowdown can be read from them.
+
+## Off-runner recorder, 2026-11-21
+
+The suite does not explain the 67m03s losses. `tool-fleet:test` took 2027 s (33.8 minutes) in CI,
+in the surviving workspace shard of run 44797660117, and 1873 s on a laptop inside a 12G
+scope. The leaf is lost about 20 minutes after its work should have ended.
+A-CI-LEAF-RECORDER-1 changes no budget. Every 120 s the `tool-fleet` leaf PATCHes a comment on
+issue #963 with `phaseElapsedSeconds` and the log tail, so even a lost run keeps a timing trail
+([R5-32](checks-that-cannot-fail.md#a-lost-hosted-runner-leaves-no-step-conclusion-and-no-log)).
+
+## Disk fields, 2026-11-22
+
+A-CI-LEAF-DISK-1 changes no budget. Each 30-second sample adds four `df --output=avail` calls and
+one `docker info`, bounded by a 10-second `timeout`, and the #963 report adds one `df -h` per path.
+The five main `tool-fleet` losses lasted 67m00s to 67m03s from job start, inside the leaf's
+90-minute job limit, while healthy leaves on Azure finished in 39m27s (job 137055572828) and 31.6
+minutes (run 44973329598). No budget explains the losses
+([R5-32](checks-that-cannot-fail.md#a-lost-hosted-runner-leaves-no-step-conclusion-and-no-log)).

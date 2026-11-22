@@ -550,6 +550,363 @@ gate-hosts note on A-NODE-HEAP-1 names the three tests and the fix
 The proof is one green hosted run. The three lints must pass, and the start record must show an
 inside-scope `heapSizeLimit` of at least 4294967296.
 
+### Amendment, 2026-11-21: lost inside the cap, so tasks and CPU are capped too
+
+Main `b7ad74ab4` (run 44917747487, push) was the first full-mode run with #964's cap and heap pin.
+`gate workspace` passed in 20m41s and the leaves `wbs-core`, `wbs-store-sqlite` and `tool-devsync`
+passed inside their 12G scopes. `gate workspace-heavy (tool-fleet)` (job 136887016810) was lost
+again. The job started at 15:10:50Z and its heavy-leaf step at 15:11:55Z, and GitHub failed it at
+16:17:53Z, 66 minutes into the step and 67 minutes into the job. The uncapped loss (03:05:42 to
+04:12:45Z) took as long. The annotation is the same, the step is still `in_progress` with no
+conclusion, and no artifact was uploaded. This is the sixteenth identified loss.
+
+**The loss timings are regular to the second.** From the Actions API, both tool-fleet losses
+lasted exactly 67m03s, job start to failure: 136708786587 uncapped and 136887016810 under the memory
+cap. The lost `gate workspace` jobs end where a normal workspace run ends. Five of them lasted
+77m01s, 73m01s, 77m01s, 77m05s and 76m54s (136177983041, 136115143031, 135532626496, 136408071558
+and 136456452906). The other eight lasted 72m04s to 79m04s, and the passing workspace jobs in this
+catalogue took 72m37s (135466352451), 74m26s (131260787719) and 77m23s (136144316155). Exhaustion
+driven by load (memory, tasks or CPU) would not repeat to the second across an uncapped and a capped
+run. The trigger is more likely deterministic: a fixed point in the suite, followed by GitHub's
+fixed grace period before it declares the runner lost. The caps below are still worth having,
+because each one removes a class and leaves a log, but the timing is the stronger lead.
+
+**Memory is ruled out.** The leaf ran under `MemoryMax=12G MemorySwapMax=0 OOMPolicy=continue`.
+A tree that outgrew the cap would have been OOM-killed inside the scope, with `exit=1`, a log and
+the kernel's OOM lines. The earlier amendment's rollback criterion applies: lost with the cap in
+place means the cause is not memory.
+
+Three classes remain:
+
+- **Process or thread exhaustion** in a fork storm.
+- **CPU starvation of the runner agent.** The runner has 4 vCPUs, and nothing kept one free.
+- **Network breakage, or a signal to a process group the test does not own.**
+
+Reading the suite narrows none of them to a test:
+
+- The native registry tests compile one 44-line pthread fixture with a single
+  `cc -Wall -Wextra -Werror -pthread` run, with no `make -j`.
+- They run their sandboxes in `bwrap` with `--unshare-net` and `--unshare-pid`. The in-namespace
+  Docker proof sets `bridge: none` and `iptables: false`.
+- Every `os.killpg` site in `lab-guest-*.py` and the registry installers signals a group it
+  created with `start_new_session=True`.
+- `tool-fleet:test` is one `bun test` process at Nx `--parallel=1`.
+
+**The lever (A-CI-LEAF-MEMORYMAX-2).** Both capped steps add three things to the scope:
+
+- **`-p TasksMax=4096`.** A fork or thread storm now fails inside the scope with `EAGAIN`, so the
+  runner's own process table is not exhausted. The pids controller counts threads. The first
+  hosted scope (#967's workspace run 44925912318) peaked at 90 tasks, so 4096 leaves more than an
+  order of magnitude of room and still catches a storm.
+- **`-p AllowedCPUs=0-2`.** The scope is pinned to three of the four vCPUs, so CPU 3 always stays
+  free for the runner agent, the sampler and the OS. Inside the scope `nproc` reports 3.
+- **`--slice=system.slice`.** This makes the scope's cgroup path a contract the sampler can read.
+
+`AllowedCPUs` was chosen over the alternatives:
+
+- **`CPUQuota=300%`** bounds only the average over each 100 ms period. A saturating suite can
+  still occupy all four cores until it is throttled, and the agent then waits behind it on every
+  core.
+- **`CPUWeight`** acts only under contention between sibling cgroups, and guarantees no core.
+
+Pinning trades a quarter of the scope's compute for a guaranteed core. The arithmetic for the
+phase budgets: a fully CPU-bound phase runs at most 4/3 slower. The `tool-fleet` estimate of 42.9
+minutes then becomes 57.2, inside its 75-minute phase. The workspace's 20m41s becomes 27.6,
+inside 105. `tool-fleet:test` at parallelism one mostly runs one process, so its real cost should
+be lower. The first hosted scope's CPU deltas stayed between 31.9 and 80.2 million µs per
+30-second sample, below the 90 million of three busy CPUs.
+
+The probe now also reads the scope's `pids.max` and `cpuset.cpus.effective`. The step refuses
+unless the probe reports `pidsMax=4096 cpus=0-2` along with the memory figures and the heap limit.
+An absent `cpuset.cpus.effective` means the cpuset controller is not enabled for the scope, and it
+is refused like a wrong value.
+
+The evidence trail grows in two places:
+
+- **Each sample.** Every `runtime headroom sample` line ends with
+  `scopePids=… scopeMemKiB=… scopePeakKiB=… scopeCpuUsec=…`. The values are read from outside the
+  scope, from `/sys/fs/cgroup/system.slice/ci-gate-PARTITION-PID.scope/`: `pids.current`,
+  `memory.current`, `memory.peak` and `cpu.stat`'s `usage_usec`. All four read `unavailable`
+  before the scope starts, after it ends, or when a file is missing, unreadable or not a count.
+  A CPU-bound series rises by about 90000000 µs between 30-second samples.
+- **The end record.** systemd removes the scope's cgroup when its last process exits. A bash
+  wrapper inside the scope therefore runs the gate command, copies `pids.events` `max`,
+  `memory.events` `oom_kill` and `pids.peak` to a file, and exits with the gate's status. The end
+  record prints `runtime headroom scope events pidsEventsMax=N memoryEventsOomKill=N pidsPeak=N`.
+  A kernel without `pids.peak` gives `pidsPeak=unavailable`. An empty copy prints `absent` (the
+  wrapper never wrote, for example because it was killed), and a malformed one `unavailable`.
+
+**Proof plan.** The next full-mode main run should end in one of these ways:
+
+- **The `tool-fleet` leaf passes.** One of the new caps held.
+- **It fails with a log.** The end record shows `pidsEventsMax` above zero (a fork storm, refused
+  by TasksMax), or the samples show a CPU-bound `scopeCpuUsec` series before the failure.
+- **It is lost again, at about 67m03s.** Neither memory, tasks nor the agent's core explains the
+  loss. First find what tool-fleet does at that offset: a surviving run's sample timestamps, or
+  per-test timings, name the task running then. The remaining candidates are network breakage, a
+  signal to a foreign group, or a fixed deadline inside that task. The fallback lever is to run
+  tool-fleet's native tests only on the gate hosts, as tool-remote-scripts runs under
+  A-GATE-REMOTE-1, or to give them their own leaf.
+
+`pr-merge-base.test.ts` covers the change, and each of these faults failed a test:
+
+- Dropping `-p TasksMax`, `-p AllowedCPUs`, `--slice=system.slice` or the events wrapper failed
+  the scope ledger.
+- With `pids.max` and `cpuset.cpus.effective` removed from the probe and its report check,
+  `pids.max=max`, an absent `pids.max`, `cpus=0-3` and an absent cpuset file all reached the
+  runtime.
+- Deleting the scope fields from the sample, their count check or the `system.slice` path failed
+  the sampler test. That test runs the production functions against a scratch cgroup.
+- Accepting any events copy, reading `pids.peak` without checking that it exists, or dropping the
+  empty-copy `absent` branch failed the telemetry test. Dropping `pidsPeak` from the copy failed
+  the ledger.
+
+#967's own run 44925912318 proved the scope on a hosted runner (image `20261116.376.1`). The
+workspace start record read `memoryMax=12G tasksMax=4096 allowedCpus=0-2
+scope=ci-gate-workspace-2799.scope`, the probe refused nothing, and the phase ended
+`elapsedSeconds=1284 exit=0` with `pidsEventsMax=0 memoryEventsOomKill=0`. That run predates the
+`pidsPeak` field. It selected no tool-fleet leaf, so the lever itself waits for main.
+
+### Amendment, 2026-11-21: a black-box recorder that lives off the runner
+
+Both `gate workspace-heavy (tool-fleet)` losses lasted exactly 67m03s from job start: job
+136708786587 ran uncapped and job 136887016810 ran inside `MemoryMax=12G` with no swap. Each
+carries the annotation "The hosted runner lost communication with the server", and neither has a
+step conclusion, a log or an artifact. The job's log blob returns 404, so GitHub keeps nothing.
+
+The suite itself is modest. A laptop probe ran `bunx nx run tool-fleet:test` inside a user scope
+capped at 12G and 4096 tasks:
+
+- 9368 tests across 319 files passed in 1873 s, and the process tree peaked at 5.9 GiB.
+- The scope recorded no OOM kill and no `pids.max` event, and the run exited 0.
+- In CI the same suite took 2027 s (33.8 minutes) in the surviving workspace shard of run 44797660117.
+
+So the leaf is lost about 20 minutes after its suite should have ended. Something hangs at or
+after the end, and the runner then dies at a fixed offset.
+
+**On-runner evidence cannot survive this.** The sampler, the end record, #967's scope telemetry
+and the `nx-gate.log` artifact are all written on the runner. They reach GitHub only through
+steps that run after the phase, and a lost runner never runs them. Whatever names the hanging test
+has to leave the runner while the phase is still running.
+
+**The recorder (A-CI-LEAF-RECORDER-1).** The heavy-leaf step starts a background loop for the
+`tool-fleet` leaf only. It runs outside the scope, next to the sampler. The partition gate is a
+shell test on `partition`, so the workspace and heavy-leaf step texts stay byte-equal. Every
+120 s the loop builds a short report:
+
+- **Header.** Run id, job, attempt and head SHA, then the UTC time and the phase's elapsed time.
+- **Samples.** The last three `runtime headroom sample` lines.
+- **Log tail.** The last 15 other `nx-gate.log` lines, with ANSI escapes stripped. Bun prints a
+  `✓` or `✗` line as each test ends, under the line naming its file. The last `✓` is the last
+  completed test, so the hanging test is the next one in the file named above it.
+- **Processes.** `ps -eo pid,ppid,etimes,rss,comm --sort=-rss`, the first 12 lines, and the
+  `pgrep -c .` task count.
+- **Kernel.** The last five lines of `journalctl -k --since -3min`.
+
+The first tick creates one comment on issue #963 with `gh api`. The loop stores its id, and every
+later tick PATCHes that same comment, so each run attempt keeps one living comment. After the
+phase the step stops the loop with kill and wait, then PATCHes a final report. That report adds
+the phase end line and the scope events line. If the runner dies, the last PATCH stays on the
+issue, and that is the point.
+
+**Safety of the report.** The log carries no secret. As a cheap guard, any line with a secret's
+shape is replaced with a redaction marker before posting: a GitHub token
+(`gh[pousr]_` followed by 20 or more characters, or `github_pat_`), a `Bearer` value of 20 or more
+characters, or a `wbs_mk_` key. Words are not redacted. 83 of 10858 real tool-fleet lines contain
+`token` or `secret` (for example "…custody before readonly server effects: token"), and they
+cluster, so redacting words could blank the whole 15-line window. A zero-width space after each
+`@` keeps the comment from mentioning anyone. The body is capped at 61440 bytes, under GitHub's
+65536-character comment limit.
+
+**Permissions.** The `gate_heavy` job alone now has `issues: write` alongside `contents: read`,
+and its step gets `GH_TOKEN` from `github.token`. The widening is limited in three ways:
+
+- The token can write issues only on push, merge_group, dispatch and same-repository PRs.
+- On a fork PR GitHub issues a read-only token, so the first create fails. The recorder then
+  writes `runtime recorder unavailable: HTTP 403` once and stops.
+- The step reads the token into a shell variable and unsets `GH_TOKEN` before it captures the
+  exported environment for the scope. The token therefore never reaches the scope's argv, sudo's
+  journal line or the tests.
+
+The recorder is optional telemetry and never changes the gate status. A failed create stops it
+after one `unavailable` line, and a failed PATCH writes `runtime recorder patch failed: …` and the
+loop carries on. Each `gh` call is bounded by a 30-second `timeout`.
+
+`pr-merge-base.test.ts` runs the production step with a fake `gh` that records each call's argv,
+body and token, and with the tick rewritten to one second. It asserts the header, the sections,
+one create followed by PATCHes of comment 4242, the cap, the redaction, the final report, and that
+the runtime saw no token. Another test asserts that a 403 or a failed PATCH leaves the status
+unchanged, and that the workspace step and the `tool-devsync` and `wbs-core` leaves make no `gh`
+call. Each of these faults failed a test:
+
+- Gating on any partition made the workspace step call `gh`.
+- Dropping the stored comment id created a comment on every tick.
+- Dropping the cap posted a 92254-byte body. Dropping the shape guard posted a bearer value, and
+  matching the word `token` again redacted a line that should stay.
+- Dropping the escape filter posted ESC bytes, and dropping the `@` filter posted a mention.
+- Without the final publish's fallback, a 403 failed the step with exit 1. Without the
+  `unavailable` marker, the final report retried the create.
+- Leaving `GH_TOKEN` exported put the token in the runtime's environment.
+
+No hosted run has exercised the recorder yet. The fake `gh` proves the call pattern, but not
+GitHub's acceptance of the PATCH or its rate limits.
+
+**Proof plan.** On the next full-mode main run, one of two things happens:
+
+- **The leaf is lost again.** The issue #963 comment for that run names the test that was running
+  at the hang, with the processes and kernel lines from the last tick before the loss.
+- **The leaf passes.** The final report shows the phase end, and the comment holds the full
+  trail.
+
+The recorder is removed once #963's cause is fixed.
+
+### Amendment, 2026-11-22: disk ruled out, and the losses follow the hosting cloud
+
+Main `5f52c9eb2` (run 44967184073, push) lost `gate workspace-heavy (tool-fleet)` again: job
+137038867722 ran from 00:33:47Z to 01:40:47Z, 67m00s. The step had `MemoryMax=12G`,
+`TasksMax=4096` and `AllowedCPUs=0-2`, which keeps CPU 3 free for the runner agent. The annotation
+is the same, with no step conclusion, no log and no artifact. This is the seventeenth loss and the
+fifth on main for this leaf, and all five lasted from 67m00s to 67m03s, job start to failure:
+
+| Job          | Commit      | Run         | Scope                                  | Duration |
+| ------------ | ----------- | ----------- | -------------------------------------- | -------- |
+| 136708786587 | `e8e568784` | 44859286080 | none                                   | 67m03s   |
+| 136887016810 | `b7ad74ab4` | 44917747487 | `MemoryMax=12G`                        | 67m03s   |
+| 136901170790 | `b17861f83` | 44922395238 | `MemoryMax`, `TasksMax`, `AllowedCPUs` | 67m01s   |
+| 137001840799 | `01f001a9c` | 44955226448 | `MemoryMax`, `TasksMax`, `AllowedCPUs` | 67m03s   |
+| 137038867722 | `5f52c9eb2` | 44967184073 | `MemoryMax`, `TasksMax`, `AllowedCPUs` | 67m00s   |
+
+Counted by attempt, main has lost 16 jobs since 2026-11-18: 10 `gate workspace`, 1 single
+`gate workspace-heavy` and these 5 leaves. Three of them were earlier attempts of runs whose
+latest attempt is counted below: 136177983041 and 136408071558 of run 44703647201, and
+136583725221 (74m01s) of run 44821587380.
+
+**Ruled out or unlikely.** Each of these would have left a log under the caps, or does not fit
+the measurements:
+
+- **Memory.** The cap OOM-kills inside the scope, with `exit=1` and the kernel's lines.
+- **Tasks.** `TasksMax=4096` would refuse a fork storm with `EAGAIN` inside the scope.
+- **CPU starvation of the agent.** CPU 3 is outside the scope's cpuset.
+- **Disk.** Every start and end record read shows a 145 GB root with 82 to 85 GB free:
+  `/dev/root 145G 63G 82G 44%` at the start of run 44797660117's workspace phase, and
+  `/dev/mapper/cow-root 145G 60G 85G 42%` at both ends of run 44967184073's workspace phase and of
+  run 44849226664's 61-minute heavy phase, which ran `tool-fleet:test` in full. Filling 85 GB in
+  an hour needs about 21 MB/s, sustained, and used space in the surviving runs moved by 1 GB or
+  less.
+
+A steady accumulation would not repeat to the second across three regimes either. The trigger
+looks fixed: a point in the job, or a deadline on the host.
+
+**A healthy leaf finishes in about 40 minutes.** Main run 44972618306 (`ae79ba936`) ran its
+`tool-fleet` leaf (job 137055572828) on an Azure host, as this amendment predicted before it
+ended. It succeeded in 39m27s (01:41:46Z to 02:21:13Z), and its #963 final report read `exit=0`
+and `pidsPeak=67`. A peer's run 44973329598 also passed its leaf on Azure, in 31.6 minutes. These
+are the first survivals of the leaf on its own. A lost leaf therefore hangs for about 27 minutes
+past the point where a healthy one has finished.
+
+**The losses follow the hosting cloud.** Each job's `Set up job` log names its runner image and
+its provider (`Runner Image Provisioner`, `Cloud: AWS` or `Cloud: Azure`). The image version maps
+one-to-one to the cloud: `20261111.127.1` and `20261116.133.1` run on AWS, while `20261101.360.1`,
+`20261111.370.1` and `20261116.376.1` run on Azure. AWS-backed runners first appear in this
+repository's gate jobs on 2026-11-12. The runner agent stayed at 2.338.2 throughout, and every
+heap limit read was 4345298944. `ci.yml` did not change between 2026-11-08 and 2026-11-20, and the
+first loss came on 2026-11-18 at 02:28Z.
+
+The 2026-11-16 images rolled out gradually, cloud by cloud:
+
+- The first surviving AWS job on `20261116.133.1` is run 44393042208, at 2026-11-18 20:38Z.
+- The first surviving Azure job on `20261116.376.1` is run 44797660117, at 2026-11-20 18:58Z.
+- The provisioner moved from `20261103.629` to `20261111.635` along with each image.
+- The first three losses came at 02:28Z, 05:22Z and 14:01Z on 2026-11-18. In those runs (44223434187,
+  44243790538, 44319636759) the surviving AWS job, `gate remote`, still ran `20261111.127.1` on
+  provisioner `20261103.629`.
+
+The lost jobs' own images are unknown, so the image roll is not tied to the losses.
+
+The surviving gate jobs of the latest attempts of the 31 main runs from 2026-11-17 22:40Z to
+2026-11-22 01:41Z show the skew. A lost job keeps no log, so its cloud is unknown. The table
+counts survivors only and leaves out earlier attempts:
+
+| Surviving jobs since 2026-11-17 | AWS | Azure |
+| ------------------------------- | --- | ----- |
+| Ran `tool-fleet:test`           | 2   | 14    |
+| Every other gate job            | 62  | 31    |
+
+The jobs that ran `tool-fleet:test` are the pre-split workspace jobs, the single heavy job and the
+`tool-fleet` leaf. The AWS workspace job of run 44519931198 failed after 3 minutes, before any test,
+and is left out. Against the two-thirds AWS share of every other job, two or fewer AWS survivors
+out of 16 has a binomial probability of about 1e-5. Survivors that ran the suite are therefore
+mostly on Azure. The two AWS survivors (workspace run 44393042208 and heavy run 44849226664, both
+on `20261116.133.1`) show that AWS does not lose the suite every time.
+
+A consistency check: suppose all 13 latest-attempt losses were on AWS. Then 15 of the 29 jobs that
+ran the suite were on AWS, 52% against the 67% base. `P[X ≤ 15 | n = 29, p = 0.667]` is about 0.07,
+so that reading is consistent with how the pool assigns jobs. It is still inference.
+
+**Remaining candidates**, all on the hosted side:
+
+- **Network breakage on AWS hosts.** tool-fleet's native tests run `bwrap` sandboxes and an
+  in-namespace `dockerd` (`bridge: none`, `iptables: false`, the `vfs` storage driver). If one of
+  them disturbs the host's network or the agent's connection on that platform, GitHub would lose
+  the runner with no log.
+- **A signal to the runner**, from the host side or from the suite.
+- **A platform regression on the AWS pool.** No lost job's image is known, so the 2026-11-16
+  image roll is a weaker lead than the cloud itself.
+
+**The lever (A-CI-LEAF-DISK-1).** It is telemetry only:
+
+- Every `runtime headroom sample` line ends with four fields: `rootAvailKiB`, `mntAvailKiB`,
+  `tmpAvailKiB` and `dockerRootAvailKiB`. These are the free KiB from `df --output=avail -k` on /, /mnt,
+  `${TMPDIR:-/tmp}` and the data root that `docker info -f '{{.DockerRootDir}}'` names. A missing
+  mount, a failed df, a non-count answer or a host without a daemon reads `unavailable` for that
+  field alone, and the sample never fails.
+- The tool-fleet leaf's #963 report gains a `disk` section: the data root, then one `df -h` line
+  each for /, /mnt, `$TMPDIR` and the data root, or `unavailable`. df's own status decides each
+  line, with no pipeline. With the samples' free KiB, the last tick before a loss shows the disk
+  trend.
+- The start record and the #963 header name the host's cloud from
+  `/sys/class/dmi/id/sys_vendor` and `product_name`: `cloud=azure` ("Microsoft Corporation"),
+  `cloud=aws` ("Amazon EC2") or `cloud=other:VENDOR`, then `dmiProduct=…`. An absent or unreadable
+  file gives `cloud=unavailable dmiProduct=unavailable`, and the record never fails on it. The next
+  AWS loss's last #963 tick will name both the cloud and the hanging test.
+
+A low-disk watchdog that stops the scope below 2 GiB was considered and dropped. With 82 to 85 GB
+free and no measured growth, it would guard an implausible failure with untested code on the
+shared step. tool-fleet's in-namespace Docker data roots live in test scratch under the process's
+`os.tmpdir()`, which is `/tmp` on the runner's root disk. That is harmless at these figures.
+
+`pr-merge-base.test.ts` runs the production step and functions with three fakes:
+
+- a fake `df` that scripts free KiB per path, where `absent` fails every form, as a missing mount
+  does;
+- a fake `docker`;
+- a scratch DMI root bound through the step's `dmi_root=` line, with Azure, AWS, other, absent and
+  unreadable cases.
+
+Each of these faults failed a test:
+
+- Dropping `mntAvailKiB` or the `sample_disk` call failed the disk test and the headroom tests'
+  sample patterns.
+- Dropping `disk_avail`'s count check passed a `12G` answer through.
+- Dropping `disk_avail`'s or the Docker branch's `unavailable` fallback left an empty field.
+- Changing the heavy-leaf copy alone failed the byte-equality test.
+- Dropping the recorder's disk section, its per-path `unavailable` line or the header's cloud field
+  failed the living-comment test.
+- Dropping the cloud field from the start record failed the cloud test and the start-record and
+  heap-limit patterns. Dropping the "Amazon EC2" mapping failed the aws case.
+
+**Proof plan and the next lever.**
+
+- **An AWS leaf.** A leaf whose start record and #963 header read `cloud=aws` should be lost
+  near 67 minutes, with healthy disk fields. Its last tick names the hanging test. If the disk
+  fields fall instead, disk is back in.
+- **Refutation.** An Azure leaf lost the same way refutes the cloud hypothesis.
+- **If the hypothesis is confirmed,** skipping the native tests on AWS hosts would hide the fault.
+  Under R5 that is not sound unless the skip is loud and the gate hosts run those tests instead.
+  "Fail fast and re-queue" has no primitive in GitHub Actions. The sound levers are:
+  - run that leaf's native tests on the gate hosts;
+  - give the leaf a runner label that keeps it off the AWS pool, if GitHub offers one.
+
 ## Checks kept without a reachable negative
 
 This section is outside the mapped payload region below: it is new prose, not a block preserved
@@ -585,6 +942,120 @@ intervals, so no input is known to reach it — disabling it left wbs-domain and
 (791 / 431 pass, 2026-09-29); the pinned replay's equivalent refusal lives in
 `holdPinnedResources`, which has observed negatives. Kept so a placement change that let Fast
 overlap a person would stop, not publish; its throw site says so.
+
+## Bun runtime flags can select a package script before the test subcommand
+
+On 2026-11-13 with Bun 1.4.4, a private validator proof driver used
+`bun --preload <file> test <test-file> ...`. In this workspace that selected the
+package's `test` script, which launched Nx for 55 projects and four prerequisites.
+The healthy phase timed out after 12 seconds; no injected-fault phase ran. A static
+review had checked the hook and failure classifier but missed command dispatch.
+The outcome is invalid setup, never a healthy or breakability result.
+
+The exact intended built-in form, `bun test --preload <file> <test-file> ...`,
+was separately observed in a private-directory preload sentinel (1 pass/0 fail).
+The later application healthy child passed 2 selected tests but emitted no expected
+process-exit trace, so that driver also refused credit. A passing test count alone
+did not establish that the actual dependency hook had been consumed.
+
+Keep dispatch, hook-consumption and first-own failure evidence distinct. Match
+actual test names and owning assertion frames, preserve fresh exclusive artifacts,
+and record timeout/setup failures before changing a harness. Runtime flags and a
+reviewed argv are not evidence of the executed tool contract.
+
+The unintended invocation left one uniquely marked orphan; it was reidentified,
+terminated and observed gone. The follow-up host marker scan had no match among 151
+readable process environments, while nine environments were unreadable. Broader
+descendant cleanup and repository/index effects remain unverified. Ten declared
+source/config pins matching cannot establish whole-tree continuity. Original
+receipts and containment observations remain in
+`/tmp/puni-comparison-validator-fault-v5/flight`; the subsequent missing-trace
+attempt remains separately in `/tmp/puni-comparison-validator-fault-v6/flight`.
+
+The separate V7 experiment used Bun's `afterAll` lifecycle hook and recorded actual
+validator calls in all three fresh children. Healthy-before and healthy-after each
+passed two tests with nine assertions; the accepting-dependency child failed both
+tests at their first owning missing-left-parent and null-right-parent assertions.
+This qualifies one outer-validator dependency fault with two witnesses. It does
+not independently qualify every parent grammar branch, and it does not repair the
+V5/V6 incidents or their broader containment and repository/index unknowns. The
+reviewed evidence is `/tmp/puni-comparison-validator-fault-v7/evidence.json`.
+
+### Reused native evidence prefix and wrapper exit status (2026-11-13)
+
+A consumer runner reused the already occupied green-parent evidence prefix. Its
+exclusive log open failed before that attempt acquired a process owner or spawned
+a child; exclusive receipt publication then failed too. The original receipt still
+describes its earlier 21-pass/2-fail child. It cannot identify a fresh invocation.
+The first outer exit and inner publication cause were not separately captured, so
+neither a successful wrapper nor complete absence of side effects is established.
+
+A shell newline independently launched the next command. That original child
+reported 44 passes, one failure and native exit 1; its wrapper exited 0 after
+printing the receipt. Wrapper success therefore did not prove test success. The
+failed assertion discarded nested stderr, leaving its cause unknown. Preserve
+both observations rather than infer an environment or trust failure.
+
+The reviewed incident and bounded recovery are recorded in
+`/tmp/puni-document-consumer-native-prefix-incident-v1` and
+`/tmp/puni-document-consumer-prefix-incident-astra-v1.md`. Successors use fresh
+exclusive paths, one dispatch at a time, inspect the original outcome and owned
+cleanup before proceeding, and propagate the native exit status.
+
+A diagnostic-only successor retained the actual production validator and captured
+both nested stderr streams. Under the default sandbox both failed with EPERM at
+the CLI stdout write. The same source, arguments and environment passed the one
+selected case under approved escalated execution. This supports that observed
+sandbox boundary only; no trusted-module setting, validator, installed output API
+or previously rejected formal operation was changed. Evidence remains in
+`/tmp/puni-document-consumer-records-observation-v1` and
+`/tmp/puni-document-consumer-records-escalation-preparation-v1`.
+
+The2026-11-21 continuation reproduces this boundary with pinned Bun1.4.4: child
+stdout is a Unix socket; process-stream and FileSink writes fail under restriction,
+while Bun.write and descriptor writes succeed. The unchanged CLI parser suite passes
+82/0 outside restriction, and saved original inventory/Git/FIFO probes pass102/0.
+The test-only descriptor workarounds introduced during that diagnosis are reverted;
+CLI runtime output and its ownership contracts are unchanged.
+
+More seriously, exact private production-source copies with either the Git exit-status
+or stderr-warning guard removed still pass the corresponding refusal test inside the
+sandbox. A diagnostic successor observes an earlier rev-parse EPERM, before the
+intended index fault. The same mutants fail their required-rejection assertions
+outside restriction. These are two observed false greens,not proof that the removed
+guards work. Use an environment that reaches the intended fault and retain both
+outcomes; do not repair product IO or weaken assertions to accommodate the restriction.
+The first syscall trace reused its runner's log path and is excluded; a corrected trace
+attempt records denied ptrace setup,not an observed application syscall.
+
+Current commands,raw outcomes,copied-source identities and final verification live in
+[the native-output environment record](../../openspec/changes/puni-cli/verification-native-output-environment-20261121.json).
+
+### A Vitest invocation can select no case and still exit zero (2026-11-13)
+
+The first isolated frontend failed-build request omitted Vitest's actual `" > "`
+separator between suite and case names. Its original process exited0/null with
+all7 tests skipped. No lifecycle controller or inner receipt existed. This is a
+selection exclusion, not a passing lifecycle check or a feature RED. The scoped
+owner and output descriptors settled cleanly; that does not supply missing test
+coverage. Installed matcher source confirmed the separator; a fresh corrected
+one-case request then selected exactly one case and observed the intended
+controlled failed-build result. Preserve both epochs. Originals are in
+`/tmp/puni-ordinary-browser-frontend-v1/failed-build-native-v1` and
+`failed-build-native-v2`. Check selected assertions as well as native status,
+and inspect original inner/outer custody before the next process-control case.
+
+### Flat comment scanning undercounted preserved Proof text (2026-11-13)
+
+The provider packet's flat TypeScript scanner counted66 historical Proof groups.
+A complete parser-token inventory finds133 Proof-containing comment tokens and
+markers, grouped into119 contiguous blocks, in the original preimages, retained
+snapshot and current21-file successor. All133 bytes/order match. The67 missed
+starts follow template literals; no comments were added or lost by the source
+successor. These are different inventory units, not133 independent safety checks.
+Old packets remain immutable and their count is qualified by
+`/tmp/puni-provider-proof-parser-audit-v3/report.md`. This correction supplies
+no runtime, omission or new R5 credit.
 
 <a id="r5-catalogue-heading"></a>
 <!-- root-source:r5.catalogue.heading -->
@@ -1267,117 +1738,3 @@ believed — not after it has been written down as a finding in three files.
 
 Prove your check fails when the thing is broken, and say so in the comment. A check whose
 failure mode has never been observed is a claim, not a gate.
-
-## Bun runtime flags can select a package script before the test subcommand
-
-On 2026-11-13 with Bun 1.4.4, a private validator proof driver used
-`bun --preload <file> test <test-file> ...`. In this workspace that selected the
-package's `test` script, which launched Nx for 55 projects and four prerequisites.
-The healthy phase timed out after 12 seconds; no injected-fault phase ran. A static
-review had checked the hook and failure classifier but missed command dispatch.
-The outcome is invalid setup, never a healthy or breakability result.
-
-The exact intended built-in form, `bun test --preload <file> <test-file> ...`,
-was separately observed in a private-directory preload sentinel (1 pass/0 fail).
-The later application healthy child passed 2 selected tests but emitted no expected
-process-exit trace, so that driver also refused credit. A passing test count alone
-did not establish that the actual dependency hook had been consumed.
-
-Keep dispatch, hook-consumption and first-own failure evidence distinct. Match
-actual test names and owning assertion frames, preserve fresh exclusive artifacts,
-and record timeout/setup failures before changing a harness. Runtime flags and a
-reviewed argv are not evidence of the executed tool contract.
-
-The unintended invocation left one uniquely marked orphan; it was reidentified,
-terminated and observed gone. The follow-up host marker scan had no match among 151
-readable process environments, while nine environments were unreadable. Broader
-descendant cleanup and repository/index effects remain unverified. Ten declared
-source/config pins matching cannot establish whole-tree continuity. Original
-receipts and containment observations remain in
-`/tmp/puni-comparison-validator-fault-v5/flight`; the subsequent missing-trace
-attempt remains separately in `/tmp/puni-comparison-validator-fault-v6/flight`.
-
-The separate V7 experiment used Bun's `afterAll` lifecycle hook and recorded actual
-validator calls in all three fresh children. Healthy-before and healthy-after each
-passed two tests with nine assertions; the accepting-dependency child failed both
-tests at their first owning missing-left-parent and null-right-parent assertions.
-This qualifies one outer-validator dependency fault with two witnesses. It does
-not independently qualify every parent grammar branch, and it does not repair the
-V5/V6 incidents or their broader containment and repository/index unknowns. The
-reviewed evidence is `/tmp/puni-comparison-validator-fault-v7/evidence.json`.
-
-### Reused native evidence prefix and wrapper exit status (2026-11-13)
-
-A consumer runner reused the already occupied green-parent evidence prefix. Its
-exclusive log open failed before that attempt acquired a process owner or spawned
-a child; exclusive receipt publication then failed too. The original receipt still
-describes its earlier 21-pass/2-fail child. It cannot identify a fresh invocation.
-The first outer exit and inner publication cause were not separately captured, so
-neither a successful wrapper nor complete absence of side effects is established.
-
-A shell newline independently launched the next command. That original child
-reported 44 passes, one failure and native exit 1; its wrapper exited 0 after
-printing the receipt. Wrapper success therefore did not prove test success. The
-failed assertion discarded nested stderr, leaving its cause unknown. Preserve
-both observations rather than infer an environment or trust failure.
-
-The reviewed incident and bounded recovery are recorded in
-`/tmp/puni-document-consumer-native-prefix-incident-v1` and
-`/tmp/puni-document-consumer-prefix-incident-astra-v1.md`. Successors use fresh
-exclusive paths, one dispatch at a time, inspect the original outcome and owned
-cleanup before proceeding, and propagate the native exit status.
-
-A diagnostic-only successor retained the actual production validator and captured
-both nested stderr streams. Under the default sandbox both failed with EPERM at
-the CLI stdout write. The same source, arguments and environment passed the one
-selected case under approved escalated execution. This supports that observed
-sandbox boundary only; no trusted-module setting, validator, installed output API
-or previously rejected formal operation was changed. Evidence remains in
-`/tmp/puni-document-consumer-records-observation-v1` and
-`/tmp/puni-document-consumer-records-escalation-preparation-v1`.
-
-The2026-11-21 continuation reproduces this boundary with pinned Bun1.4.4: child
-stdout is a Unix socket; process-stream and FileSink writes fail under restriction,
-while Bun.write and descriptor writes succeed. The unchanged CLI parser suite passes
-82/0 outside restriction, and saved original inventory/Git/FIFO probes pass102/0.
-The test-only descriptor workarounds introduced during that diagnosis are reverted;
-CLI runtime output and its ownership contracts are unchanged.
-
-More seriously, exact private production-source copies with either the Git exit-status
-or stderr-warning guard removed still pass the corresponding refusal test inside the
-sandbox. A diagnostic successor observes an earlier rev-parse EPERM, before the
-intended index fault. The same mutants fail their required-rejection assertions
-outside restriction. These are two observed false greens,not proof that the removed
-guards work. Use an environment that reaches the intended fault and retain both
-outcomes; do not repair product IO or weaken assertions to accommodate the restriction.
-The first syscall trace reused its runner's log path and is excluded; a corrected trace
-attempt records denied ptrace setup,not an observed application syscall.
-
-Current commands,raw outcomes,copied-source identities and final verification live in
-[the native-output environment record](../../openspec/changes/puni-cli/verification-native-output-environment-20261121.json).
-
-### A Vitest invocation can select no case and still exit zero (2026-11-13)
-
-The first isolated frontend failed-build request omitted Vitest's actual `" > "`
-separator between suite and case names. Its original process exited0/null with
-all7 tests skipped. No lifecycle controller or inner receipt existed. This is a
-selection exclusion, not a passing lifecycle check or a feature RED. The scoped
-owner and output descriptors settled cleanly; that does not supply missing test
-coverage. Installed matcher source confirmed the separator; a fresh corrected
-one-case request then selected exactly one case and observed the intended
-controlled failed-build result. Preserve both epochs. Originals are in
-`/tmp/puni-ordinary-browser-frontend-v1/failed-build-native-v1` and
-`failed-build-native-v2`. Check selected assertions as well as native status,
-and inspect original inner/outer custody before the next process-control case.
-
-### Flat comment scanning undercounted preserved Proof text (2026-11-13)
-
-The provider packet's flat TypeScript scanner counted66 historical Proof groups.
-A complete parser-token inventory finds133 Proof-containing comment tokens and
-markers, grouped into119 contiguous blocks, in the original preimages, retained
-snapshot and current21-file successor. All133 bytes/order match. The67 missed
-starts follow template literals; no comments were added or lost by the source
-successor. These are different inventory units, not133 independent safety checks.
-Old packets remain immutable and their count is qualified by
-`/tmp/puni-provider-proof-parser-audit-v3/report.md`. This correction supplies
-no runtime, omission or new R5 credit.
