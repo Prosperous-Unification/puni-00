@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { OrganizationHarness } from '../testing/organization-harness';
+import { createFixturePackage, readFixturePackage } from '../testing/space-rollup';
 
 /**
  * The claim history read over be-01's production composition and real SQLite
@@ -22,9 +23,7 @@ beforeEach(async () => {
   h.grantPermissions('org-a', 'mem', ['organization.create_project']);
   h.bind('mem', 'org-a');
   h.activate();
-  const created = await h.call('mem', 'POST', '/api/work-packages', { name: 'Claims' });
-  if (created.status !== 200) throw new Error(`create refused: ${JSON.stringify(created)}`);
-  workPackageId = (created.body as { workPackage: { id: string } }).workPackage.id;
+  workPackageId = await createFixturePackage(h, 'mem', 'Claims');
   const rows = await h.call('mem', 'POST', `/api/work-packages/${workPackageId}/commands`, {
     commands: [
       { kind: 'createWorkItem', parentId: null, name: 'Leaf' },
@@ -37,11 +36,13 @@ beforeEach(async () => {
   [leaf, other] = results.map(({ id }) => id);
   // This history fixture begins with running nodes, so claiming every step
   // remains valid under workflow prerequisites.
-  h.sqlite
-    .query(
-      "INSERT INTO step_progress(work_item_id,step_id,state,stated_at) SELECT w.id,s.id,'in_progress',1 FROM work_item w JOIN step s ON s.work_package_id=w.work_package_id WHERE w.work_package_id=?",
-    )
-    .run(workPackageId);
+  const { steps } = await readFixturePackage(h, 'mem', workPackageId);
+  for (const id of [leaf, other])
+    for (const step of steps)
+      h.sqlite.run(
+        "INSERT INTO step_progress(work_item_id,step_id,state,stated_at) VALUES(?,?,'in_progress',1)",
+        [id, step.id],
+      );
   h.sqlite.run('INSERT INTO person (id, name, kind, account_id) VALUES (?, ?, ?, ?)', [
     'claire',
     'root-claire',
@@ -60,11 +61,7 @@ afterEach(() => {
 
 describe('the claim history read over a real batch', () => {
   it('lists a claim made beside setProgress in one batch', async () => {
-    const step = h.sqlite
-      .query<{ id: string }, [string]>(
-        'SELECT id FROM step WHERE work_package_id = ? ORDER BY position LIMIT 1',
-      )
-      .get(workPackageId)?.id;
+    const step = (await readFixturePackage(h, 'mem', workPackageId)).steps.at(0)?.id;
     if (step === undefined) throw new Error('the work package has no step');
     const batch = await h.call('mem', 'POST', `/api/work-packages/${workPackageId}/commands`, {
       commands: [

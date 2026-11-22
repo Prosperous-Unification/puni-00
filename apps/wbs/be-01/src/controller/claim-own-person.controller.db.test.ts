@@ -12,6 +12,7 @@ import {
   type HarnessMachineGrants,
   OrganizationHarness,
 } from '../testing/organization-harness';
+import { createFixturePackage, readFixturePackage } from '../testing/space-rollup';
 
 const T = 1_900_000_000_000;
 let machineGrants: HarnessMachineGrants;
@@ -39,11 +40,8 @@ beforeEach(async () => {
   h.member('org-a', 'dany', 'super_admin', ['org-super-admin']);
   h.bind('dany', 'org-a');
   h.activate();
-  const created = await h.call('dany', 'POST', '/api/work-packages', { name: 'Plan of A' });
-  if (created.status !== 200) throw new Error(`create refused: ${JSON.stringify(created)}`);
-  const plan = created.body as { workPackage: { id: string }; steps: { id: string }[] };
-  workPackageId = plan.workPackage.id;
-  const firstStep = plan.steps.at(0);
+  workPackageId = await createFixturePackage(h, 'dany', 'Plan of A');
+  const firstStep = (await readFixturePackage(h, 'dany', workPackageId)).steps.at(0);
   if (firstStep === undefined) throw new Error('work package omitted its first workflow step');
   stepId = firstStep.id;
   const rows = await h.call('dany', 'POST', `/api/work-packages/${workPackageId}/commands`, {

@@ -8,6 +8,7 @@ import {
 import { afterEach, beforeEach, expect, test } from 'bun:test';
 
 import { OrganizationHarness } from '../testing/organization-harness';
+import { createFixturePackage, readFixturePackage, readProjectIds } from '../testing/space-rollup';
 
 let harness: OrganizationHarness;
 let workPackageId: string;
@@ -18,25 +19,37 @@ beforeEach(async () => {
   harness.member('org-a', 'ada', 'admin', ['org-admin']);
   harness.bind('ada', 'org-a');
   harness.activate();
-  const created = await harness.call('ada', 'POST', '/api/work-packages', { name: 'Runtime cap' });
-  expect(created.status).toBe(200);
-  workPackageId = (created.body as { workPackage: { id: string } }).workPackage.id;
+  workPackageId = await createFixturePackage(harness, 'ada', 'Runtime cap');
   harness.sqlite.run("INSERT INTO person (id,name,kind) VALUES ('person','Agent','agent')");
   harness.sqlite.run(
     "INSERT INTO person_organization (resource_id,organization_id,name) VALUES ('person','org-a','Agent')",
   );
   // Pin/cap/receipt fixtures require an unstarted first step before the work package's default Dev/QA.
-  const first = harness.sqlite
-    .query<{ position: number }, [string]>(
-      'SELECT position FROM step WHERE work_package_id=? ORDER BY position LIMIT 1',
-    )
-    .get(workPackageId);
-  if (first === null) throw new Error('fixture default workflow steps missing');
-  expect(first.position).toBeGreaterThan(0);
-  harness.sqlite.run(
-    "INSERT INTO step (id,work_package_id,name,position,code) VALUES ('dev',?,'Runtime cap dev',0,'runtime-cap-dev')",
-    [workPackageId],
-  );
+  const projectId = readProjectIds(harness, workPackageId);
+  await harness.publicWrites().uow.run(async ({ stores }) => {
+    const bound = await stores.stepCatalogue.defineAndBindStep(
+      'org-a',
+      {
+        id: 'dev',
+        code: 'runtime-cap-dev',
+        name: 'Runtime cap dev',
+        position: 0,
+        defaultEstimateUnit: 'workdays',
+        defaultAllowancePercent: 0,
+      },
+      {
+        bindingId: 'runtime-cap-dev-binding',
+        scopeKind: 'project',
+        scopeId: projectId,
+        workItemTypeId: null,
+        position: 0,
+      },
+      { at: 1, by: harness.userId('ada') },
+    );
+    if (!bound.ok) throw new Error('runtime cap first step was not bound: ' + bound.reason);
+    return { commit: true, value: undefined };
+  });
+  expect((await readFixturePackage(harness, 'ada', workPackageId)).steps.at(0)?.id).toBe('dev');
   for (const id of ['leaf', 'other'])
     harness.sqlite.run(
       "INSERT INTO work_item (id,work_package_id,position,name,readiness) VALUES (?,?,? ,?,'ready')",
@@ -180,7 +193,15 @@ test('mounted below-cap claim commits once and exact replay survives a lower cap
   capClaims(0);
   expect(await submit(request)).toEqual(accepted);
   expect(readEffects()).toEqual(committed);
-  harness.sqlite.run("UPDATE access_grant SET role_id='org-viewer' WHERE organization_id='org-a'");
+  expect(
+    harness.sqlite.run(
+      "DELETE FROM access_grant WHERE organization_id='org-a' AND subject_kind='user' AND subject_id=? AND origin='creation' AND (scope_kind='project' OR scope_kind='work_package')",
+      [harness.userId('ada')],
+    ).changes,
+  ).toBe(2);
+  harness.sqlite.run(
+    "UPDATE access_grant SET role_id='org-viewer' WHERE organization_id='org-a' AND scope_kind='organization'",
+  );
   expect(await submit(request)).toMatchObject({
     kind: 'refusal',
     status: 403,
