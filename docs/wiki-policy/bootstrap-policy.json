@@ -144,7 +144,172 @@
             "value": "openspec"
           }
         ],
-        "exclude": []
+        "exclude": [
+          {
+            "kind": "path",
+            "value": "openspec/changes/wbs-work-packages/fixtures/command-json-duplicates.json"
+          },
+          {
+            "kind": "path",
+            "value": "openspec/changes/wbs-work-packages/fixtures/command-json.json"
+          },
+          {
+            "kind": "path",
+            "value": "openspec/changes/wbs-work-packages/fixtures/legacy-comparison-captures.json"
+          },
+          {
+            "kind": "path",
+            "value": "openspec/changes/wbs-work-packages/fixtures/legacy-comparison-certificate-input10.txt"
+          },
+          {
+            "kind": "path",
+            "value": "openspec/changes/wbs-work-packages/fixtures/legacy-comparison-certificate-schedule2.txt"
+          },
+          {
+            "kind": "path",
+            "value": "openspec/changes/wbs-work-packages/fixtures/legacy-comparison-connected-input10.txt"
+          },
+          {
+            "kind": "path",
+            "value": "openspec/changes/wbs-work-packages/fixtures/legacy-comparison-local-input9.txt"
+          },
+          {
+            "kind": "path",
+            "value": "openspec/changes/wbs-work-packages/fixtures/legacy-comparison-local-schedule1.txt"
+          },
+          {
+            "kind": "path",
+            "value": "openspec/changes/wbs-work-packages/fixtures/legacy-comparison-ready-input10.txt"
+          },
+          {
+            "kind": "path",
+            "value": "openspec/changes/wbs-work-packages/fixtures/legacy-comparison-ready-schedule2.txt"
+          },
+          {
+            "kind": "path",
+            "value": "openspec/changes/wbs-work-packages/fixtures/legacy-connected-history-helper-capture.json"
+          },
+          {
+            "kind": "path",
+            "value": "openspec/changes/wbs-work-packages/fixtures/legacy-connected-history-helper10-2.txt"
+          },
+          {
+            "kind": "path",
+            "value": "openspec/changes/wbs-work-packages/fixtures/legacy-dash-runtime6.json"
+          },
+          {
+            "kind": "path",
+            "value": "openspec/changes/wbs-work-packages/fixtures/legacy-document-captures.json"
+          },
+          {
+            "kind": "path",
+            "value": "openspec/changes/wbs-work-packages/fixtures/legacy-document11-ordinary.txt"
+          },
+          {
+            "kind": "path",
+            "value": "openspec/changes/wbs-work-packages/fixtures/legacy-document12-connected.txt"
+          },
+          {
+            "kind": "path",
+            "value": "openspec/changes/wbs-work-packages/fixtures/legacy-input-captures.json"
+          },
+          {
+            "kind": "path",
+            "value": "openspec/changes/wbs-work-packages/fixtures/legacy-input10-connected.txt"
+          },
+          {
+            "kind": "path",
+            "value": "openspec/changes/wbs-work-packages/fixtures/legacy-input10-local.txt"
+          },
+          {
+            "kind": "path",
+            "value": "openspec/changes/wbs-work-packages/fixtures/legacy-input9-local.txt"
+          },
+          {
+            "kind": "path",
+            "value": "openspec/changes/wbs-work-packages/fixtures/legacy-resource-capture.json"
+          },
+          {
+            "kind": "path",
+            "value": "openspec/changes/wbs-work-packages/fixtures/legacy-resource-database1.txt"
+          },
+          {
+            "kind": "path",
+            "value": "openspec/changes/wbs-work-packages/fixtures/legacy-resource-terminal-capture.json"
+          },
+          {
+            "kind": "path",
+            "value": "openspec/changes/wbs-work-packages/fixtures/legacy-resource-terminal1.txt"
+          },
+          {
+            "kind": "path",
+            "value": "openspec/changes/wbs-work-packages/fixtures/legacy-runtime-acceptance1.txt"
+          },
+          {
+            "kind": "path",
+            "value": "openspec/changes/wbs-work-packages/fixtures/legacy-runtime-captures.json"
+          },
+          {
+            "kind": "path",
+            "value": "openspec/changes/wbs-work-packages/fixtures/legacy-runtime-database-capture.json"
+          },
+          {
+            "kind": "path",
+            "value": "openspec/changes/wbs-work-packages/fixtures/legacy-runtime-database1.txt"
+          },
+          {
+            "kind": "path",
+            "value": "openspec/changes/wbs-work-packages/fixtures/legacy-schedule-captures.json"
+          },
+          {
+            "kind": "path",
+            "value": "openspec/changes/wbs-work-packages/fixtures/legacy-schedule1-elsewhere.txt"
+          },
+          {
+            "kind": "path",
+            "value": "openspec/changes/wbs-work-packages/fixtures/legacy-schedule1-first-writer.txt"
+          },
+          {
+            "kind": "path",
+            "value": "openspec/changes/wbs-work-packages/fixtures/legacy-schedule1-local.txt"
+          },
+          {
+            "kind": "path",
+            "value": "openspec/changes/wbs-work-packages/fixtures/legacy-schedule2-connected.txt"
+          },
+          {
+            "kind": "path",
+            "value": "openspec/changes/wbs-work-packages/fixtures/legacy-schedule2-questions.txt"
+          },
+          {
+            "kind": "path",
+            "value": "openspec/changes/wbs-work-packages/fixtures/legacy-shared-people-recovery1.json"
+          },
+          {
+            "kind": "path",
+            "value": "openspec/changes/wbs-work-packages/fixtures/legacy-shared-people-save1.json"
+          },
+          {
+            "kind": "path",
+            "value": "openspec/changes/wbs-work-packages/fixtures/outgoing-store.json"
+          },
+          {
+            "kind": "path",
+            "value": "openspec/changes/wbs-work-packages/fixtures/rename-before.json"
+          },
+          {
+            "kind": "path",
+            "value": "openspec/changes/wbs-work-packages/fixtures/rename-integrity.json"
+          },
+          {
+            "kind": "path",
+            "value": "openspec/changes/wbs-work-packages/fixtures/schema-exceptions.json"
+          },
+          {
+            "kind": "path",
+            "value": "openspec/changes/wbs-work-packages/fixtures/shared-people-save2.json"
+          }
+        ]
       },
       {
         "contentClass": "placeholder",
@@ -5032,6 +5197,447 @@
         "regenerationAuthority": {
           "kind": "external",
           "authority": "External pinned Docker 29.1.3 containerd image-store OCI export. Regenerate with that exporter and re-characterize the root and metadata against tools/tool-fleet/src/registry-docker.test.ts before replacing this archive."
+        }
+      },
+      {
+        "path": "libs/wbs/adapters/store-memory/src/testing/fixtures/legacy-laundering-progress.json.gz",
+        "format": "application/gzip",
+        "consumer": "libs/wbs/adapters/store-memory/src/testing/legacy-memory-history.ts",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical predecessor Memory capture pinned by libs/wbs/adapters/store-memory/src/testing/fixtures/legacy-memory-history.json and openspec/changes/wbs-step-catalogue/verification-genuine-memory-history-20261121.json; repeating the retained producer at c8018843e6ff6827f7d97b67ff986cc717656578 creates a new capture."
+        }
+      },
+      {
+        "path": "libs/wbs/adapters/store-memory/src/testing/fixtures/legacy-laundering-rename.json.gz",
+        "format": "application/gzip",
+        "consumer": "libs/wbs/adapters/store-memory/src/testing/legacy-memory-history.ts",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical predecessor Memory capture pinned by libs/wbs/adapters/store-memory/src/testing/fixtures/legacy-memory-history.json and openspec/changes/wbs-step-catalogue/verification-genuine-memory-history-20261121.json; repeating the retained producer at c8018843e6ff6827f7d97b67ff986cc717656578 creates a new capture."
+        }
+      },
+      {
+        "path": "libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-delete-leaf-only.sqlite.gz",
+        "format": "application/gzip",
+        "consumer": "libs/wbs/adapters/store-sqlite/src/testing/legacy-delete-database.ts",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical predecessor SQLite capture pinned by libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-delete.json and openspec/changes/wbs-step-catalogue/verification-historical-parent-undo-20261120.json; retained producer uses Source c8018843e6ff6827f7d97b67ff986cc717656578. Repeating that workflow creates a new capture."
+        }
+      },
+      {
+        "path": "libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-delete-parent-progress.sqlite.gz",
+        "format": "application/gzip",
+        "consumer": "libs/wbs/adapters/store-sqlite/src/testing/legacy-delete-database.ts",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical predecessor SQLite capture pinned by libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-delete.json and openspec/changes/wbs-step-catalogue/verification-historical-parent-undo-20261120.json; retained producer uses Source c8018843e6ff6827f7d97b67ff986cc717656578. Repeating that workflow creates a new capture."
+        }
+      },
+      {
+        "path": "libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-destination-redo-missing.control.json.gz",
+        "format": "application/gzip",
+        "consumer": "libs/wbs/adapters/store-sqlite/src/testing/legacy-replay-database.ts",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical predecessor SQLite capture pinned by libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-replay.json and openspec/changes/wbs-step-catalogue/verification-genuine-replay-cutover-20261121.json; retained producer uses Source c8018843e6ff6827f7d97b67ff986cc717656578. Repeating that workflow creates a new capture."
+        }
+      },
+      {
+        "path": "libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-destination-redo-missing.producer.json.gz",
+        "format": "application/gzip",
+        "consumer": "libs/wbs/adapters/store-sqlite/src/testing/legacy-replay-database.ts",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical predecessor SQLite capture pinned by libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-replay.json and openspec/changes/wbs-step-catalogue/verification-genuine-replay-cutover-20261121.json; retained producer uses Source c8018843e6ff6827f7d97b67ff986cc717656578. Repeating that workflow creates a new capture."
+        }
+      },
+      {
+        "path": "libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-destination-redo-missing.sqlite.gz",
+        "format": "application/gzip",
+        "consumer": "libs/wbs/adapters/store-sqlite/src/testing/legacy-replay-database.ts",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical predecessor SQLite capture pinned by libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-replay.json and openspec/changes/wbs-step-catalogue/verification-genuine-replay-cutover-20261121.json; retained producer uses Source c8018843e6ff6827f7d97b67ff986cc717656578. Repeating that workflow creates a new capture."
+        }
+      },
+      {
+        "path": "libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-destination-redo-state.control.json.gz",
+        "format": "application/gzip",
+        "consumer": "libs/wbs/adapters/store-sqlite/src/testing/legacy-replay-database.ts",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical predecessor SQLite capture pinned by libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-replay.json and openspec/changes/wbs-step-catalogue/verification-genuine-replay-cutover-20261121.json; retained producer uses Source c8018843e6ff6827f7d97b67ff986cc717656578. Repeating that workflow creates a new capture."
+        }
+      },
+      {
+        "path": "libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-destination-redo-state.producer.json.gz",
+        "format": "application/gzip",
+        "consumer": "libs/wbs/adapters/store-sqlite/src/testing/legacy-replay-database.ts",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical predecessor SQLite capture pinned by libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-replay.json and openspec/changes/wbs-step-catalogue/verification-genuine-replay-cutover-20261121.json; retained producer uses Source c8018843e6ff6827f7d97b67ff986cc717656578. Repeating that workflow creates a new capture."
+        }
+      },
+      {
+        "path": "libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-destination-redo-state.sqlite.gz",
+        "format": "application/gzip",
+        "consumer": "libs/wbs/adapters/store-sqlite/src/testing/legacy-replay-database.ts",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical predecessor SQLite capture pinned by libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-replay.json and openspec/changes/wbs-step-catalogue/verification-genuine-replay-cutover-20261121.json; retained producer uses Source c8018843e6ff6827f7d97b67ff986cc717656578. Repeating that workflow creates a new capture."
+        }
+      },
+      {
+        "path": "libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-destination-redo-time.control.json.gz",
+        "format": "application/gzip",
+        "consumer": "libs/wbs/adapters/store-sqlite/src/testing/legacy-replay-database.ts",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical predecessor SQLite capture pinned by libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-replay.json and openspec/changes/wbs-step-catalogue/verification-genuine-replay-cutover-20261121.json; retained producer uses Source c8018843e6ff6827f7d97b67ff986cc717656578. Repeating that workflow creates a new capture."
+        }
+      },
+      {
+        "path": "libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-destination-redo-time.producer.json.gz",
+        "format": "application/gzip",
+        "consumer": "libs/wbs/adapters/store-sqlite/src/testing/legacy-replay-database.ts",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical predecessor SQLite capture pinned by libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-replay.json and openspec/changes/wbs-step-catalogue/verification-genuine-replay-cutover-20261121.json; retained producer uses Source c8018843e6ff6827f7d97b67ff986cc717656578. Repeating that workflow creates a new capture."
+        }
+      },
+      {
+        "path": "libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-destination-redo-time.sqlite.gz",
+        "format": "application/gzip",
+        "consumer": "libs/wbs/adapters/store-sqlite/src/testing/legacy-replay-database.ts",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical predecessor SQLite capture pinned by libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-replay.json and openspec/changes/wbs-step-catalogue/verification-genuine-replay-cutover-20261121.json; retained producer uses Source c8018843e6ff6827f7d97b67ff986cc717656578. Repeating that workflow creates a new capture."
+        }
+      },
+      {
+        "path": "libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-handup-new-progress.control.json.gz",
+        "format": "application/gzip",
+        "consumer": "libs/wbs/adapters/store-sqlite/src/testing/legacy-replay-database.ts",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical predecessor SQLite capture pinned by libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-replay.json and openspec/changes/wbs-step-catalogue/verification-genuine-replay-cutover-20261121.json; retained producer uses Source c8018843e6ff6827f7d97b67ff986cc717656578. Repeating that workflow creates a new capture."
+        }
+      },
+      {
+        "path": "libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-handup-new-progress.producer.json.gz",
+        "format": "application/gzip",
+        "consumer": "libs/wbs/adapters/store-sqlite/src/testing/legacy-replay-database.ts",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical predecessor SQLite capture pinned by libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-replay.json and openspec/changes/wbs-step-catalogue/verification-genuine-replay-cutover-20261121.json; retained producer uses Source c8018843e6ff6827f7d97b67ff986cc717656578. Repeating that workflow creates a new capture."
+        }
+      },
+      {
+        "path": "libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-handup-new-progress.sqlite.gz",
+        "format": "application/gzip",
+        "consumer": "libs/wbs/adapters/store-sqlite/src/testing/legacy-replay-database.ts",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical predecessor SQLite capture pinned by libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-replay.json and openspec/changes/wbs-step-catalogue/verification-genuine-replay-cutover-20261121.json; retained producer uses Source c8018843e6ff6827f7d97b67ff986cc717656578. Repeating that workflow creates a new capture."
+        }
+      },
+      {
+        "path": "libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-parent-drift-extra.control.json.gz",
+        "format": "application/gzip",
+        "consumer": "libs/wbs/adapters/store-sqlite/src/testing/legacy-replay-database.ts",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical predecessor SQLite capture pinned by libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-replay.json and openspec/changes/wbs-step-catalogue/verification-genuine-replay-cutover-20261121.json; retained producer uses Source c8018843e6ff6827f7d97b67ff986cc717656578. Repeating that workflow creates a new capture."
+        }
+      },
+      {
+        "path": "libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-parent-drift-extra.producer.json.gz",
+        "format": "application/gzip",
+        "consumer": "libs/wbs/adapters/store-sqlite/src/testing/legacy-replay-database.ts",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical predecessor SQLite capture pinned by libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-replay.json and openspec/changes/wbs-step-catalogue/verification-genuine-replay-cutover-20261121.json; retained producer uses Source c8018843e6ff6827f7d97b67ff986cc717656578. Repeating that workflow creates a new capture."
+        }
+      },
+      {
+        "path": "libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-parent-drift-extra.sqlite.gz",
+        "format": "application/gzip",
+        "consumer": "libs/wbs/adapters/store-sqlite/src/testing/legacy-replay-database.ts",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical predecessor SQLite capture pinned by libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-replay.json and openspec/changes/wbs-step-catalogue/verification-genuine-replay-cutover-20261121.json; retained producer uses Source c8018843e6ff6827f7d97b67ff986cc717656578. Repeating that workflow creates a new capture."
+        }
+      },
+      {
+        "path": "libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-parent-drift-missing.control.json.gz",
+        "format": "application/gzip",
+        "consumer": "libs/wbs/adapters/store-sqlite/src/testing/legacy-replay-database.ts",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical predecessor SQLite capture pinned by libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-replay.json and openspec/changes/wbs-step-catalogue/verification-genuine-replay-cutover-20261121.json; retained producer uses Source c8018843e6ff6827f7d97b67ff986cc717656578. Repeating that workflow creates a new capture."
+        }
+      },
+      {
+        "path": "libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-parent-drift-missing.producer.json.gz",
+        "format": "application/gzip",
+        "consumer": "libs/wbs/adapters/store-sqlite/src/testing/legacy-replay-database.ts",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical predecessor SQLite capture pinned by libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-replay.json and openspec/changes/wbs-step-catalogue/verification-genuine-replay-cutover-20261121.json; retained producer uses Source c8018843e6ff6827f7d97b67ff986cc717656578. Repeating that workflow creates a new capture."
+        }
+      },
+      {
+        "path": "libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-parent-drift-missing.sqlite.gz",
+        "format": "application/gzip",
+        "consumer": "libs/wbs/adapters/store-sqlite/src/testing/legacy-replay-database.ts",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical predecessor SQLite capture pinned by libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-replay.json and openspec/changes/wbs-step-catalogue/verification-genuine-replay-cutover-20261121.json; retained producer uses Source c8018843e6ff6827f7d97b67ff986cc717656578. Repeating that workflow creates a new capture."
+        }
+      },
+      {
+        "path": "libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-parent-drift-state.control.json.gz",
+        "format": "application/gzip",
+        "consumer": "libs/wbs/adapters/store-sqlite/src/testing/legacy-replay-database.ts",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical predecessor SQLite capture pinned by libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-replay.json and openspec/changes/wbs-step-catalogue/verification-genuine-replay-cutover-20261121.json; retained producer uses Source c8018843e6ff6827f7d97b67ff986cc717656578. Repeating that workflow creates a new capture."
+        }
+      },
+      {
+        "path": "libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-parent-drift-state.producer.json.gz",
+        "format": "application/gzip",
+        "consumer": "libs/wbs/adapters/store-sqlite/src/testing/legacy-replay-database.ts",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical predecessor SQLite capture pinned by libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-replay.json and openspec/changes/wbs-step-catalogue/verification-genuine-replay-cutover-20261121.json; retained producer uses Source c8018843e6ff6827f7d97b67ff986cc717656578. Repeating that workflow creates a new capture."
+        }
+      },
+      {
+        "path": "libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-parent-drift-state.sqlite.gz",
+        "format": "application/gzip",
+        "consumer": "libs/wbs/adapters/store-sqlite/src/testing/legacy-replay-database.ts",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical predecessor SQLite capture pinned by libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-replay.json and openspec/changes/wbs-step-catalogue/verification-genuine-replay-cutover-20261121.json; retained producer uses Source c8018843e6ff6827f7d97b67ff986cc717656578. Repeating that workflow creates a new capture."
+        }
+      },
+      {
+        "path": "libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-parent-drift-time.control.json.gz",
+        "format": "application/gzip",
+        "consumer": "libs/wbs/adapters/store-sqlite/src/testing/legacy-replay-database.ts",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical predecessor SQLite capture pinned by libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-replay.json and openspec/changes/wbs-step-catalogue/verification-genuine-replay-cutover-20261121.json; retained producer uses Source c8018843e6ff6827f7d97b67ff986cc717656578. Repeating that workflow creates a new capture."
+        }
+      },
+      {
+        "path": "libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-parent-drift-time.producer.json.gz",
+        "format": "application/gzip",
+        "consumer": "libs/wbs/adapters/store-sqlite/src/testing/legacy-replay-database.ts",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical predecessor SQLite capture pinned by libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-replay.json and openspec/changes/wbs-step-catalogue/verification-genuine-replay-cutover-20261121.json; retained producer uses Source c8018843e6ff6827f7d97b67ff986cc717656578. Repeating that workflow creates a new capture."
+        }
+      },
+      {
+        "path": "libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-parent-drift-time.sqlite.gz",
+        "format": "application/gzip",
+        "consumer": "libs/wbs/adapters/store-sqlite/src/testing/legacy-replay-database.ts",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical predecessor SQLite capture pinned by libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-replay.json and openspec/changes/wbs-step-catalogue/verification-genuine-replay-cutover-20261121.json; retained producer uses Source c8018843e6ff6827f7d97b67ff986cc717656578. Repeating that workflow creates a new capture."
+        }
+      },
+      {
+        "path": "libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-parent-last-child.control.json.gz",
+        "format": "application/gzip",
+        "consumer": "libs/wbs/adapters/store-sqlite/src/testing/legacy-replay-database.ts",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical predecessor SQLite capture pinned by libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-replay.json and openspec/changes/wbs-step-catalogue/verification-genuine-replay-cutover-20261121.json; retained producer uses Source c8018843e6ff6827f7d97b67ff986cc717656578. Repeating that workflow creates a new capture."
+        }
+      },
+      {
+        "path": "libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-parent-last-child.producer.json.gz",
+        "format": "application/gzip",
+        "consumer": "libs/wbs/adapters/store-sqlite/src/testing/legacy-replay-database.ts",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical predecessor SQLite capture pinned by libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-replay.json and openspec/changes/wbs-step-catalogue/verification-genuine-replay-cutover-20261121.json; retained producer uses Source c8018843e6ff6827f7d97b67ff986cc717656578. Repeating that workflow creates a new capture."
+        }
+      },
+      {
+        "path": "libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-parent-last-child.sqlite.gz",
+        "format": "application/gzip",
+        "consumer": "libs/wbs/adapters/store-sqlite/src/testing/legacy-replay-database.ts",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical predecessor SQLite capture pinned by libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-replay.json and openspec/changes/wbs-step-catalogue/verification-genuine-replay-cutover-20261121.json; retained producer uses Source c8018843e6ff6827f7d97b67ff986cc717656578. Repeating that workflow creates a new capture."
+        }
+      },
+      {
+        "path": "libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-parent-progress.sqlite.gz",
+        "format": "application/gzip",
+        "consumer": "libs/wbs/adapters/store-sqlite/src/legacy-parent-migration.db.test.ts",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical SQLite E37 backup after actual110→116 migration, pinned by libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-parent-progress.json and openspec/changes/wbs-step-catalogue/verification-legacy-parent-admission-20261120.json; predecessor Source c8018843e6ff6827f7d97b67ff986cc717656578. Repeating that workflow creates a new capture."
+        }
+      },
+      {
+        "path": "libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-restore-progress-blockage.control.json.gz",
+        "format": "application/gzip",
+        "consumer": "libs/wbs/adapters/store-sqlite/src/testing/legacy-move-database.ts",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical predecessor SQLite capture pinned by libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-move.json and openspec/changes/wbs-step-catalogue/verification-genuine-move-history-20261121.json; retained producer uses Source c8018843e6ff6827f7d97b67ff986cc717656578. Repeating that workflow creates a new capture."
+        }
+      },
+      {
+        "path": "libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-restore-progress-blockage.producer.json.gz",
+        "format": "application/gzip",
+        "consumer": "libs/wbs/adapters/store-sqlite/src/testing/legacy-move-database.ts",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical predecessor SQLite capture pinned by libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-move.json and openspec/changes/wbs-step-catalogue/verification-genuine-move-history-20261121.json; retained producer uses Source c8018843e6ff6827f7d97b67ff986cc717656578. Repeating that workflow creates a new capture."
+        }
+      },
+      {
+        "path": "libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-restore-progress-blockage.sqlite.gz",
+        "format": "application/gzip",
+        "consumer": "libs/wbs/adapters/store-sqlite/src/testing/legacy-move-database.ts",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical predecessor SQLite capture pinned by libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-move.json and openspec/changes/wbs-step-catalogue/verification-genuine-move-history-20261121.json; retained producer uses Source c8018843e6ff6827f7d97b67ff986cc717656578. Repeating that workflow creates a new capture."
+        }
+      },
+      {
+        "path": "libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-restore-progress.control.json.gz",
+        "format": "application/gzip",
+        "consumer": "libs/wbs/adapters/store-sqlite/src/testing/legacy-move-database.ts",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical predecessor SQLite capture pinned by libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-move.json and openspec/changes/wbs-step-catalogue/verification-genuine-move-history-20261121.json; retained producer uses Source c8018843e6ff6827f7d97b67ff986cc717656578. Repeating that workflow creates a new capture."
+        }
+      },
+      {
+        "path": "libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-restore-progress.producer.json.gz",
+        "format": "application/gzip",
+        "consumer": "libs/wbs/adapters/store-sqlite/src/testing/legacy-move-database.ts",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical predecessor SQLite capture pinned by libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-move.json and openspec/changes/wbs-step-catalogue/verification-genuine-move-history-20261121.json; retained producer uses Source c8018843e6ff6827f7d97b67ff986cc717656578. Repeating that workflow creates a new capture."
+        }
+      },
+      {
+        "path": "libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-restore-progress.sqlite.gz",
+        "format": "application/gzip",
+        "consumer": "libs/wbs/adapters/store-sqlite/src/testing/legacy-move-database.ts",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical predecessor SQLite capture pinned by libs/wbs/adapters/store-sqlite/src/testing/fixtures/legacy-move.json and openspec/changes/wbs-step-catalogue/verification-genuine-move-history-20261121.json; retained producer uses Source c8018843e6ff6827f7d97b67ff986cc717656578. Repeating that workflow creates a new capture."
+        }
+      },
+      {
+        "path": "libs/wbs/adapters/store-sqlite/src/testing/fixtures/resource-use-117-merged/before117.db",
+        "format": "application/vnd.sqlite3",
+        "consumer": "libs/wbs/adapters/store-sqlite/src/testing/fixtures/resource-use-117-merged/producer.source.txt",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical pre-117 E37 snapshot pinned by libs/wbs/adapters/store-sqlite/src/testing/fixtures/resource-use-117-merged/acquisition.json and libs/wbs/adapters/store-sqlite/src/testing/fixtures/resource-use-117-merged/before117.window.json; retained consumer libs/wbs/adapters/store-sqlite/src/testing/fixtures/resource-use-117-merged/producer.source.txt. Repeating that workflow creates a new capture; historical backup paths confer no current authority."
+        }
+      },
+      {
+        "path": "libs/wbs/adapters/store-sqlite/src/testing/fixtures/resource-use-117-merged/merged-bound.db",
+        "format": "application/vnd.sqlite3",
+        "consumer": "libs/wbs/adapters/store-sqlite/src/testing/resource-use-location-migration.db.test.ts",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical schema-117 fixture capture pinned by libs/wbs/adapters/store-sqlite/src/testing/fixtures/resource-use-117-merged/manifest.json and libs/wbs/adapters/store-sqlite/src/testing/fixtures/resource-use-117-merged/acquisition.json; retained producer libs/wbs/adapters/store-sqlite/src/testing/fixtures/resource-use-117-merged/producer.source.txt. Repeating that workflow creates a new capture; historical backup paths confer no current authority."
+        }
+      },
+      {
+        "path": "libs/wbs/adapters/store-sqlite/src/testing/fixtures/resource-use-117/ambiguous-attempt.db",
+        "format": "application/vnd.sqlite3",
+        "consumer": "libs/wbs/adapters/store-sqlite/src/testing/resource-use-location-migration.db.test.ts",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical schema-117 fixture capture pinned by libs/wbs/adapters/store-sqlite/src/testing/fixtures/resource-use-117/manifest.json and libs/wbs/adapters/store-sqlite/src/testing/fixtures/resource-use-117/acquisition.json; retained producer libs/wbs/adapters/store-sqlite/src/testing/fixtures/resource-use-117/producer.source.txt. Repeating that workflow creates a new capture; historical backup paths confer no current authority."
+        }
+      },
+      {
+        "path": "libs/wbs/adapters/store-sqlite/src/testing/fixtures/resource-use-117/bound-moved.db",
+        "format": "application/vnd.sqlite3",
+        "consumer": "libs/wbs/adapters/store-sqlite/src/testing/resource-use-location-migration.db.test.ts",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical schema-117 fixture capture pinned by libs/wbs/adapters/store-sqlite/src/testing/fixtures/resource-use-117/manifest.json and libs/wbs/adapters/store-sqlite/src/testing/fixtures/resource-use-117/acquisition.json; retained producer libs/wbs/adapters/store-sqlite/src/testing/fixtures/resource-use-117/producer.source.txt. Repeating that workflow creates a new capture; historical backup paths confer no current authority."
+        }
+      },
+      {
+        "path": "libs/wbs/adapters/store-sqlite/src/testing/fixtures/resource-use-117/unassociated.db",
+        "format": "application/vnd.sqlite3",
+        "consumer": "libs/wbs/adapters/store-sqlite/src/testing/resource-use-location-migration.db.test.ts",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical schema-117 fixture capture pinned by libs/wbs/adapters/store-sqlite/src/testing/fixtures/resource-use-117/manifest.json and libs/wbs/adapters/store-sqlite/src/testing/fixtures/resource-use-117/acquisition.json; retained producer libs/wbs/adapters/store-sqlite/src/testing/fixtures/resource-use-117/producer.source.txt. Repeating that workflow creates a new capture; historical backup paths confer no current authority."
+        }
+      },
+      {
+        "path": "openspec/changes/wbs-work-packages/fixtures/legacy-dash-runtime6.sqlite.gz",
+        "format": "application/gzip",
+        "consumer": "apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/runtime-rename.db.test.ts",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical predecessor capture pinned by openspec/changes/wbs-work-packages/fixtures/legacy-dash-runtime6.json at Source 7bdb31fd592eba83e696f570fbf9d2e1d9f26ebf. Replacing this archive requires a newly characterized capture; historical receipts confer no current runtime or host authority."
+        }
+      },
+      {
+        "path": "openspec/changes/wbs-work-packages/fixtures/legacy-resource-database1.sqlite.gz",
+        "format": "application/gzip",
+        "consumer": "apps/wbs/be-01/src/controller/resource-legacy-rename.controller.db.test.ts",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical predecessor capture pinned by openspec/changes/wbs-work-packages/fixtures/legacy-resource-capture.json at Source 7bdb31fd592eba83e696f570fbf9d2e1d9f26ebf. Replacing this archive requires a newly characterized capture; historical receipts confer no current runtime or host authority."
+        }
+      },
+      {
+        "path": "openspec/changes/wbs-work-packages/fixtures/legacy-resource-terminal1.sqlite.gz",
+        "format": "application/gzip",
+        "consumer": "apps/wbs/be-01/src/controller/resource-terminal-legacy-rename.controller.db.test.ts",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical predecessor capture pinned by openspec/changes/wbs-work-packages/fixtures/legacy-resource-terminal-capture.json at Source 7bdb31fd592eba83e696f570fbf9d2e1d9f26ebf. Replacing this archive requires a newly characterized capture; historical receipts confer no current runtime or host authority."
+        }
+      },
+      {
+        "path": "openspec/changes/wbs-work-packages/fixtures/legacy-runtime-database1.sqlite.gz",
+        "format": "application/gzip",
+        "consumer": "apps/twilight-structure/twilight-dash/cli/src/runs/testing/recovery-receiver.ts",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical predecessor capture pinned by openspec/changes/wbs-work-packages/fixtures/legacy-runtime-database-capture.json at Source 7bdb31fd592eba83e696f570fbf9d2e1d9f26ebf. Replacing this archive requires a newly characterized capture; historical receipts confer no current runtime or host authority."
+        }
+      },
+      {
+        "path": "openspec/changes/wbs-work-packages/fixtures/legacy-shared-people-completed1.sqlite.gz",
+        "format": "application/gzip",
+        "consumer": "libs/wbs/adapters/store-sqlite/src/shared-people-recovery-rename.db.test.ts",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical predecessor capture pinned by openspec/changes/wbs-work-packages/fixtures/legacy-shared-people-recovery1.json at Source 7bdb31fd592eba83e696f570fbf9d2e1d9f26ebf. Replacing this archive requires a newly characterized capture; historical receipts confer no current runtime or host authority."
+        }
+      },
+      {
+        "path": "openspec/changes/wbs-work-packages/fixtures/legacy-shared-people-pending1.sqlite.gz",
+        "format": "application/gzip",
+        "consumer": "libs/wbs/adapters/store-sqlite/src/shared-people-recovery-rename.db.test.ts",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical predecessor capture pinned by openspec/changes/wbs-work-packages/fixtures/legacy-shared-people-recovery1.json at Source 7bdb31fd592eba83e696f570fbf9d2e1d9f26ebf. Replacing this archive requires a newly characterized capture; historical receipts confer no current runtime or host authority."
         }
       }
     ],

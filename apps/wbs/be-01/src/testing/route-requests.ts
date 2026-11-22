@@ -222,6 +222,7 @@ export const REQUEST_BODIES: Readonly<Record<string, unknown>> = {
 };
 export const REQUEST_QUERIES: Readonly<Partial<Record<string, Readonly<Record<string, string>>>>> =
   {
+    readProjectStepUsage: { stepId: ROUTE_ID },
     readRuntimeState: { personId: ROUTE_ID },
     lookupRuntimeReceipt: { personId: ROUTE_ID, expectedLedgerId: ROUTE_ID },
     'getApiSpacesByIdRoll-ups': { projectIds: 'route-probe' },

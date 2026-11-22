@@ -35,6 +35,12 @@ test('two tabs cannot redirect an A mutation into B', async ({ context, page }) 
     headers: { 'X-WBS-Expected-Organization': 'org-a' },
   });
   expect(staleRead.status()).toBe(200);
+  const created = await context.request.post('/api/projects', {
+    headers: { origin: 'http://localhost:7400', 'X-WBS-Expected-Organization': 'org-a' },
+    data: { name: 'Context A parent' },
+  });
+  expect(created.status()).toBe(201);
+  const parent = (await created.json()) as { project: { id: string } };
   const second = await context.newPage();
   await second.goto('/organization');
   await expect(second.getByText('Organization: org-a', { exact: true })).toBeVisible();
@@ -70,7 +76,7 @@ test('two tabs cannot redirect an A mutation into B', async ({ context, page }) 
   await page.unroute('**/api/organization/active');
   const refused = await context.request.post('/api/work-packages', {
     headers: { origin: 'http://localhost:7400', 'X-WBS-Expected-Organization': 'org-a' },
-    data: { name: 'stale A mutation' },
+    data: { name: 'stale A mutation', projectId: parent.project.id },
   });
   expect(refused.status()).toBe(409);
   expect(await refused.json()).toEqual({ error: 'organization_context_changed' });

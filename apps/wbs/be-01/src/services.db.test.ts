@@ -274,6 +274,92 @@ async function seedWorkPackage(db: ReturnType<typeof openDrizzle>): Promise<{
   return { workPackageId: workPackage.id, ownerId };
 }
 
+/**
+ * Seeds the A/B shared-person scenario through current project-scoped authoring.
+ * Separate fixture parents keep each named definition specific to its package.
+ * Uses bootstrap's already owned Source and cleanup; throws on authoring refusal.
+ */
+async function seedCurrentSharedLifecycle(source: SqliteSource): Promise<void> {
+  source.db.transaction((db) => {
+    db.run(
+      sql`INSERT INTO users (id, username, password_hash, created_at) VALUES ('ada', 'ada', 'x', 1)`,
+    );
+    db.run(
+      sql`INSERT INTO organization (id, name, created_at, shared_people) VALUES ('org-a', 'A', 1, 1)`,
+    );
+    db.run(sql`UPDATE organization_activation SET state = 'activated', activated_at = 1`);
+    db.run(
+      sql`INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'ada', 'member', 1)`,
+    );
+    db.run(
+      sql`INSERT INTO access_grant (id, organization_id, scope_kind, scope_id, subject_kind, subject_id, role_id, origin, created_at) VALUES ('lifecycle-ada', 'org-a', 'organization', 'org-a', 'user', 'ada', 'org-admin', 'route', 1)`,
+    );
+    db.run(sql`INSERT INTO person (id, name) VALUES ('ana', 'Ana')`);
+    db.run(
+      sql`INSERT INTO person_organization (resource_id, organization_id, name) VALUES ('ana', 'org-a', 'Ana')`,
+    );
+    for (const [index, workPackageId] of ['A', 'B'].entries()) {
+      const projectId = `lifecycle-${workPackageId}-parent`;
+      db.run(
+        sql`INSERT INTO project (id, organization_id, name, created_at) VALUES (${projectId}, 'org-a', ${workPackageId + ' lifecycle parent'}, 1)`,
+      );
+      db.run(
+        sql`INSERT INTO work_package (id, name, project_id, created_by, restricted, revision, created_at, start_date, estimate_rounding) VALUES (${workPackageId}, ${workPackageId}, ${projectId}, 'ada', 0, 0, 1, '2026-10-05', 'exact')`,
+      );
+      db.run(
+        sql`INSERT INTO work_package_organization (resource_id, organization_id) VALUES (${workPackageId}, 'org-a')`,
+      );
+      db.run(
+        sql`INSERT INTO work_package_rank (work_package_id, organization_id, position, created_at, created_by) VALUES (${workPackageId}, 'org-a', ${index * 10}, 1, 'ada')`,
+      );
+    }
+  });
+  for (const [workPackageId, code] of [
+    ['A', 'a-step'],
+    ['B', 'b-step'],
+  ] as const) {
+    const stepId = `${workPackageId}-step`;
+    const defined = await source.stores.stepCatalogue.defineAndBindStep(
+      'org-a',
+      {
+        id: stepId,
+        code,
+        name: stepId,
+        position: 10,
+        defaultEstimateUnit: 'workdays',
+        defaultAllowancePercent: 0,
+      },
+      {
+        bindingId: stepId + ':services-current',
+        scopeKind: 'project',
+        scopeId: `lifecycle-${workPackageId}-parent`,
+        workItemTypeId: null,
+        position: 10,
+      },
+      { at: 1, by: 'ada' },
+    );
+    // Proof: services-authoring-{precision,omitted,restored}-v313 used a real duplicate code.
+    // Without this check the required code_taken diagnostic failed and estimate FK was reached;
+    // restoration recovered precise refusal. This qualifies diagnostic/fail-fast behavior only.
+    if (!defined.ok)
+      throw new Error('current services fixture step authoring refused: ' + defined.reason);
+  }
+  source.db.transaction((db) => {
+    for (const workPackageId of ['A', 'B']) {
+      const stepId = `${workPackageId}-step`;
+      db.run(
+        sql`INSERT INTO work_item (id, work_package_id, position, name) VALUES (${workPackageId}, ${workPackageId}, 10, ${workPackageId})`,
+      );
+      db.run(
+        sql`INSERT INTO estimate (work_item_id, step_id, optimistic, realistic, pessimistic) VALUES (${workPackageId}, ${stepId}, 1, 1, 1)`,
+      );
+      db.run(
+        sql`INSERT INTO assignment (work_item_id, step_id, person_id) VALUES (${workPackageId}, ${stepId}, 'ana')`,
+      );
+    }
+  });
+}
+
 function seedSharedLifecycle(
   path: string,
   activate = true,
@@ -731,7 +817,7 @@ function seedOtherLifecycleSlot(
 describe('buildServices', () => {
   it("records B when the installed outcome owner selects A's moved schedule", async () => {
     let captures = 0;
-    const { db, path, services, pushUrls } = bootstrap(
+    const { db, source, services, pushUrls } = bootstrap(
       null,
       {
         solverVersion: '0.4.0',
@@ -742,7 +828,7 @@ describe('buildServices', () => {
         captures++;
       },
     );
-    seedSharedLifecycle(path);
+    await seedCurrentSharedLifecycle(source);
     const write = await sharedOutcomeWrite(db, services);
     const optimizer = services.optimizer;
     if (optimizer === undefined) throw new Error('optimizer was not installed');
@@ -4702,8 +4788,8 @@ describe('buildServices', () => {
   });
 
   it('finishes a marked shared work package with its old bridge and surviving cause', async () => {
-    const { db, path, services, pushUrls } = bootstrap(null);
-    seedSharedLifecycle(path);
+    const { db, source, services, pushUrls } = bootstrap(null);
+    await seedCurrentSharedLifecycle(source);
     const events = new DrizzleEventLogStore(db, OPEN);
     expect(await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' })).toBe(0);
     expect(await events.rangeSince('work-package:B', -1)).toEqual([]);
@@ -7803,8 +7889,8 @@ describe('buildServices', () => {
       ]),
     ).toEqual([
       // The current solver release composes with the current scheduler contract.
-      ['0.4.0', '18+0.4.0', 60_000],
-      ['0.4.0', '18+0.4.0', 60_000],
+      ['0.4.0', '20+0.4.0', 60_000],
+      ['0.4.0', '20+0.4.0', 60_000],
     ]);
   });
 
@@ -7874,7 +7960,7 @@ describe('buildServices', () => {
     // seeded failed pair and failed here with `Expected ["pri", "time"] /
     // Received []`; watched 2026-09-07.
     expect(spawned.map(({ objective }) => objective)).toEqual(['pri', 'time']);
-    expect(spawned.map(({ key }) => key.contractVersion)).toEqual(['18+0.4.0', '18+0.4.0']);
+    expect(spawned.map(({ key }) => key.contractVersion)).toEqual(['20+0.4.0', '20+0.4.0']);
     expect(
       db
         .select({ contractVersion: optimizedScheduleCache.contractVersion })

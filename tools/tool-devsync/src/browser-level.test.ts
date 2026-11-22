@@ -509,6 +509,54 @@ it('bounds a hung Browser child before evidence publication', async () => {
   );
 });
 
+it('re-raises SIGTERM received before a Browser deadline while the child still holds its pipes', async () => {
+  const scratch = await mkdtemp(join(tmpdir(), 'puni-browser-first-signal-'));
+  const observed = join(scratch, 'supervisor-signal');
+  const childPid = join(scratch, 'child-pid');
+  const childSignal = join(scratch, 'child-signal');
+  const command = [
+    'import { writeFileSync } from "node:fs";',
+    'process.on("SIGTERM", () => writeFileSync(' + JSON.stringify(childSignal) + ', "TERM"));',
+    'writeFileSync(' + JSON.stringify(childPid) + ', String(process.pid));',
+    'process.kill(process.ppid, "SIGTERM");',
+    'await Bun.sleep(3000);',
+  ].join('\n');
+  const supervisor = [
+    'import { writeFileSync } from "node:fs";',
+    'import { run } from ' + JSON.stringify(join(import.meta.dir, 'browser-level.ts')) + ';',
+    'const started = Date.now();',
+    'process.once("SIGTERM", () => writeFileSync(' +
+      JSON.stringify(observed) +
+      ', String(Date.now()-started)));',
+    'try { await run([process.execPath, "-e", ' +
+      JSON.stringify(command) +
+      '], ' +
+      JSON.stringify(scratch) +
+      ', {PATH: "/usr/bin:/bin"}, 500); }',
+    'catch (cause) { console.error(String(cause)); process.exitCode = 23; }',
+  ].join('\n');
+  let hasExited = false;
+  try {
+    const child = Bun.spawnSync([process.execPath, '-e', supervisor], {
+      stdout: 'pipe',
+      stderr: 'pipe',
+      timeout: 12000,
+    });
+    const firstSignalAt = Number(await readFile(observed, 'utf8'));
+    const pid = Number(await readFile(childPid, 'utf8'));
+    const term = await readFile(childSignal, 'utf8');
+    expect(Number.isSafeInteger(pid) && pid > 0).toBe(true);
+    hasExited = !existsSync('/proc/' + String(pid));
+    expect(firstSignalAt).toBeLessThan(500);
+    expect(term).toBe('TERM');
+    expect(hasExited).toBe(true);
+    expect(child.signalCode).toBe('SIGTERM');
+  } finally {
+    if (hasExited) await rm(scratch, { recursive: true });
+    else console.error('Browser signal fixture retained with unconfirmed child exit: ' + scratch);
+  }
+}, 15000);
+
 it('kills descendant processes and returns before inherited output pipes can drain', async () => {
   const root = await mkdtemp(join(tmpdir(), 'puni-browser-group-'));
   const marker = join(root, 'descendant-marker');

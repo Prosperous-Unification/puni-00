@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { eq } from 'drizzle-orm';
 
 import { type Drizzle, openDatabase, openDrizzle } from './db';
-import { runMigrations } from './migrate';
+import { OPEN } from './gate';
 import {
   beginOptimizationDrain,
   finishOptimizationDrain,
@@ -23,8 +23,11 @@ import {
   solverSlot,
   workPackage,
 } from './schema';
-
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+import { StepCatalogueRepository } from './step-catalogue';
+import {
+  type CatalogueFixtureCustody,
+  migrateEmptyCatalogueFixture,
+} from './testing/catalogue-database';
 
 /** The two releases running against one file during a swap. */
 const BLUE = '7+1.0.0';
@@ -35,33 +38,70 @@ const stampAt = (at: number): WriteStamp => ({ at, by: 'u-1' });
 let dir: string;
 let path: string;
 let db: Drizzle;
+let custody: CatalogueFixtureCustody;
 
-beforeEach(() => {
+beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-optimization-drain-'));
   path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
+  custody = { hasUnknownOwner: false };
+  migrateEmptyCatalogueFixture({ path, directory: dir, reportedAt: 1 }, custody);
   const seed = openDatabase(path);
   try {
     seed.run(
       `INSERT INTO users (id, username, password_hash, created_at) VALUES ('u-1', 'u', 'h', 1)`,
     );
+    seed.run("INSERT INTO organization(id,name,created_at) VALUES('org','Org',1)");
     seed.run(
-      `INSERT INTO work_package (id, name, owner_id, restricted, revision, created_at)
-       VALUES ('p-1', 'Rewire the shed', 'u-1', 0, 0, 1)`,
+      "INSERT INTO project(id,organization_id,name,created_at) VALUES('parent','org','Parent',1)",
+    );
+    seed.run(
+      `INSERT INTO work_package (id, name, project_id, created_by, restricted, revision, created_at)
+       VALUES ('p-1', 'Rewire the shed', 'parent', 'u-1', 0, 0, 1)`,
     );
     // The bystander. Deleting one work package closes every release of THAT work package,
     // which is only a meaningful claim beside a work package it must not touch.
     seed.run(
-      `INSERT INTO work_package (id, name, owner_id, restricted, revision, created_at)
-       VALUES ('p-2', 'Re-tile the roof', 'u-1', 0, 0, 1)`,
+      `INSERT INTO work_package (id, name, project_id, created_by, restricted, revision, created_at)
+       VALUES ('p-2', 'Re-tile the roof', 'parent', 'u-1', 0, 0, 1)`,
+    );
+    seed.run(
+      "INSERT INTO work_package_organization(resource_id,organization_id) VALUES('p-1','org'),('p-2','org')",
     );
   } finally {
     seed.close();
   }
   db = openDrizzle(path);
+  expect(
+    (
+      await new StepCatalogueRepository(db, OPEN, 'owned').defineAndBindStep(
+        'org',
+        {
+          id: 's-1',
+          code: 'work',
+          name: 'Work',
+          defaultEstimateUnit: 'workdays',
+          defaultAllowancePercent: 0,
+          position: 10,
+        },
+        {
+          bindingId: 'work-binding',
+          scopeKind: 'organization',
+          scopeId: 'org',
+          workItemTypeId: null,
+          position: 10,
+        },
+        stampAt(1),
+      )
+    ).ok,
+  ).toBe(true);
 });
 
 afterEach(() => {
+  // Proof: real helper close returned before an injected lost-close-authority throw.
+  // Removing this guard deleted the fixture namespace and lost its required diagnostic;
+  // exact restoration retained both (drain custody controls, v322). No FD-leak claim.
+  if (custody.hasUnknownOwner)
+    throw new Error('SQLite fixture has unknown native custody; retained ' + dir);
   rmSync(dir, { recursive: true, force: true });
 });
 
@@ -467,9 +507,6 @@ describe('finishing a work package deletion', () => {
     const seed = openDatabase(path);
     try {
       seed.run(
-        "INSERT INTO step (id, work_package_id, name, position) VALUES ('s-1', 'p-1', 'Work', 10)",
-      );
-      seed.run(
         "INSERT INTO work_item (id, work_package_id, position, name) VALUES ('w-1', 'p-1', 10, 'Work')",
       );
       seed.run(
@@ -487,7 +524,7 @@ describe('finishing a work package deletion', () => {
     try {
       for (const [table, column, id] of [
         ['work_package', 'id', 'p-1'],
-        ['step', 'id', 's-1'],
+        ['step_definition', 'id', 's-1'],
         ['work_item', 'id', 'w-1'],
         ['estimate', 'work_item_id', 'w-1'],
       ]) {
@@ -569,12 +606,9 @@ describe('finishing a work package deletion', () => {
     }
   });
 
-  it('refuses a typed edge pointing at a target step from another work package', () => {
+  it('retains a bystander typed edge using the same shared definition', () => {
     const seed = openDatabase(path);
     try {
-      seed.run(
-        "INSERT INTO step (id, work_package_id, name, position) VALUES ('s-1', 'p-1', 'A', 10)",
-      );
       seed.run(
         "INSERT INTO work_item (id, work_package_id, position, name) VALUES ('w-2', 'p-2', 10, 'B')",
       );
@@ -588,14 +622,15 @@ describe('finishing a work package deletion', () => {
     const inspect = openDatabase(path);
     try {
       const before = {
-        workPackages: inspect.query('SELECT * FROM work_package ORDER BY id').all(),
-        steps: inspect.query('SELECT * FROM step ORDER BY id').all(),
+        values: inspect.query("SELECT * FROM work_package_step WHERE work_package_id='p-2'").all(),
+        steps: inspect.query('SELECT * FROM step_definition ORDER BY id').all(),
         dependencies: inspect.query('SELECT * FROM typed_dependency ORDER BY id').all(),
       };
-      expect(() => finishOptimizationDrain(db, 'p-1')).toThrow('cross-work-package');
+      expect(finishOptimizationDrain(db, 'p-1')).toBe('finished');
+      expect(workPackageIds()).toEqual(['p-2']);
       expect({
-        workPackages: inspect.query('SELECT * FROM work_package ORDER BY id').all(),
-        steps: inspect.query('SELECT * FROM step ORDER BY id').all(),
+        values: inspect.query("SELECT * FROM work_package_step WHERE work_package_id='p-2'").all(),
+        steps: inspect.query('SELECT * FROM step_definition ORDER BY id').all(),
         dependencies: inspect.query('SELECT * FROM typed_dependency ORDER BY id').all(),
       }).toEqual(before);
       expect(inspect.query('PRAGMA foreign_key_check').all()).toEqual([]);
@@ -688,16 +723,13 @@ describe('finishing a work package deletion', () => {
     const seed = openDatabase(path);
     try {
       seed.run(
-        "INSERT INTO step (id, work_package_id, name, position) VALUES ('s-1', 'p-1', 'Work', 10)",
-      );
-      seed.run(
         "INSERT INTO work_item (id, work_package_id, position, name) VALUES ('w-1', 'p-1', 10, 'Work')",
       );
       seed.run(
         "INSERT INTO estimate (work_item_id, step_id, optimistic, realistic, pessimistic) VALUES ('w-1', 's-1', 1, 1, 1)",
       );
       seed.run(
-        `CREATE TRIGGER fail_step_cleanup BEFORE DELETE ON step
+        `CREATE TRIGGER fail_step_cleanup BEFORE DELETE ON work_package_step
          WHEN OLD.work_package_id = 'p-1'
            AND NOT EXISTS (SELECT 1 FROM work_item WHERE work_package_id = 'p-1')
          BEGIN SELECT RAISE(ABORT, 'later raw cleanup failed'); END`,
@@ -710,14 +742,14 @@ describe('finishing a work package deletion', () => {
     try {
       const before = {
         workPackage: inspect.query("SELECT * FROM work_package WHERE id = 'p-1'").all(),
-        step: inspect.query("SELECT * FROM step WHERE work_package_id = 'p-1'").all(),
+        step: inspect.query("SELECT * FROM work_package_step WHERE work_package_id = 'p-1'").all(),
         workItems: inspect.query("SELECT * FROM work_item WHERE work_package_id = 'p-1'").all(),
         estimates: inspect.query("SELECT * FROM estimate WHERE work_item_id = 'w-1'").all(),
       };
       expect(() => finishOptimizationDrain(db, 'p-1')).toThrow();
       expect({
         workPackage: inspect.query("SELECT * FROM work_package WHERE id = 'p-1'").all(),
-        step: inspect.query("SELECT * FROM step WHERE work_package_id = 'p-1'").all(),
+        step: inspect.query("SELECT * FROM work_package_step WHERE work_package_id = 'p-1'").all(),
         workItems: inspect.query("SELECT * FROM work_item WHERE work_package_id = 'p-1'").all(),
         estimates: inspect.query("SELECT * FROM estimate WHERE work_item_id = 'w-1'").all(),
       }).toEqual(before);
@@ -1088,4 +1120,172 @@ describe('two coordinators against one file, which is the point of all of it', (
     expect(workPackageIds()).toEqual(['p-2']);
     expect(readOptimizationClosedState(db, 'p-1', BLUE)).toBe('absent');
   });
+});
+
+describe('terminal current typed identity evidence', () => {
+  for (const fault of [
+    'missing-work-item',
+    'missing-definition',
+    'missing-values',
+    'foreign-organization',
+    'missing-definition-organization',
+    'malformed-values',
+    'unknown-scope',
+    'whole-with-step',
+    'unknown-type',
+  ] as const) {
+    it(`refuses selected typed ${fault} before cleanup and preserves exact state`, () => {
+      const sqlite = openDatabase(path);
+      try {
+        sqlite.run(
+          "INSERT INTO work_item(id,work_package_id,name,position) VALUES('typed-owner','p-1','Typed',1)",
+        );
+        sqlite.run(
+          "INSERT INTO typed_dependency(id,work_package_id,predecessor_work_item_id,predecessor_scope,predecessor_step_id,successor_work_item_id,successor_scope,type) VALUES('typed-point','p-1','typed-owner','node','s-1','typed-owner','whole','FS')",
+        );
+        beginOptimizationDrain(db, 'p-1', stampAt(20));
+        sqlite.run('PRAGMA foreign_keys=OFF');
+        sqlite.run('PRAGMA ignore_check_constraints=ON');
+        if (fault === 'missing-work-item')
+          sqlite.run("DELETE FROM work_item WHERE id='typed-owner'");
+        if (fault === 'missing-definition')
+          sqlite.run("DELETE FROM step_definition WHERE id='s-1'");
+        if (fault === 'missing-values')
+          sqlite.run("DELETE FROM work_package_step WHERE work_package_id='p-1' AND step_id='s-1'");
+        if (fault === 'foreign-organization')
+          sqlite.run("INSERT INTO organization(id,name,created_at) VALUES('foreign','Foreign',1)");
+        if (fault === 'foreign-organization' || fault === 'missing-definition-organization')
+          sqlite.run("UPDATE step_definition SET organization_id=? WHERE id='s-1'", [
+            fault === 'foreign-organization' ? 'foreign' : 'missing',
+          ]);
+        if (fault === 'malformed-values')
+          sqlite.run(
+            "UPDATE work_package_step SET estimate_unit=x'01' WHERE work_package_id='p-1' AND step_id='s-1'",
+          );
+        if (fault === 'unknown-scope')
+          sqlite.run("UPDATE typed_dependency SET predecessor_scope='other'");
+        if (fault === 'whole-with-step')
+          sqlite.run("UPDATE typed_dependency SET predecessor_scope='whole'");
+        if (fault === 'unknown-type') sqlite.run("UPDATE typed_dependency SET type='SF'");
+        sqlite.run('PRAGMA ignore_check_constraints=OFF');
+        sqlite.run('PRAGMA foreign_keys=ON');
+        const capture = () =>
+          [
+            'work_package',
+            'work_item',
+            'typed_dependency',
+            'work_package_step',
+            'step_definition',
+            'step_binding',
+            'step_retirement',
+            'optimization_generation',
+            'solver_slot',
+            'optimized_schedule_cache',
+            'command_journal',
+            'event_log',
+            'event_sequencer',
+          ].map((table) => sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all());
+        const before = capture();
+        const diagnostic = {
+          'missing-work-item': 'cross-work-package typed dependency',
+          'missing-definition': 'step parallelism has an invalid step reference',
+          'missing-values': 'has no explicit values for step',
+          'foreign-organization': 'drain step definition organization is absent or foreign',
+          'missing-definition-organization':
+            'drain step definition organization is absent or foreign',
+          'malformed-values': 'catalogue package estimate unit is malformed',
+          'unknown-scope': 'unknown predecessor scope other',
+          'whole-with-step': 'whole predecessor with a step',
+          'unknown-type': 'unknown relationship type SF',
+        }[fault];
+        expect(() => finishOptimizationDrain(db, 'p-1')).toThrow(diagnostic);
+        expect(capture()).toEqual(before);
+      } finally {
+        sqlite.close();
+      }
+    });
+  }
+  it('selects actual successor incidence despite a foreign declared owner', () => {
+    const sqlite = openDatabase(path);
+    try {
+      sqlite.run(
+        "INSERT INTO work_item(id,work_package_id,name,position) VALUES('actual-a','p-1','A',1),('actual-b','p-2','B',1)",
+      );
+      sqlite.run(
+        "INSERT INTO typed_dependency(id,work_package_id,predecessor_work_item_id,predecessor_scope,successor_work_item_id,successor_scope,type) VALUES('foreign-successor','p-2','actual-b','whole','actual-a','whole','FS')",
+      );
+      beginOptimizationDrain(db, 'p-1', stampAt(20));
+      const before = sqlite.query('SELECT * FROM typed_dependency').all();
+      expect(() => finishOptimizationDrain(db, 'p-1')).toThrow(
+        'cross-work-package typed dependency',
+      );
+      expect(sqlite.query('SELECT * FROM typed_dependency').all()).toEqual(before);
+      expect(workPackageIds()).toEqual(['p-1', 'p-2']);
+      expect(sqlite.query('PRAGMA foreign_key_check').all()).toEqual([]);
+    } finally {
+      sqlite.close();
+    }
+  });
+});
+
+it('refuses actual successor ownership before a bystander predecessor missing package values', () => {
+  const sqlite = openDatabase(path);
+  try {
+    sqlite.run(
+      "INSERT INTO work_item(id,work_package_id,name,position) VALUES('mixed-a','p-1','A',1),('mixed-b','p-2','B',1)",
+    );
+    sqlite.run(
+      "INSERT INTO typed_dependency(id,work_package_id,predecessor_work_item_id,predecessor_scope,predecessor_step_id,successor_work_item_id,successor_scope,type) VALUES('mixed','p-2','mixed-b','node','s-1','mixed-a','whole','FS')",
+    );
+    sqlite.run('PRAGMA foreign_keys=OFF');
+    sqlite.run("DELETE FROM work_package_step WHERE work_package_id='p-2' AND step_id='s-1'");
+    sqlite.run('PRAGMA foreign_keys=ON');
+    beginOptimizationDrain(db, 'p-1', stampAt(20));
+    const capture = () =>
+      [
+        'work_package',
+        'work_item',
+        'typed_dependency',
+        'work_package_step',
+        'step_definition',
+        'step_binding',
+        'step_retirement',
+      ].map((table) => sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all());
+    const before = capture();
+    expect(() => finishOptimizationDrain(db, 'p-1')).toThrow('cross-work-package typed dependency');
+    expect(capture()).toEqual(before);
+  } finally {
+    sqlite.close();
+  }
+});
+
+it('refuses later cross-owner edges before an earlier local edge missing package values', () => {
+  const sqlite = openDatabase(path);
+  try {
+    sqlite.run(
+      "INSERT INTO work_item(id,work_package_id,name,position) VALUES('mixed-a','p-1','A',1),('mixed-b','p-2','B',1)",
+    );
+    sqlite.run(
+      "INSERT INTO typed_dependency(id,work_package_id,predecessor_work_item_id,predecessor_scope,predecessor_step_id,successor_work_item_id,successor_scope,type) VALUES('local-first','p-1','mixed-a','node','s-1','mixed-a','whole','FS'),('cross-later','p-2','mixed-b','whole',NULL,'mixed-a','whole','FS')",
+    );
+    sqlite.run('PRAGMA foreign_keys=OFF');
+    sqlite.run("DELETE FROM work_package_step WHERE work_package_id='p-1' AND step_id='s-1'");
+    sqlite.run('PRAGMA foreign_keys=ON');
+    beginOptimizationDrain(db, 'p-1', stampAt(20));
+    const capture = () =>
+      [
+        'work_package',
+        'work_item',
+        'typed_dependency',
+        'work_package_step',
+        'step_definition',
+        'step_binding',
+        'step_retirement',
+      ].map((table) => sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all());
+    const before = capture();
+    expect(() => finishOptimizationDrain(db, 'p-1')).toThrow('cross-work-package typed dependency');
+    expect(capture()).toEqual(before);
+  } finally {
+    sqlite.close();
+  }
 });

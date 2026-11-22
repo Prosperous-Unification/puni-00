@@ -1967,3 +1967,66 @@ passes 76 cases using real Node/Vite and its original provenance refusals.
 Full SQLite/backend/CLI closure, remaining CI compatibility repairs, the exact final
 commit host gate, formal Astra review and merge remain open. No live migration or
 deployment was performed.
+
+## Delivery compatibility follow-up, 2026-11-22
+
+Published checkpoint `053bd6f65421bcd048b91041dc328ec8c9648be6` remains blocked by
+required CI. The following later local repairs do not establish a passing release
+or permission to run the stopped-service migration on a live installation.
+
+- `bun test ./src/app.test.ts ./src/app.routes.test.ts --timeout=10000`, from
+  `apps/wbs/be-01`, passed 18 cases. Catalogue GETs now declare the framed-body 400
+  that their mounted decoder already returns. Each of the four declarations was
+  independently omitted: the unchanged mounted probes failed with 500 in both
+  local and OIDC mode, then passed after restoration. Required fixture stores and
+  modeled missing-record observations are explicit; the shared missing-store
+  refusal and original route assertions remain.
+- `bun test ./scripts/connected-composed-image-scenario.db.test.ts --timeout=10000`
+  passed all eight cases. Current authored definitions and project bindings replace
+  the removed `step` table; exact target/foreign step identities, schedule starts,
+  fixed pins, duration and physical-reader assertions remain. A real duplicate code
+  refuses precisely; removing the fixture guard makes the same assertion fail with
+  the later estimate FK error, and restoring it passes. Scoped lint and types pass.
+  This is database-backed packaging evidence, not an actual Docker image run.
+- The two organization browser cases pass with real project parents and explicit
+  Ada permissions. Stale-context 409, mutation-count, membership-removal, token and
+  narrow-viewport assertions remain. Participant policy/listener/source controls
+  pass three cases after the diagnostic reader uses current activation table names.
+  The two activation fault injections and unchanged ledger companion pass three
+  cases after their SQL targets follow the same current table names. Their
+  transaction, privacy, independent-readback and first-commit assertions remain.
+- The Browser owner, actual unreadable-exit retention negative, pending-judge
+  cancellation and earlier-failure/late-signal owners passed 20 cases. Only a
+  locally minted deadline avoids the observation-failure latch; independent native
+  stop, numeric exit, EOF and resource cleanup still govern release. Astra found
+  and reproduced signal-first cancellation being hidden by a later deadline.
+  The permanent real-child regression passes; removing only its cancellation
+  precedence call makes that same regression fail its native SIGTERM assertion.
+- Classification tests passed 446 cases after exact declarations for 49 historical
+  binary fixtures and exact exclusions for 41 ordinary fixture paths in the fixed
+  PR delta. Fixture and capture bytes remain unchanged; unknown binaries and
+  overlapping neighboring inputs still refuse. Actual CLI negatives preceded each
+  declaration/exclusion repair. Lint, format and scoped types passed. The existing
+  broader pilot advanced through those fixtures and now refuses a `plan-history`
+  consumer/index mismatch; that separate mismatch remains outside this batch.
+- Current `optimization-drain.db.test.ts` and
+  `optimization-drain-step-parallel.db.test.ts` passed 131 cases. Terminal reads
+  use actual work-item ownership, explicit package values and real organization
+  chains. Deletion retains shared definitions/bindings and only removes target
+  package values. Astra identified a missing-pair diagnostic masking another
+  endpoint's ownership refusal; real failing controls preceded the complete-set
+  ownership pass. Thirteen bounded fault proofs cover the changed predicates,
+  two fixture cleanup refusals and the absent-target diagnostic. The latter uses
+  an actual same-writer wrong-address read returning null, qualifying precise
+  failure only. Fixture custody faults throw after a genuine close returns;
+  they do not simulate a leaked descriptor. Every source mutation was restored
+  before its healthy control; the corrected private broad-selection diagnostic
+  mismatch is retained separately from product test results.
+
+These are scoped observations recorded in protected command receipts, including
+the original failures and guard omission. Full backend/SQLite/Twilight closure,
+the final exact-commit host gate and merge remain unverified. Astra reviewed the
+current drain and Browser changes; that review does not establish whole-scope closure.
+The previous host-gate attempt exhausted its admission wait with exit 75 before
+printing a running SHA; it supplies no gate credit. The broader client-script
+inventory and CLI feature work remain deferred to regrouping.

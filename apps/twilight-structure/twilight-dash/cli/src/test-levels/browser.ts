@@ -143,6 +143,9 @@ export function createBrowserRuntime(selection: TestLevelContext) {
   /** Carries unconfirmed child/EOF custody to the collector that owns the checkout. */
   class BrowserCommandCustodyFailure extends AggregateError {}
 
+  /** A local deadline minted after every required command observation is registered. */
+  class BrowserTimeout extends Error {}
+
   /** Bound a wait without treating deadline rejection as settlement of the underlying channels. */
   async function awaitBrowserWithin<T>(
     pending: Promise<T>,
@@ -155,7 +158,7 @@ export function createBrowserRuntime(selection: TestLevelContext) {
         pending,
         new Promise<never>((_accept, reject) => {
           timeout = setTimeout(() => {
-            reject(new Error(label));
+            reject(new BrowserTimeout(label));
           }, milliseconds);
         }),
       ]);
@@ -195,6 +198,14 @@ export function createBrowserRuntime(selection: TestLevelContext) {
       return { exitCode, stdout: outputText, stderr: errorText };
     } catch (cause) {
       if (execution.isCancellation(cause)) throw cause;
+      // Proof: the original hung-child/descendant tests failed when deadlines latched custody.
+      // Exit and both EOFs still join independently in the execution owner before release.
+      if (cause instanceof BrowserTimeout) {
+        // Proof: omitting this call made the signal-first regression catch the later
+        // BrowserTimeout and exit 23 instead of re-raising the recorded SIGTERM.
+        execution.assertPublicationAllowed();
+        throw cause;
+      }
       execution.retainFailure(cause);
       throw new BrowserCommandCustodyFailure(
         [cause],

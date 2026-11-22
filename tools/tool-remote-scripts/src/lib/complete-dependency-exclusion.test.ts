@@ -318,7 +318,7 @@ test('actual second-store SQL failure preserves the first real commit and privat
   const failing = openExistingConnection(fixture.devPath);
   try {
     failing.db.run(
-      "CREATE TRIGGER fail_activation BEFORE UPDATE ON cross_project_dependency_activation BEGIN SELECT RAISE(ABORT,'PRIVATE_SQL_SENTINEL'); END",
+      "CREATE TRIGGER fail_activation BEFORE UPDATE ON cross_work_package_dependency_activation BEGIN SELECT RAISE(ABORT,'PRIVATE_SQL_SENTINEL'); END",
     );
   } finally {
     failing.close();
@@ -395,14 +395,16 @@ for (const fault of ['receipt', 'ledger'] as const)
         try {
           if (fault === 'receipt') {
             database
-              .query('UPDATE cross_project_dependency_activation_receipt SET receipt=? WHERE id=1')
+              .query(
+                'UPDATE cross_work_package_dependency_activation_receipt SET receipt=? WHERE id=1',
+              )
               .run(JSON.stringify({ ...receipt, activationId: 'PRIVATE_RECEIPT_TAMPER' }));
             repair = () => {
               const reopened = openDatabase(fixture.prodPath);
               try {
                 reopened
                   .query(
-                    'UPDATE cross_project_dependency_activation_receipt SET receipt=? WHERE id=1',
+                    'UPDATE cross_work_package_dependency_activation_receipt SET receipt=? WHERE id=1',
                   )
                   .run(JSON.stringify(receipt));
               } finally {

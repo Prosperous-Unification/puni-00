@@ -1,9 +1,3 @@
-import { openTestSource } from '@wbs/store-memory/testing/owned-source-fixture';
-import { memoryWorkPackageTables } from '@wbs/store-memory/work-package-fixture';
-
-import { refusingPlanExports } from './testing/plan-export-fixture';
-import { createLegacyWorkPackageObservation } from './testing/work-package-fixture';
-const PROJECT_ID = 'http-fixture-parent';
 import { InMemoryOidcTransactionStore, InMemoryTokenStore } from '@wbs/auth';
 import {
   bodyMediaFor,
@@ -19,8 +13,10 @@ import {
   validateSchema,
 } from '@wbs/contracts';
 import { AuthService } from '@wbs/core/service/auth.service';
-import { memoryUserTable } from '@wbs/store-memory/auth-fixture';
-import { inMemorySpaces, memorySpaceTables } from '@wbs/store-memory/space-fixture';
+import { seedLegacyPackageParent } from '@wbs/core/testing/legacy-package-source-fixture';
+import { bindStores, MemoryState } from '@wbs/store-memory/memory-stores';
+import { openMemorySourceFixture } from '@wbs/store-memory/source';
+import { openTestSource, ownTestSource } from '@wbs/store-memory/testing/owned-source-fixture';
 import { testStepParallels } from '@wbs/store-memory/testing/service-fixtures';
 import { describe, expect, it, spyOn } from 'bun:test';
 import fc from 'fast-check';
@@ -56,8 +52,8 @@ import {
   refusingMemberships,
   refusingRestoreApprovals,
 } from './testing/organization-access-fixture';
+import { refusingPlanExports } from './testing/plan-export-fixture';
 import { testPriorityBandService } from './testing/priority-band-fixture';
-import { createLegacyPackageContext } from './testing/project-fixture';
 import { refusingProjects } from './testing/project-fixture';
 import { testReplay } from './testing/replay-fixture';
 import { REQUEST_BODIES, REQUEST_QUERIES } from './testing/route-requests';
@@ -66,6 +62,7 @@ import { refusingSpaceRead } from './testing/space-fixture';
 import { testStepService } from './testing/step-fixture';
 import { testWorkItemService } from './testing/work-item-fixture';
 import { refusingWorkPackageAddressSearch } from './testing/work-package-address-search-fixture';
+import { createLegacyWorkPackageObservation } from './testing/work-package-fixture';
 import { inMemoryWorkPackages, testWorkPackageService } from './testing/work-package-fixture';
 import { refusingWorkPackageRanks } from './testing/work-package-rank-fixture';
 import { testWrites } from './testing/writes-fixture';
@@ -73,7 +70,8 @@ import { testWrites } from './testing/writes-fixture';
 function options(workPackageStore = inMemoryWorkPackages()): AppOptions {
   const workPackages = testWorkPackageService(workPackageStore);
   const history = testHistoryService();
-  const spaces = inMemorySpaces(memorySpaceTables(new Map(), new Map()));
+  const spaceStores = bindStores(new MemoryState());
+  const spaces = spaceStores.spaces;
   const writes = testWrites(
     undefined,
     { workPackages, workItems: testWorkItemService(openTestSource()) },
@@ -90,6 +88,7 @@ function options(workPackageStore = inMemoryWorkPackages()): AppOptions {
             stores: new Proxy(scope.stores, {
               get(target, port, receiver) {
                 if (port === 'spaces') return spaces;
+                if (port === 'settings') return spaceStores.settings;
                 if (port === 'accessDecisions') return undefined;
                 const exposed: unknown = Reflect.get(target, port, receiver);
                 return exposed;
@@ -620,8 +619,9 @@ const NO_ORIGIN_OPERATIONS = [
 async function reachabilityOptions(
   mode: 'local' | 'oidc',
 ): Promise<{ options: AppOptions; shapes: readonly (typeof httpShapes)[number][] }> {
-  const userTable = memoryUserTable();
-  const users = inMemoryUsers(userTable);
+  const fixture = openMemorySourceFixture();
+  const source = ownTestSource(fixture.source);
+  const users = source.stores.users;
   await users.create(
     {
       id: 'route-owner',
@@ -631,18 +631,14 @@ async function reachabilityOptions(
     },
     { at: 1, by: 'route-owner' },
   );
-  const workPackageTables = memoryWorkPackageTables();
-  const workPackages = inMemoryWorkPackages(
-    users,
-    workPackageTables,
-    createLegacyPackageContext(
-      userTable.byId,
-      workPackageTables,
-      'http-fixture-legacy',
-      PROJECT_ID,
-    ),
-  );
+  seedLegacyPackageParent(fixture, {
+    organizationId: 'http-fixture-legacy',
+    projectId: ROUTE_ID,
+    creator: 'route-owner',
+  });
+  const workPackages = source.stores.workPackages;
   const savedPlans = testSavedPlanService();
+  spyOn(savedPlans, 'saveObserved').mockResolvedValue({ outcome: 'not_found' });
   spyOn(savedPlans, 'read').mockResolvedValue({ outcome: 'not_found' });
   spyOn(savedPlans, 'rename').mockResolvedValue({ outcome: 'not_found' });
   spyOn(savedPlans, 'delete').mockResolvedValue({ outcome: 'not_found' });
@@ -660,6 +656,16 @@ async function reachabilityOptions(
   });
   const oidc = mode === 'oidc' ? reachabilityOidcOptions() : undefined;
   const appOptions = options(workPackages);
+  const observation = createLegacyWorkPackageObservation(
+    testWorkPackageService(workPackages),
+    appOptions.history,
+  );
+  spyOn(observation, 'listSaved').mockResolvedValue({ ok: true, value: null });
+  spyOn(observation, 'captureSavedCurrent').mockResolvedValue({ ok: true, value: null });
+  spyOn(observation, 'readSaved').mockResolvedValue({
+    ok: true,
+    value: { kind: 'saved_plan_not_found' },
+  });
   return {
     options: {
       ...appOptions,
@@ -676,10 +682,11 @@ async function reachabilityOptions(
           return { kind: 'not_found' };
         },
       },
-      workPackageObservation: createLegacyWorkPackageObservation(
-        testWorkPackageService(workPackages),
-        appOptions.history,
-      ),
+      workPackageObservation: observation,
+      spaceRead: {
+        read: () => Promise.resolve({ ok: false, refusal: 'organization_required' }),
+        rollUps: () => Promise.resolve({ ok: false, refusal: 'organization_required' }),
+      },
       savedPlans,
       internalAuthSecret: INTERNAL_SECRET,
       oidc,
@@ -751,9 +758,18 @@ function requestFor(shape: (typeof httpShapes)[number]): Request {
   });
 }
 
+/** Catalogue reads whose framed-body refusal must reach the actual mounted decoder. */
+const CATALOGUE_READ_OPERATIONS: ReadonlySet<string> = new Set([
+  'listStepCatalogue',
+  'readProjectSteps',
+  'readProjectStepUsage',
+  'readProjectStepManifest',
+]);
+
 /**
  * The structurally valid request plus an undeclared query parameter, and, for
  * a body-less write, an empty JSON object: input a raw client sends by habit.
+ * Catalogue reads also carry nonzero framing because Fetch forbids a GET body.
  */
 function strayInputRequests(
   shape: (typeof httpShapes)[number],
@@ -764,6 +780,14 @@ function strayInputRequests(
   const strays: { part: 'query' | 'body'; request: Request }[] = [
     { part: 'query', request: new Request(url, valid) },
   ];
+  if (CATALOGUE_READ_OPERATIONS.has(shape.operationId)) {
+    const headers = new Headers(valid.headers);
+    headers.set('content-length', '2');
+    strays.push({
+      part: 'body',
+      request: new Request(valid.url, { method: valid.method, headers }),
+    });
+  }
   if (bodyMediaFor(shape).length === 0 && shape.method !== 'GET') {
     const headers = new Headers(valid.headers);
     headers.set('content-type', 'application/json');
@@ -785,6 +809,7 @@ function strayInputRequests(
 const STRAY_INPUT_EXCEPTIONS: ReadonlyMap<string, { status: number; error: string | null }> =
   new Map([
     ['postApiWorkPackagesImport query', { status: 400, error: 'invalid_body' }],
+    ['retireStepDefinition body', { status: 422, error: 'invalid_body' }],
     ['postInternalGatewayWorkPackageAccess query', { status: 401, error: 'unauthenticated' }],
     ['postInternalGatewayWorkPackageAccess body', { status: 401, error: 'unauthenticated' }],
     // No dedicated mcp-01 secret is composed here, so identity refuses first.

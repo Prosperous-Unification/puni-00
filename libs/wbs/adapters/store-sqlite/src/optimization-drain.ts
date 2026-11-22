@@ -1,6 +1,11 @@
-import type { WriteStamp } from '@wbs/core';
-import { assertStepParallel } from '@wbs/domain';
-import { and, eq, inArray, isNotNull, isNull, lte, or, sql } from 'drizzle-orm';
+import {
+  readCatalogueId,
+  readPackageStepValues,
+  readStepIdentity,
+  readStoredParallel,
+  type WriteStamp,
+} from '@wbs/core';
+import { and, eq, inArray, isNotNull, isNull, lte, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { auditOnUpdate } from './audit';
@@ -13,16 +18,81 @@ import {
   type SolverObjectiveName,
   solverQueue,
   solverSlot,
-  step,
-  stepParallel,
   typedDependency,
   workItem,
   workPackage,
   workPackageAccess,
+  workPackageStep,
 } from './schema';
+import { readSettingTargetIn } from './settings';
+import { readTypedDependency } from './typed-dependency';
 
 /** The handle a caller's own transaction hands to the helpers below. */
 type Transaction = Parameters<Parameters<SQLiteBunDatabase['transaction']>[0]>[0];
+
+/**
+ * Terminal identity evidence uses explicit package values, never live binding/type applicability.
+ * The caller has verified the actual package/parent/organization chain on this writer;
+ * matching that actual organization proves the definition organization exists as well.
+ */
+function assertDrainStepIdentity(
+  tx: Transaction,
+  workPackageId: string,
+  stepId: string,
+  organizationId: string,
+): void {
+  const metadata = tx
+    .all<{
+      definitionId: unknown;
+      definitionOrganizationId: unknown;
+      code: unknown;
+      name: unknown;
+      workPackageId: unknown;
+      stepId: unknown;
+      estimateUnit: unknown;
+      allowanceBps: unknown;
+      allowanceRevision: unknown;
+    }>(
+      sql`SELECT d.id AS "definitionId",d.organization_id AS "definitionOrganizationId",
+      d.code,d.name,v.work_package_id AS "workPackageId",
+      v.step_id AS "stepId",v.estimate_unit AS "estimateUnit",v.allowance_bps AS "allowanceBps",
+      v.allowance_revision AS "allowanceRevision"
+    FROM step_definition d
+    LEFT JOIN work_package_step v ON v.work_package_id=${workPackageId} AND v.step_id=d.id
+    WHERE d.id=${stepId}`,
+    )
+    .at(0);
+  // Proof: removing this guard changed `finish throws on missing-step sparse evidence`
+  // to an undefined-metadata TypeError; exact restoration recovered its precise refusal (v321).
+  if (metadata === undefined) throw new Error('step parallelism has an invalid step reference');
+  const definition = readStepIdentity({
+    id: metadata.definitionId,
+    organizationId: metadata.definitionOrganizationId,
+    code: metadata.code,
+    name: metadata.name,
+  });
+  // Proof: omitting this comparison made `finish throws on foreign-organization sparse
+  // evidence` return finished; restoration refused before cleanup (v321).
+  if (definition.organizationId !== organizationId)
+    throw new Error('drain step definition organization is absent or foreign');
+  // Proof: removing this decoder made `finish throws on missing-package-values sparse
+  // evidence` return finished; restoration refused the exact missing pair (v321).
+  readPackageStepValues(metadata, workPackageId, stepId);
+}
+
+/**
+ * Physical ownership remains readable after the durable delete-pending fence closes admission.
+ * Proof: bypassing this chain read made the selected missing-mapping and mismatched-parent
+ * finish cases return finished; exact restoration recovered both refusals (v321).
+ */
+function readDrainOrganization(tx: Transaction, workPackageId: string): string {
+  const target = readSettingTargetIn(tx, { level: 'work_package', id: workPackageId }, null);
+  // Proof: a real same-writer lookup at an injected nonexistent address returned null.
+  // Removing only this guard failed the precise diagnostic observer with a TypeError;
+  // restoration recovered it and the healthy finish (v323). Diagnostic proof only.
+  if (target === null) throw new Error('drain work package is absent');
+  return target.chain.organizationId;
+}
 
 /** Throws naming the external relationship before destructive drain state can commit. */
 function assertWorkPackageUnreferenced(tx: Transaction, workPackageId: string): void {
@@ -351,73 +421,75 @@ function finishDrainIn(
         `work package ${workPackageId} has cross-work-package dependency ${foreignLegacy.id}`,
       );
 
-    const foreignTyped = tx
-      .select({ id: typedDependency.id })
+    // Proof: omitting actual endpoint incidence made the foreign-declared predecessor
+    // and successor cases both finish instead of refusing; restoration passed both (v322).
+    const incidentTyped = tx
+      .select()
       .from(typedDependency)
       .where(
-        sql`EXISTS (
-        SELECT 1 FROM work_item predecessor
-        JOIN work_item successor ON successor.id = ${typedDependency.successorWorkItemId}
-        LEFT JOIN step predecessor_step ON predecessor_step.id = ${typedDependency.predecessorStepId}
-        LEFT JOIN step successor_step ON successor_step.id = ${typedDependency.successorStepId}
-        WHERE predecessor.id = ${typedDependency.predecessorWorkItemId}
-          AND (
-            ${typedDependency.workPackageId} = ${workPackageId}
-            OR predecessor.work_package_id = ${workPackageId}
-            OR successor.work_package_id = ${workPackageId}
-            OR predecessor_step.work_package_id = ${workPackageId}
-            OR successor_step.work_package_id = ${workPackageId}
-          )
-          AND (
-            ${typedDependency.workPackageId} <> predecessor.work_package_id
-            OR ${typedDependency.workPackageId} <> successor.work_package_id
-            OR (predecessor_step.id IS NOT NULL AND ${typedDependency.workPackageId} <> predecessor_step.work_package_id)
-            OR (successor_step.id IS NOT NULL AND ${typedDependency.workPackageId} <> successor_step.work_package_id)
-          )
-      )`,
+        sql`
+      ${typedDependency.workPackageId}=${workPackageId}
+      OR EXISTS (SELECT 1 FROM work_item p WHERE p.id=${typedDependency.predecessorWorkItemId} AND p.work_package_id=${workPackageId})
+      OR EXISTS (SELECT 1 FROM work_item s WHERE s.id=${typedDependency.successorWorkItemId} AND s.work_package_id=${workPackageId})
+    `,
       )
-      .get();
-    if (foreignTyped !== undefined)
-      throw new Error(
-        `work package ${workPackageId} has cross-work-package typed dependency ${foreignTyped.id}`,
-      );
-
-    // Proof: owner-only/step-only selection missed the opposite incident direction;
-    // inner joins hid missing references. Missing/unreadable storage defaulted to
-    // empty accepted deletion; overbroad reads refused nonincident corrupt policy.
-    // Early reads displaced waiting/typed refusals; late reads hit the first-cleanup
-    // witness. Premature release commit lost generation/slot/cache; reclaim commit
-    // lost the slot. Installed UOW error commit failed graph/journal/event snapshots
-    // (optimization-drain-step-parallel and services cases, watched 2026-10-17).
-    const parallels = tx
-      .select({
-        workItemId: stepParallel.workItemId,
-        stepId: stepParallel.stepId,
-        maxParallel: stepParallel.maxParallel,
-        ownerWorkPackage: workItem.workPackageId,
-        stepWorkPackage: step.workPackageId,
-        hasChildren: sql<number>`EXISTS (SELECT 1 FROM work_item child WHERE child.parent_id = ${stepParallel.workItemId})`,
-      })
-      .from(stepParallel)
-      .leftJoin(workItem, eq(workItem.id, stepParallel.workItemId))
-      .leftJoin(step, eq(step.id, stepParallel.stepId))
-      .where(or(eq(workItem.workPackageId, workPackageId), eq(step.workPackageId, workPackageId)))
       .all();
+    // Proof: interleaving identity reads masked a foreign successor with its predecessor's
+    // missing pair, and an earlier local missing pair masked a later cross-owner edge.
+    // Both named mixed-corruption controls failed before this complete-set ownership pass
+    // and passed after it, retaining the existing typed-before-sparse refusal order (v317–320).
+    for (const physical of incidentTyped) {
+      for (const endpointId of [physical.predecessorWorkItemId, physical.successorWorkItemId]) {
+        const owner = tx
+          .select({ workPackageId: workItem.workPackageId })
+          .from(workItem)
+          .where(eq(workItem.id, endpointId))
+          .get();
+        if (owner?.workPackageId !== physical.workPackageId)
+          throw new Error(
+            `work package ${workPackageId} has cross-work-package typed dependency ${physical.id}`,
+          );
+      }
+    }
+    for (const physical of incidentTyped) {
+      const dependency = readTypedDependency(physical);
+      const organizationId = readDrainOrganization(tx, dependency.workPackageId);
+      for (const endpoint of [dependency.predecessor, dependency.successor]) {
+        if (endpoint.scope !== 'whole')
+          assertDrainStepIdentity(tx, dependency.workPackageId, endpoint.stepId, organizationId);
+      }
+    }
+
+    // Selected sparse facts belong to actual target work items or have no attributable owner.
+    // Shared definition identity alone never selects another package's facts.
+    // Proof: removing the orphan arm let the missing-owner case finish (v321); selecting
+    // all rows instead made the corrupt shared-definition bystander veto a valid finish
+    // at the owner guard (v322). Exact selection restoration passed each control.
+    // Historical 2026-10-17 proofs on package-owned steps also covered missing/unreadable
+    // storage, early refusal precedence, first-cleanup ordering and slot/event rollback;
+    // current owner/definition incidence is qualified by the controls above.
+    const parallels = tx.all<{
+      workItemId: unknown;
+      stepId: unknown;
+      maxParallel: unknown;
+      ownerWorkPackage: unknown;
+      hasChildren: unknown;
+    }>(sql`SELECT f.work_item_id AS "workItemId",f.step_id AS "stepId",f.max_parallel AS "maxParallel",
+        i.work_package_id AS "ownerWorkPackage",
+        EXISTS (SELECT 1 FROM work_item child WHERE child.parent_id=f.work_item_id) AS "hasChildren"
+      FROM step_parallel f LEFT JOIN work_item i ON i.id=f.work_item_id
+      WHERE i.work_package_id=${workPackageId} OR i.id IS NULL`);
     for (const parallel of parallels) {
-      // Proof: omitting each null check independently returned work package mismatch
-      // instead of the required missing-owner/missing-step sparse diagnostic.
-      if (parallel.ownerWorkPackage === null)
+      // Proof: omitting this refusal let the selected global orphan finish (v321).
+      if (parallel.ownerWorkPackage !== workPackageId)
         throw new Error('step parallelism has an invalid work-item reference');
-      if (parallel.stepWorkPackage === null)
-        throw new Error('step parallelism has an invalid step reference');
-      // Proof: dropping either work package predicate accepted cross-work-package evidence
-      // or reached an independent FK failure instead of the sparse refusal.
-      if (parallel.ownerWorkPackage !== workPackageId || parallel.stepWorkPackage !== workPackageId)
-        throw new Error('step parallelism work package mismatch');
-      // Proof: omitting leaf validation accepted the corrupt parent policy case.
+      const stepId = readCatalogueId(parallel.stepId, 'parallel step');
+      assertDrainStepIdentity(tx, workPackageId, stepId, readDrainOrganization(tx, workPackageId));
+      // Historical Proof: omitted leaf validation accepted corrupt parent policy (2026-10-17).
       if (parallel.hasChildren !== 0) throw new Error('step parallelism owner is not a leaf');
-      // Proof: omitting range validation accepted zero/fraction/1001; watched 2026-10-17.
-      assertStepParallel(parallel.maxParallel);
+      // Proof: removing this physical decoder accepted the selected BLOB maximum (v322).
+      // Historical range-guard omissions also accepted zero/fraction/1001 (2026-10-17).
+      readStoredParallel(parallel);
     }
 
     const ownedWorkItems = tx
@@ -439,7 +511,9 @@ function finishDrainIn(
     tx.delete(estimate).where(inArray(estimate.workItemId, ownedWorkItems)).run();
     tx.delete(workPackageAccess).where(eq(workPackageAccess.workPackageId, workPackageId)).run();
     tx.delete(workItem).where(eq(workItem.workPackageId, workPackageId)).run();
-    tx.delete(step).where(eq(step.workPackageId, workPackageId)).run();
+    // Proof: broadening this predicate erased B's explicit values in the shared-definition
+    // retention case; exact scope restoration preserved its complete snapshot (v322).
+    tx.delete(workPackageStep).where(eq(workPackageStep.workPackageId, workPackageId)).run();
     tx.delete(workPackage).where(eq(workPackage.id, workPackageId)).run();
     return 'finished';
   }

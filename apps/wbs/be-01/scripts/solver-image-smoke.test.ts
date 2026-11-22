@@ -852,11 +852,11 @@ function fixtureFailureScript(
   let helper = readFileSync(join(import.meta.dir, 'composed-image-fixtures.ts'), 'utf8');
   for (const name of COMPOSED_IMAGE_FIXTURES)
     copyFileSync(join(import.meta.dir, '../src/testing', name), join(testing, name));
-  const fixture = join(testing, 'app-fixture.ts');
+  const fixture = join(testing, 'app-composition-fixture.ts');
   if (fault === 'missing' || fault === 'symlink') {
     rmSync(fixture);
     if (fault === 'symlink')
-      symlinkSync(join(import.meta.dir, '../src/testing/app-fixture.ts'), fixture);
+      symlinkSync(join(import.meta.dir, '../src/testing/app-composition-fixture.ts'), fixture);
   } else if (fault === 'unreadable') chmodSync(fixture, 0);
   else {
     writeFileSync(join(repository, 'fault.ts'), 'controlled copied-fixture fault');

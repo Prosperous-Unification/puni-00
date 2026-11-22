@@ -1,3 +1,4 @@
+import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -18,7 +19,8 @@ import { userBoundOrganizationOf } from '@wbs/store-sqlite';
 import { openSqliteSource } from '@wbs/store-sqlite';
 import { captureConnectedQuestion } from '@wbs/store-sqlite/connected-question-identity';
 import { openReadOnlyConnection } from '@wbs/store-sqlite/db';
-import { expect, test } from 'bun:test';
+import { StepCatalogueRepository } from '@wbs/store-sqlite/step-catalogue';
+import { expect, spyOn, test } from 'bun:test';
 import { sql } from 'drizzle-orm';
 
 import { BACKEND_DEPENDENCY_CAPABILITY } from '../src/runtime/dependency-support';
@@ -28,6 +30,32 @@ import {
   TARGET_WORK_PACKAGE_ID,
   trackComposedImageReaders,
 } from './connected-composed-image-scenario';
+
+test('composed image fixture refuses a real duplicate catalogue code before seeding facts', async () => {
+  const folder = mkdtempSync(join(tmpdir(), 'connected-image-duplicate-code-'));
+  // The mock below invokes the captured method with its original repository receiver.
+  // eslint-disable-next-line @typescript-eslint/unbound-method
+  const define = StepCatalogueRepository.prototype.defineAndBindStep;
+  const authoring = spyOn(StepCatalogueRepository.prototype, 'defineAndBindStep');
+  authoring.mockImplementation(async function (
+    this: StepCatalogueRepository,
+    organizationId,
+    definition,
+    binding,
+    stamp,
+  ) {
+    return await define.call(this, organizationId, { ...definition, code: 'a1-s' }, binding, stamp);
+  });
+  try {
+    await assert.rejects(openComposedImageFixture(folder), {
+      message: 'disposable image step authoring refused: code_taken',
+    });
+    expect(authoring).toHaveBeenCalledTimes(2);
+  } finally {
+    authoring.mockRestore();
+  }
+  rmSync(folder, { recursive: true, force: true });
+});
 
 test('disposable composed image fixture captures a feasible priority improvement with exact foreign pins', async () => {
   const folder = mkdtempSync(join(tmpdir(), 'connected-image-fixture-'));

@@ -23,6 +23,7 @@ import { hashConnectedBytes } from '@wbs/store-sqlite/connected-question-identit
 import { openDatabase, openReadOnlyConnection } from '@wbs/store-sqlite/db';
 import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-activation';
 import { openSpaceDatabase } from '@wbs/store-sqlite/testing/space-database';
+import { sql } from 'drizzle-orm';
 
 import type {
   ReservedSolverTerminal,
@@ -31,7 +32,7 @@ import type {
 import { solverSupervisorSpawner } from '../src/module/solver-supervisor/solver-supervisor-spawner';
 import { BACKEND_DEPENDENCY_CAPABILITY } from '../src/runtime/dependency-support';
 import { type BeServices, buildServices } from '../src/services';
-import { testApp } from '../src/testing/app-fixture';
+import { composeTestApp } from '../src/testing/app-composition-fixture';
 import { testLocalAuthService } from '../src/testing/auth-fixture';
 
 export const TARGET_WORK_PACKAGE_ID = '11111111-1111-4111-8111-111111111111';
@@ -56,15 +57,45 @@ export async function openComposedImageFixture(folder: string): Promise<string> 
     dbPath: path,
   });
   try {
-    for (const id of [TARGET_WORK_PACKAGE_ID, FOREIGN_WORK_PACKAGE_ID]) {
+    for (const [id, code] of [
+      [TARGET_WORK_PACKAGE_ID, 'a1'],
+      [FOREIGN_WORK_PACKAGE_ID, 'a2'],
+    ] as const) {
+      const projectId = `composed-image-${code}`;
+      setup.db.run(
+        sql`INSERT INTO project(id,organization_id,name,created_at,created_by) VALUES(${projectId},'org-a',${code},1,'ada')`,
+      );
       const created = await setup.stores.workPackages.createInOrganization(
-        workPackageRow({ id, name: id, projectId: 'fixture-parent-org-a' }),
+        workPackageRow({ id, name: id, projectId }),
         [],
         { at: 1, by: 'ada' },
         'org-a',
         { id: crypto.randomUUID(), auditId: crypto.randomUUID() },
       );
       assert.equal(typeof created, 'object', 'disposable image work package creation refused');
+      const defined = await setup.stores.stepCatalogue.defineAndBindStep(
+        'org-a',
+        {
+          id: `${code}-s`,
+          code: `${code}-s`,
+          name: `${code} Build`,
+          position: 0,
+          defaultEstimateUnit: 'workdays',
+          defaultAllowancePercent: 0,
+        },
+        {
+          bindingId: `composed-image-${code}-s`,
+          scopeKind: 'project',
+          scopeId: projectId,
+          workItemTypeId: null,
+          position: 0,
+        },
+        { at: 1, by: 'ada' },
+      );
+      // Proof: the duplicate-code test fails with a later estimate FK error when this
+      // guard is removed; restoring it recovers the precise code_taken refusal.
+      if (!defined.ok)
+        throw new Error(`disposable image step authoring refused: ${defined.reason}`);
     }
   } finally {
     await setup.close();
@@ -91,11 +122,6 @@ export async function openComposedImageFixture(folder: string): Promise<string> 
         'INSERT INTO work_package_team_capacity(work_package_id,service_team_id,size) VALUES(?,?,1)',
         [workPackageId, workPackage],
       );
-      sqlite.run('INSERT INTO step(id,work_package_id,name,position) VALUES(?,?,?,0)', [
-        workPackage + '-s',
-        workPackageId,
-        'Build',
-      ]);
       for (const [position, suffix] of (workPackage === 'a1'
         ? ['long', 'short']
         : ['foreign']
@@ -301,7 +327,7 @@ export async function runComposedImageScenario(options: {
     const readTree = async () => {
       assert.ok(services);
       assert.ok(source);
-      const app = testApp({
+      const app = composeTestApp(services.workItems, {
         ...services,
         writes: services,
         auth: testLocalAuthService({ id: 'ada', username: 'ada', scopes: ['read', 'write'] }),

@@ -44,7 +44,7 @@ test('stages only the exact regular fixture closure with byte identity', () => {
   const destination = join(folder(), 'delivered');
   const provenance = stageComposedImageFixtures(repository, destination);
   expect(readdirSync(destination).sort()).toEqual([...COMPOSED_IMAGE_FIXTURES]);
-  expect(provenance.files).toHaveLength(22);
+  expect(provenance.files).toHaveLength(23);
   expect(statSync(destination).mode & 0o777).toBe(0o755);
   expect(statSync(resolve(destination, '..')).mode & 0o777).toBe(0o700);
   for (const file of provenance.files) {
@@ -59,11 +59,12 @@ test.each(['missing', 'unreadable', 'symlink'] as const)(
   'refuses a %s required source fixture and removes only its failed stage',
   (fault) => {
     const repository = source();
-    const path = join(repository, FIXTURES, 'app-fixture.ts');
+    const path = join(repository, FIXTURES, 'app-composition-fixture.ts');
     if (fault === 'unreadable') chmodSync(path, 0);
     else {
       rmSync(path);
-      if (fault === 'symlink') symlinkSync(join(REPOSITORY, FIXTURES, 'app-fixture.ts'), path);
+      if (fault === 'symlink')
+        symlinkSync(join(REPOSITORY, FIXTURES, 'app-composition-fixture.ts'), path);
     }
     const destination = join(folder(), 'delivered');
     expect(() => stageComposedImageFixtures(repository, destination)).toThrow(
@@ -139,7 +140,7 @@ test('actual fifth-driver closure requires exactly the delivered fixtures', asyn
   expect(built.success).toBe(true);
   if (built.metafile === undefined) throw new Error('Bun omitted the required import graph');
   // Proof: omitting cwd normalization makes the backend-cwd run report [] instead of
-  // the exact 22 fixtures; empty delivery and missing clock still fail the Bun resolver.
+  // the exact fixture closure; empty delivery and missing clock still fail the Bun resolver.
   const fixtureRoot = resolve(REPOSITORY, FIXTURES);
   const required = Object.keys(built.metafile.inputs)
     .map((path) => resolve(process.cwd(), path))

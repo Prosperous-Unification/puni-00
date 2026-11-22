@@ -65,6 +65,18 @@ const common = [
   organizationContextRefusal,
   { status: 404, schema: responseSchema(type({ error: "'not_found'" })) },
 ] as const;
+/**
+ * Bodyless catalogue reads retain the adapter's 400 framing refusal; write bodies remain 422.
+ * Proof: listStepCatalogue, readProjectSteps, readProjectStepUsage and
+ * readProjectStepManifest each returned 500 for Content-Length:2 before its own
+ * declaration was restored, in both existing local and OIDC reachability cases
+ * (2026-11-22). Each framed refusal then passed 400 before those cases reached
+ * an unrelated Source-less package birth; this proves only the eight read refusals.
+ */
+const readRefusals = [
+  ...common,
+  { status: 400, schema: responseSchema(type({ error: "'invalid_body'" })) },
+] as const;
 const writeRefusals = [
   ...common,
   { status: 400, schema: responseSchema(type({ error: "'invalid_json'" })) },
@@ -92,7 +104,7 @@ export const listStepCatalogue = defineEndpointShape({
       schema: responseSchema(type({ definitions: definition.array(), bindings: binding.array() })),
     },
   ],
-  refusals: common,
+  refusals: readRefusals,
   document: { summary: 'Read the selected organization active step catalogue.' },
 } as const);
 
@@ -259,7 +271,7 @@ export const readProjectSteps = defineEndpointShape({
   responses: [
     { kind: 'json', status: 200, schema: responseSchema(type({ steps: resolvedStep.array() })) },
   ],
-  refusals: common,
+  refusals: readRefusals,
   document: {
     summary:
       'Read this project’s resolved steps and all matching provenance. Omit type for untyped resolution; supply an owned work-item type id for its mapping.',
@@ -288,7 +300,7 @@ export const readProjectStepUsage = defineEndpointShape({
       ),
     },
   ],
-  refusals: common,
+  refusals: readRefusals,
   document: {
     summary:
       'Read protected pairs for this project step, including redundant bindings. Counts and the first200pairs include only readable work packages.',
@@ -320,7 +332,7 @@ export const readProjectStepManifest = defineEndpointShape({
       ),
     },
   ],
-  refusals: common,
+  refusals: readRefusals,
   document: {
     summary:
       'Read this project revision with untyped default codes and every owned work-item type mapping, using stable type IDs and current scope inheritance.',
