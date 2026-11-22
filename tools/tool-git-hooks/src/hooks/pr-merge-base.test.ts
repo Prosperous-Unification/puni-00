@@ -265,6 +265,64 @@ interface ScopeFixture {
   pidsPeak?: string | null;
   /** The recorder's tick in seconds in place of the production 120 (A-CI-LEAF-RECORDER-1). */
   recorderInterval?: number;
+  /** Scripted free KiB per path over {@link defaultDisk}; `absent` makes every df of it fail. */
+  disk?: Record<string, string>;
+  /** Docker's data root as `docker info` reports it; `null` is a host without a daemon. */
+  dockerRoot?: string | null;
+}
+
+/** The `${TMPDIR:-/tmp}` the step's disk fields read: an empty TMPDIR also means /tmp. */
+const inheritedTmp = process.env['TMPDIR'];
+const sampleTmp = inheritedTmp === undefined || inheritedTmp === '' ? '/tmp' : inheritedTmp;
+
+/** What the fake df reports for the four sampled paths unless a fixture overrides one. */
+function defaultDisk(dockerRoot: string): Record<string, string> {
+  return { '/': '52428800', '/mnt': '41943040', [sampleTmp]: '31457280', [dockerRoot]: '20971520' };
+}
+
+/**
+ * Stand-ins for the disk telemetry (A-CI-LEAF-DISK-1). `df --output=avail -k <path>` prints the
+ * count DF_SCRIPT holds for that path; a path scripted `absent` fails every df form, as a missing
+ * mount does; any other call runs the real df, so the records' `df -h /` keep their real header.
+ * `docker info -f '{{.DockerRootDir}}'` prints FAKE_DOCKER_ROOT, or fails when it is empty, as a
+ * runner without a daemon does. Returns the environment that binds them.
+ */
+function writeDiskFakes(bin: string, root: string, fixture: ScopeFixture): Record<string, string> {
+  const dockerRoot = fixture.dockerRoot === undefined ? join(root, 'docker') : fixture.dockerRoot;
+  // The default data root exists so the recorder's real `df -h` can read it.
+  if (fixture.dockerRoot === undefined) mkdirSync(join(root, 'docker'), { recursive: true });
+  const script = join(root, 'df-script');
+  const disk = { ...defaultDisk(dockerRoot ?? join(root, 'docker')), ...fixture.disk };
+  writeFileSync(
+    script,
+    Object.entries(disk)
+      .map(([path, value]) => `${path}\t${value}\n`)
+      .join(''),
+  );
+  writeFileSync(
+    join(bin, 'df'),
+    `#!/bin/bash
+path="\${!#}"
+value="$(awk -F '\\t' -v path="$path" '$1 == path { print $2 }' "$DF_SCRIPT")"
+if [ "$value" = absent ]; then printf 'df: %s: No such file or directory\\n' "$path" >&2; exit 1; fi
+if [ -n "$value" ] && [ "$#" -eq 3 ] && [ "$1" = --output=avail ] && [ "$2" = -k ]; then
+  printf '    Avail\\n%s\\n' "$value"
+  exit 0
+fi
+exec /usr/bin/df "$@"
+`,
+    { mode: 0o755 },
+  );
+  writeFileSync(
+    join(bin, 'docker'),
+    `#!/bin/bash
+[ "$*" = 'info -f {{.DockerRootDir}}' ] || { printf 'fake docker: unexpected %s\\n' "$*" >&2; exit 2; }
+[ -n "\${FAKE_DOCKER_ROOT:-}" ] || { printf 'Cannot connect to the Docker daemon\\n' >&2; exit 1; }
+printf '%s\\n' "$FAKE_DOCKER_ROOT"
+`,
+    { mode: 0o755 },
+  );
+  return { DF_SCRIPT: script, FAKE_DOCKER_ROOT: dockerRoot ?? '' };
 }
 
 /**
@@ -360,6 +418,7 @@ function runStep(
   symlinkSync(join(ROOT, 'tools'), join(h.root, 'tools'));
   writeScopeChain(bin, fixture.absent ?? []);
   writeFileSync(join(bin, 'gh'), fakeGh, { mode: 0o755 });
+  const disk = writeDiskFakes(bin, h.root, fixture);
   const script = bindRecorderInterval(
     bindScopeCgroup(h.root, production, fixture),
     fixture.recorderInterval,
@@ -427,6 +486,7 @@ exec '${process.execPath}' "$@"
       // Hermetic: a gate host's own pin (A-NODE-HEAP-1) must not decide the step's NODE_OPTIONS.
       NODE_OPTIONS: '',
       PATH: `${bin}:${process.env['PATH'] ?? ''}`,
+      ...disk,
       ...env,
     },
     stdout: 'pipe',
@@ -824,9 +884,10 @@ test.each(headroomShards)(
       );
       // The first sample precedes the gate scope, and the fixture never creates its cgroup, so the
       // scope fields read `unavailable`; `samples the gate scope's own cgroup` covers live values.
+      // The disk fields are the fake df's defaults (A-CI-LEAF-DISK-1).
       expect(
         lines.filter((line) =>
-          /^runtime headroom sample utc=\S+ memAvailableKiB=[0-9]+ node=[0-9]+ bun=[0-9]+ topRssKiB=[0-9]+ top=\S+ scopePids=unavailable scopeMemKiB=unavailable scopePeakKiB=unavailable scopeCpuUsec=unavailable$/.test(
+          /^runtime headroom sample utc=\S+ memAvailableKiB=[0-9]+ node=[0-9]+ bun=[0-9]+ topRssKiB=[0-9]+ top=\S+ scopePids=unavailable scopeMemKiB=unavailable scopePeakKiB=unavailable scopeCpuUsec=unavailable rootAvailKiB=52428800 mntAvailKiB=41943040 tmpAvailKiB=31457280 dockerRootAvailKiB=20971520$/.test(
             line,
           ),
         ).length,
@@ -870,7 +931,17 @@ function samplerShell(production: string): string {
   const path = /^scope_cgroup=.*\n/m.exec(production)?.[0];
   if (path === undefined) throw new Error('Missing scope_cgroup in the production step');
   return (
-    ['headroom_utc', 'is_count', 'sample_scope', 'sample_headroom'].map(definition).join('') + path
+    [
+      'headroom_utc',
+      'is_count',
+      'sample_scope',
+      'disk_avail',
+      'docker_root',
+      'sample_disk',
+      'sample_headroom',
+    ]
+      .map(definition)
+      .join('') + path
   );
 }
 
@@ -884,17 +955,29 @@ test.each(headroomShards)("%s step samples the gate scope's own cgroup", (job, n
   const unit = 'ci-gate-test-4242';
   const scope = join(h.root, 'cgroup', 'system.slice', `${unit}.scope`);
   const shell = samplerShell(step(job, name));
+  const bin = join(h.root, 'bin');
+  mkdirSync(bin);
+  const disk = writeDiskFakes(bin, h.root, {});
   const sample = () => {
     const invocation = Bun.spawnSync(['bash', '-c', `set -euo pipefail\n${shell}sample_headroom`], {
-      env: { ...process.env, cgroup_root: join(h.root, 'cgroup'), scope_unit: unit },
+      env: {
+        ...process.env,
+        ...disk,
+        PATH: `${bin}:${process.env['PATH'] ?? ''}`,
+        cgroup_root: join(h.root, 'cgroup'),
+        scope_unit: unit,
+      },
       stdout: 'pipe',
       stderr: 'pipe',
     });
     expect(invocation.exitCode, invocation.stderr.toString()).toBe(0);
     return invocation.stdout.toString();
   };
+  const diskFields =
+    ' rootAvailKiB=52428800 mntAvailKiB=41943040 tmpAvailKiB=31457280 dockerRootAvailKiB=20971520\n';
   const unavailable =
-    ' scopePids=unavailable scopeMemKiB=unavailable scopePeakKiB=unavailable scopeCpuUsec=unavailable\n';
+    ' scopePids=unavailable scopeMemKiB=unavailable scopePeakKiB=unavailable scopeCpuUsec=unavailable' +
+    diskFields;
   expect(sample()).toEndWith(unavailable);
   mkdirSync(scope, { recursive: true });
   const counters = {
@@ -906,7 +989,7 @@ test.each(headroomShards)("%s step samples the gate scope's own cgroup", (job, n
   for (const [file, value] of Object.entries(counters))
     writeFileSync(join(scope, file), `${value}\n`);
   expect(sample()).toMatch(
-    /^runtime headroom sample utc=\S+ memAvailableKiB=[0-9]+ node=[0-9]+ bun=[0-9]+ topRssKiB=[0-9]+ top=\S+ scopePids=37 scopeMemKiB=5120 scopePeakKiB=9216 scopeCpuUsec=123456789\n$/,
+    /^runtime headroom sample utc=\S+ memAvailableKiB=[0-9]+ node=[0-9]+ bun=[0-9]+ topRssKiB=[0-9]+ top=\S+ scopePids=37 scopeMemKiB=5120 scopePeakKiB=9216 scopeCpuUsec=123456789 rootAvailKiB=52428800 mntAvailKiB=41943040 tmpAvailKiB=31457280 dockerRootAvailKiB=20971520\n$/,
   );
   writeFileSync(join(scope, 'pids.current'), 'max\n');
   expect(sample(), 'a non-count').toEndWith(unavailable);
@@ -918,6 +1001,82 @@ test.each(headroomShards)("%s step samples the gate scope's own cgroup", (job, n
   writeFileSync(join(scope, 'memory.peak'), '0\n');
   writeFileSync(join(scope, 'cpu.stat'), 'user_usec 1\n');
   expect(sample(), 'a cpu.stat without usage_usec').toEndWith(unavailable);
+});
+
+// A-CI-LEAF-DISK-1 (R5-32): each sample carries the free KiB on /, /mnt, ${TMPDIR:-/tmp} and
+// Docker's data root. A missing mount, a df failure, a non-count answer or a host without a Docker
+// daemon reads `unavailable` for that field alone, and the sample still succeeds.
+// Proof (2026-11-22): dropping mntAvailKiB or the sample_disk call, disk_avail's is_count check, or
+// either `unavailable` fallback (disk_avail's, sample_disk's Docker branch) failed this test; a
+// fallback dropped from gate_heavy alone also failed the byte-equality test.
+test.each(headroomShards)('%s step samples free disk on four paths', async (job, name) => {
+  const shell = samplerShell(step(job, name));
+  const cases: [string, ScopeFixture, string][] = [
+    [
+      'every path a count',
+      {},
+      'rootAvailKiB=52428800 mntAvailKiB=41943040 tmpAvailKiB=31457280 dockerRootAvailKiB=20971520',
+    ],
+    [
+      'no /mnt and no Docker daemon',
+      { disk: { '/mnt': 'absent' }, dockerRoot: null },
+      'rootAvailKiB=52428800 mntAvailKiB=unavailable tmpAvailKiB=31457280 dockerRootAvailKiB=unavailable',
+    ],
+    [
+      'a non-count answer and an absent data root',
+      { disk: { [sampleTmp]: '12G', '/srv/docker': 'absent' }, dockerRoot: '/srv/docker' },
+      'rootAvailKiB=52428800 mntAvailKiB=41943040 tmpAvailKiB=unavailable dockerRootAvailKiB=unavailable',
+    ],
+    [
+      'a low root disk',
+      { disk: { '/': '1024' } },
+      'rootAvailKiB=1024 mntAvailKiB=41943040 tmpAvailKiB=31457280 dockerRootAvailKiB=20971520',
+    ],
+  ];
+  for (const [label, fixture, fields] of cases) {
+    const h = history();
+    const bin = join(h.root, 'bin');
+    mkdirSync(bin);
+    const disk = writeDiskFakes(bin, h.root, fixture);
+    const invocation = Bun.spawnSync(['bash', '-c', `set -euo pipefail\n${shell}sample_headroom`], {
+      env: {
+        ...process.env,
+        ...disk,
+        PATH: `${bin}:${process.env['PATH'] ?? ''}`,
+        cgroup_root: join(h.root, 'cgroup'),
+        scope_unit: 'ci-gate-test-4242',
+      },
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    expect(invocation.exitCode, `${label}: ${invocation.stderr.toString()}`).toBe(0);
+    expect(invocation.stdout.toString(), label).toMatch(
+      new RegExp(
+        `^runtime headroom sample utc=\\S+ memAvailableKiB=[0-9]+ .* scopeCpuUsec=unavailable ${fields}\n$`,
+      ),
+    );
+  }
+  // The production step with /mnt and the Docker daemon absent: its samples read `unavailable`
+  // there and the gate status stands.
+  for (const status of ['0', '7']) {
+    const h = history();
+    const execution = runStep(
+      h,
+      step(job, name),
+      { GATE_MODE: 'affected', GATE_BASE: h.base, RUNTIME_STATUS: status },
+      { disk: { '/mnt': 'absent' }, dockerRoot: null },
+    );
+    expect(execution.invocation.exitCode, execution.invocation.stderr.toString()).toBe(
+      Number(status),
+    );
+    const { lines } = headroomLog(await Bun.file(join(h.root, 'nx-gate.log')).text());
+    const samples = lines.filter((line) => line.startsWith('runtime headroom sample utc='));
+    expect(samples.length, status).toBeGreaterThanOrEqual(1);
+    for (const sample of samples)
+      expect(sample, status).toEndWith(
+        ' rootAvailKiB=52428800 mntAvailKiB=unavailable tmpAvailKiB=31457280 dockerRootAvailKiB=unavailable',
+      );
+  }
 });
 
 test.each(headroomShards)(
@@ -1051,9 +1210,11 @@ function recorderOutput(h: ReturnType<typeof history>, lines: readonly string[])
 
 // Proof (2026-11-21): dropping the stored comment id (every tick created a comment) failed the
 // single-create and PATCH-id assertions; dropping `unset GH_TOKEN` put the token in the runtime's
-// ledger line; dropping the final publish left no `state=final` body.
+// ledger line; dropping the final publish left no `state=final` body. Proof (2026-11-22): dropping
+// the disk section, or its per-path `unavailable` fallback, failed the disk assertions.
 test('the tool-fleet leaf recorder keeps one living comment on #963', async () => {
   const h = history();
+  const dockerRoot = join(h.root, 'docker');
   const execution = runStep(
     h,
     heavyStep(),
@@ -1068,7 +1229,7 @@ test('the tool-fleet leaf recorder keeps one living comment on #963', async () =
         'src/lab-guest-control.test.ts:',
       ]),
     },
-    { recorderInterval: 1 },
+    { recorderInterval: 1, disk: { '/mnt': 'absent' } },
   );
   expect(execution.invocation.exitCode, execution.invocation.stderr.toString()).toBe(0);
   const calls = execution.ghCalls();
@@ -1098,6 +1259,17 @@ test('the tool-fleet leaf recorder keeps one living comment on #963', async () =
     );
     expect(body).toMatch(/\nstate=(tick [0-9]+|final) utc=\S+ phaseElapsedSeconds=[0-9]+\n/);
     expect(body).toMatch(/### headroom samples, last 3\n\n````text\nruntime headroom sample utc=/);
+    // A-CI-LEAF-DISK-1: df -h per path; the absent /mnt reads `unavailable`, the others real df.
+    const disk = body.slice(body.indexOf('### disk\n\n````text\n'));
+    expect(disk).toStartWith(`### disk\n\n\`\`\`\`text\ndockerRootDir=${dockerRoot}\n/ `);
+    expect(disk.split('\n')[4]).toMatch(
+      /^\/ +[0-9.]+[KMGTP]? +[0-9.]+[KMGTP]? +[0-9.]+[KMGTP]? +[0-9]+% \/$/,
+    );
+    expect(disk).toContain('\n/mnt unavailable\n');
+    expect(disk).toMatch(new RegExp(`\\n${sampleTmp} +\\S+ +\\S+ +\\S+ +[0-9]+% \\S+\\n`));
+    expect(disk).toMatch(
+      new RegExp(`\\n${dockerRoot} +\\S+ +\\S+ +\\S+ +[0-9]+% \\S+\\n\`\`\`\`\\n`),
+    );
     expect(body).toMatch(/### processes by RSS\n\n````text\n +PID +PPID +ELAPSED +RSS COMMAND\n/);
     expect(body).toMatch(/### task count\n\n````text\n[1-9][0-9]*\n````/);
     expect(body).toContain(
