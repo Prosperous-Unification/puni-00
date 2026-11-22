@@ -243,6 +243,11 @@ exec "$@"
 printf 'journalctl %s\\n' "$*" >> "$SCOPE_CALLS"
 printf '2026-11-21T04:40:00+0000 runner kernel: audit: type=1400 apparmor="STATUS"\\n'
 printf '2026-11-21T04:41:00+0000 runner kernel: Out of memory: Killed process 4242 (bun) total-vm:9000000kB\\n'
+# The whole journal (the recorder's journal section) adds a network line and an unrelated one.
+if [ "$1" != -k ]; then
+  printf '2026-11-21T04:42:00+0000 runner systemd-networkd[612]: eth0: Lost carrier\\n'
+  printf '2026-11-21T04:42:30+0000 runner CRON[1700]: (root) CMD (true)\\n'
+fi
 `,
   };
   for (const [name, text] of Object.entries(chain))
@@ -263,8 +268,10 @@ interface ScopeFixture {
   pidsEventsMax?: string | null;
   oomKills?: string;
   pidsPeak?: string | null;
-  /** The recorder's tick in seconds in place of the production 120 (A-CI-LEAF-RECORDER-1). */
+  /** The recorder's tick in seconds in place of the production 45 (A-CI-LEAF-RECORDER-2). */
   recorderInterval?: number;
+  /** `absent` makes the fake `ip` and `ss` fail as missing tools and leaves no interface counters. */
+  network?: 'absent';
   /** Scripted free KiB per path over {@link defaultDisk}; `absent` makes every df of it fail. */
   disk?: Record<string, string>;
   /** Docker's data root as `docker info` reports it; `null` is a host without a daemon. */
@@ -389,13 +396,72 @@ function bindScopeCgroup(root: string, script: string, fixture: ScopeFixture): s
   return script.replace(assignment, `cgroup_root='${cgroupRoot}'\n`);
 }
 
-/** Rewrites the step's one `recorder_interval=120` line so a test sees several ticks. */
+/** Rewrites the step's one `recorder_interval=45` line so a test sees several ticks. */
 function bindRecorderInterval(script: string, seconds: number | undefined): string {
-  const assignment = 'recorder_interval=120\n';
+  const assignment = 'recorder_interval=45\n';
   if (seconds === undefined || !script.includes(assignment)) return script;
   expect(script.split(assignment)).toHaveLength(2);
   return script.replace(assignment, `recorder_interval=${String(seconds)}\n`);
 }
+
+/** What the fake `/proc/net/dev` holds: the two header lines, lo and the default interface. */
+const netDev = `Inter-|   Receive                                                |  Transmit
+ face |bytes    packets errs drop fifo frame compressed multicast|bytes    packets errs drop fifo colls carrier compressed
+    lo:     100       2    0    0    0     0          0         0      100       2    0    0    0     0       0          0
+  eth0: 123456789    4242    0    1    0     0          0         0 98765432    3131    0    0    0     0       0          0
+`;
+
+/**
+ * Stand-ins for the recorder's network probes (A-CI-LEAF-RECORDER-2): `ip` and `ss` print a
+ * runner's shapes, or with `network: 'absent'` fail as a missing tool does; `iptables`, reached
+ * through the fake `sudo`, prints three rules, and `nft` is absent there. The step's one
+ * `recorder_net_dev=` line points at a scratch copy of {@link netDev}, or at a missing path.
+ */
+function bindNetwork(bin: string, root: string, script: string, fixture: ScopeFixture): string {
+  const missing = `#!/bin/bash\nprintf '%s: command not found\\n' "$0" >&2\nexit 127\n`;
+  const ip = `#!/bin/bash
+case "$*" in
+  '-br addr') printf 'lo               UNKNOWN        127.0.0.1/8\\neth0             UP             10.1.0.4/16\\n' ;;
+  '-br link') printf 'lo               UNKNOWN        00:00:00:00:00:00\\neth0             UP             00:0d:3a:aa:bb:cc\\n' ;;
+  route) printf 'default via 10.1.0.1 dev eth0 proto dhcp src 10.1.0.4 metric 100\\n10.1.0.0/16 dev eth0 proto kernel scope link src 10.1.0.4\\n' ;;
+  'route show default') printf 'default via 10.1.0.1 dev eth0 proto dhcp src 10.1.0.4 metric 100\\n' ;;
+  *) printf 'fake ip: unexpected %s\\n' "$*" >&2; exit 2 ;;
+esac
+`;
+  const ss = `#!/bin/bash
+[ "$*" = -s ] || { printf 'fake ss: unexpected %s\\n' "$*" >&2; exit 2; }
+printf 'Total: 187\\nTCP:   9 (estab 4, closed 2, orphaned 0, timewait 1)\\n'
+`;
+  const absent = fixture.network === 'absent';
+  writeFileSync(join(bin, 'ip'), absent ? missing : ip, { mode: 0o755 });
+  writeFileSync(join(bin, 'ss'), absent ? missing : ss, { mode: 0o755 });
+  if (!absent)
+    writeFileSync(
+      join(bin, 'iptables'),
+      `#!/bin/bash\nprintf -- '-P INPUT ACCEPT\\n-P FORWARD DROP\\n-P OUTPUT ACCEPT\\n'\n`,
+      {
+        mode: 0o755,
+      },
+    );
+  const devices = join(root, 'net-dev');
+  if (!absent) writeFileSync(devices, netDev);
+  const assignment = 'recorder_net_dev=/proc/net/dev\n';
+  if (!script.includes(assignment)) return script;
+  expect(script.split(assignment)).toHaveLength(2);
+  return script.replace(assignment, `recorder_net_dev='${devices}'\n`);
+}
+
+/**
+ * A pass-through `sleep` that, with SLEEP_SCALE, divides every duration by it and logs each
+ * requested duration under SLEEP_CALLS, so a test can run the production 45 s tick in 1 s.
+ */
+const fakeSleep = `#!/bin/bash
+if [ -n "\${SLEEP_CALLS:-}" ]; then printf '%s\\n' "$1" >> "$SLEEP_CALLS"; fi
+if [ -n "\${SLEEP_SCALE:-}" ]; then
+  exec /usr/bin/sleep "$(awk -v seconds="$1" -v scale="$SLEEP_SCALE" 'BEGIN { printf "%.3f", seconds / scale }')"
+fi
+exec /usr/bin/sleep "$@"
+`;
 
 /**
  * A stand-in for `gh` (A-CI-LEAF-RECORDER-1): each call leaves its argv, NUL-separated, and the
@@ -447,9 +513,15 @@ function runStep(
   writeScopeChain(bin, fixture.absent ?? []);
   writeFileSync(join(bin, 'gh'), fakeGh, { mode: 0o755 });
   const disk = writeDiskFakes(bin, h.root, fixture);
-  const script = bindRecorderInterval(
-    bindDmiRoot(h.root, bindScopeCgroup(h.root, production, fixture), fixture),
-    fixture.recorderInterval,
+  writeFileSync(join(bin, 'sleep'), fakeSleep, { mode: 0o755 });
+  const script = bindNetwork(
+    bin,
+    h.root,
+    bindRecorderInterval(
+      bindDmiRoot(h.root, bindScopeCgroup(h.root, production, fixture), fixture),
+      fixture.recorderInterval,
+    ),
+    fixture,
   );
   writeFileSync(
     join(bin, 'bunx'),
@@ -473,6 +545,8 @@ case "$*" in
     # Test output for the recorder's log tail, and a phase long enough for several recorder ticks.
     if [ -n "\${RUNTIME_OUTPUT:-}" ]; then cat "$RUNTIME_OUTPUT"; fi
     if [ -n "\${RUNTIME_SLEEP:-}" ]; then sleep "$RUNTIME_SLEEP"; fi
+    # A second burst of output, so a later tick shows only what came after the first.
+    if [ -n "\${RUNTIME_LATER_OUTPUT:-}" ]; then cat "$RUNTIME_LATER_OUTPUT"; sleep "$RUNTIME_LATER_SLEEP"; fi
     # The scope's wrapper is this process's grandparent (wrapper, timeout, runtime): killing it
     # stands in for the OOM killer or a foreign signal taking the wrapper down with the gate.
     if [ -n "\${KILL_SCOPE_WRAPPER:-}" ]; then kill -9 "$(ps -o ppid= -p "$PPID" | tr -d ' ')"; fi
@@ -761,10 +835,16 @@ test.each(headroomShards)(
       expect(execution.invocation.exitCode, execution.invocation.stderr.toString()).toBe(
         Number(status),
       );
-      // The tool-fleet recorder's own kernel reads (A-CI-LEAF-RECORDER-1) are covered by its tests.
+      // The tool-fleet recorder's own kernel and journal reads (A-CI-LEAF-RECORDER-1 and -2) are
+      // covered by its tests.
       const ledger = (await execution.scopeCalls.text())
         .split('\n')
-        .filter((line) => line !== '' && !line.startsWith('journalctl -k --since -3min '));
+        .filter(
+          (line) =>
+            line !== '' &&
+            !line.startsWith('journalctl -k --since -3min ') &&
+            line !== 'journalctl --since -3min --no-pager -o short-iso',
+        );
       const unit = /--unit=(ci-gate-\S+-[0-9]+)-probe /.exec(ledger[0] ?? '')?.[1] ?? '';
       expect(unit, ledger.join('\n')).toMatch(new RegExp(`^ci-gate-${partition}-[0-9]+$`));
       const scope = (suffix: string) =>
@@ -1261,8 +1341,9 @@ test.each([
 );
 
 // A-CI-LEAF-RECORDER-1 (R5-32): a lost tool-fleet runner keeps nothing, so on that leaf alone a
-// recorder outside the scope PATCHes one comment on issue #963 every 120 s and once after the
-// phase. These run the production step with a fake `gh` and the tick rewritten to one second.
+// recorder outside the scope PATCHes one comment on issue #963 every 45 s (A-CI-LEAF-RECORDER-2)
+// and once after the phase. These run the production step with a fake `gh` and the tick rewritten
+// to one second, or the production tick under a scaled `sleep`.
 const heavyStep = () => step('gate_heavy', 'Heavy leaf — test, lint, typecheck, build');
 const recorderGate = 'if [ "$partition" = heavy-tool-fleet ]; then\n';
 
@@ -1274,17 +1355,36 @@ function recorderBodies(calls: readonly GhCall[]) {
   });
 }
 
-function recorderOutput(h: ReturnType<typeof history>, lines: readonly string[]): string {
-  const path = join(h.root, 'runtime-output');
+function recorderOutput(
+  h: ReturnType<typeof history>,
+  lines: readonly string[],
+  name = 'runtime-output',
+): string {
+  const path = join(h.root, name);
   writeFileSync(path, lines.map((line) => `${line}\n`).join(''));
   return path;
 }
+
+/** One `### title` section's text inside a #963 body, without its fences. */
+function recorderSection(body: string, title: string): string {
+  const opening = `### ${title}\n\n\`\`\`\`text\n`;
+  const start = body.indexOf(opening);
+  if (start === -1) throw new Error(`#963 body without section ${title}`);
+  const from = start + opening.length;
+  return body.slice(from, body.indexOf('\n````', from) + 1);
+}
+
+const sinceTitle = 'nx-gate.log lines since the previous tick';
+const recentTitle = 'processes started in the last 60 s';
 
 // Proof (2026-11-21): dropping the stored comment id (every tick created a comment) failed the
 // single-create and PATCH-id assertions; dropping `unset GH_TOKEN` put the token in the runtime's
 // ledger line; dropping the final publish left no `state=final` body. Proof (2026-11-22): dropping
 // the disk section or its per-path `unavailable` line failed the disk assertions, and dropping the
-// header's cloud field failed the header assertion.
+// header's cloud field failed the header assertion. Proof (2026-11-22, A-CI-LEAF-RECORDER-2):
+// dropping the network section, the previous tick's counters, the recent processes' 60 s filter
+// or their own-tree exclusion each failed this test, and so did dropping the journal section,
+// its filter, or the 120-character argument cut.
 test('the tool-fleet leaf recorder keeps one living comment on #963', async () => {
   const h = history();
   const dockerRoot = join(h.root, 'docker');
@@ -1326,7 +1426,7 @@ test('the tool-fleet leaf recorder keeps one living comment on #963', async () =
   expect(ledger).toContain('journalctl -k --since -3min --no-pager -o short\n');
   for (const body of bodies) {
     expect(Buffer.byteLength(body)).toBeLessThanOrEqual(61440);
-    expect(body).toStartWith('## tool-fleet leaf recorder (A-CI-LEAF-RECORDER-1)\n\n');
+    expect(body).toStartWith('## tool-fleet leaf recorder (A-CI-LEAF-RECORDER-2)\n\n');
     expect(body).toContain(
       `\nrun=44797660117 job=gate_heavy attempt=2 head=${h.merge} partition=heavy-tool-fleet ${azureCloud}\n`,
     );
@@ -1348,11 +1448,60 @@ test('the tool-fleet leaf recorder keeps one living comment on #963', async () =
     expect(body).toContain(
       '### kernel, last 3 minutes\n\n````text\n2026-11-21T04:40:00+0000 runner kernel: audit',
     );
-    expect(body).toContain('### nx-gate.log tail without samples\n\n````text\n');
-    const tail = body.slice(body.indexOf('### nx-gate.log tail')).split('\n');
+    const since = recorderSection(body, sinceTitle);
+    expect(since).toMatch(/^bytes=[0-9]+\.\.[0-9]+ newLines=[0-9]+ shown=[0-9]+\n/);
+    const tail = since.split('\n');
     expect(tail.some((line) => line.startsWith('runtime headroom sample '))).toBe(false);
     expect(tail.some((line) => line.startsWith('runtime recorder '))).toBe(false);
+    // A-CI-LEAF-RECORDER-2: the network probes, each under its label, from the fakes.
+    const network = recorderSection(body, 'network');
+    expect(network).toStartWith(
+      '$ ip -br addr\nlo               UNKNOWN        127.0.0.1/8\neth0             UP             10.1.0.4/16\n$ ip -br link\n',
+    );
+    expect(network).toContain('\n$ ip route\ndefault via 10.1.0.1 dev eth0 proto dhcp');
+    expect(network).toContain('\n$ ss -s\nTotal: 187\nTCP:   9 (estab 4');
+    expect(network).toContain('\n$ resolvectl status (20 lines), else /etc/resolv.conf\n');
+    expect(network).toContain('\n$ sudo -n iptables -S, rule lines\n3\n');
+    expect(network).toContain('\n$ sudo -n nft list ruleset, lines\nunavailable\n');
+    expect(network).toContain(
+      '\ndefaultInterface=eth0\neth0 (default) rxBytes=123456789 rxPackets=4242 rxErrs=0 rxDrop=1 txBytes=98765432 txPackets=3131 txErrs=0 txDrop=0\n',
+    );
+    expect(network).not.toContain('\nlo rxBytes=');
+    // The journal keeps the host's network, runner and OOM lines and drops the rest.
+    expect(recorderSection(body, 'journal, last 3 minutes')).toBe(
+      '2026-11-21T04:41:00+0000 runner kernel: Out of memory: Killed process 4242 (bun) total-vm:9000000kB\n2026-11-21T04:42:00+0000 runner systemd-networkd[612]: eth0: Lost carrier\n',
+    );
+    const recent = recorderSection(body, recentTitle).trimEnd().split('\n');
+    expect(recent[0]).toMatch(/^ +PID +PPID +ELAPSED +COMMAND +COMMAND$/);
+    // Arguments are cut at 120 characters from where the header's args column starts; the
+    // zero-width space the mention guard adds after each `@` comes after the cut.
+    const args = (recent[0] ?? '').lastIndexOf('COMMAND');
+    for (const row of recent.slice(1))
+      expect(row.replaceAll('\u200b', '').length).toBeLessThanOrEqual(args + 120);
+    // Only processes under 60 s old, and none of the recorder's own pipeline.
+    // A host process whose arguments carry a secret's shape is replaced whole; the rest show age.
+    for (const row of recent.slice(1))
+      if (row !== '[line redacted: a secret shape]')
+        expect(row).toMatch(/^ *[0-9]+ +[0-9]+ +[0-5]?[0-9] /);
+    expect(recent.filter((row) => row.includes('ps -eo pid,ppid,etimes,comm,args'))).toEqual([]);
   }
+  // The second and later ticks show the previous tick's counters beside their own.
+  expect(
+    bodies
+      .slice(1)
+      .every((body) =>
+        recorderSection(body, 'network').includes('\nprevious tick:\neth0 (default) rxBytes='),
+      ),
+  ).toBe(true);
+  expect(recorderSection(bodies[0] ?? '', 'network')).not.toContain('previous tick:');
+  // A test's helper started under 60 s ago is named: here the runtime's own `sleep 6`.
+  expect(
+    bodies.some((body) =>
+      /^ *[0-9]+ +[0-9]+ +[0-5]?[0-9] +sleep +\/usr\/bin\/sleep 6$/m.test(
+        recorderSection(body, recentTitle),
+      ),
+    ),
+  ).toBe(true);
   expect(bodies.filter((body) => body.includes('\nstate=tick ')).length).toBeGreaterThanOrEqual(3);
   // A mid-phase tick names the running test from the runtime's output.
   expect(
@@ -1376,6 +1525,180 @@ test('the tool-fleet leaf recorder keeps one living comment on #963', async () =
   expect(recorder).not.toBeNull();
   expect(isRunning(Number(recorder?.[1]))).toBe(false);
   expect(lines.some((line) => line.startsWith('runtime recorder unavailable'))).toBe(false);
+}, 60_000);
+
+// A-CI-LEAF-RECORDER-2. Proof (2026-11-22): `recorder_interval=120` asked for no 45 s nap, and
+// with those assertions set aside posted 3 ticks in the 8 s window. At least 4 leaves room for a
+// gate host's 2.5–4× slowdown; the sleep log is the deterministic negative.
+test('the tool-fleet leaf recorder ticks every 45 s', () => {
+  const h = history();
+  const sleeps = join(h.root, 'sleep-calls');
+  const execution = runStep(h, heavyStep(), {
+    GATE_MODE: 'affected',
+    GATE_BASE: h.base,
+    // Every sleep runs 45 times faster: the 45 s tick takes 1 s and the 360 s phase 8 s.
+    SLEEP_SCALE: '45',
+    SLEEP_CALLS: sleeps,
+    RUNTIME_SLEEP: '360',
+  });
+  expect(execution.invocation.exitCode, execution.invocation.stderr.toString()).toBe(0);
+  const requested = readFileSync(sleeps, 'utf8').split('\n');
+  expect(requested).toContain('45');
+  expect(requested).not.toContain('120');
+  const ticks = recorderBodies(execution.ghCalls()).filter((body) =>
+    body.includes('\nstate=tick '),
+  );
+  expect(ticks.length).toBeGreaterThanOrEqual(4);
+  expect(ticks.length).toBeLessThanOrEqual(10);
+}, 60_000);
+
+// Proof (2026-11-22): without the offset update every tick reposted the log from byte 0, so the
+// late tick held the early lines and the byte ranges did not join.
+test('each tick posts only the nx-gate.log lines written since the previous tick', () => {
+  const h = history();
+  const execution = runStep(
+    h,
+    heavyStep(),
+    {
+      GATE_MODE: 'affected',
+      GATE_BASE: h.base,
+      RUNTIME_OUTPUT: recorderOutput(h, [
+        'tool-fleet: ✓ early test one [1.00ms]',
+        'tool-fleet: ✓ early test two [1.00ms]',
+      ]),
+      RUNTIME_SLEEP: '3',
+      RUNTIME_LATER_OUTPUT: recorderOutput(h, ['tool-fleet: ✓ late test one [1.00ms]'], 'later'),
+      RUNTIME_LATER_SLEEP: '3',
+    },
+    { recorderInterval: 1 },
+  );
+  expect(execution.invocation.exitCode, execution.invocation.stderr.toString()).toBe(0);
+  const sections = recorderBodies(execution.ghCalls()).map((body) =>
+    recorderSection(body, sinceTitle),
+  );
+  // The byte ranges join: each tick starts where the previous one stopped.
+  const ranges = sections.map((section) => {
+    const range = /^bytes=([0-9]+)\.\.([0-9]+) /.exec(section);
+    if (range === null) throw new Error(`no byte range in ${section}`);
+    return [Number(range[1]), Number(range[2])] as const;
+  });
+  expect(ranges[0]?.[0]).toBe(0);
+  for (const [index, [from]] of ranges.entries())
+    if (index > 0) expect(from).toBe(ranges[index - 1]?.[1] ?? -1);
+  const fresh = sections.filter((section) => !section.includes(' newLines=0 '));
+  const early = fresh.filter((section) => section.includes('early test two'));
+  expect(early).toHaveLength(1);
+  expect(early[0]).toEndWith('tool-fleet: ✓ early test two [1.00ms]\n');
+  expect(early[0]).not.toContain('late test');
+  const late = fresh.filter((section) => section.includes('late test one'));
+  expect(late).toHaveLength(1);
+  expect(late[0]).not.toContain('early test');
+  // A tick between the bursts has nothing new and repeats the last earlier line.
+  const quiet =
+    'newLines=0 shown=0\nno new lines since the previous tick; the last earlier line:\ntool-fleet: ✓ early test two [1.00ms]\n';
+  expect(sections.some((section) => section.endsWith(quiet))).toBe(true);
+}, 60_000);
+
+// Proof (2026-11-22): without the 200-line cap the tick posted 258 lines, all 250 among them;
+// the earlier byte cap (`tail -c 40960` after counting) said `shown=200` while 118 lines were
+// posted, the first a fragment (review probe); dropping the byte condition from the whole-line
+// trim posted 200 wide lines past the body cap, so no tick showed the last one. Proof
+// (2026-11-22): without `LC_ALL=C` on the trim's awk, gawk under the runner's LANG=C.UTF-8
+// counted the 3-byte ✓ as one character: hosted run 44991572202 (job 137113719053) posted 41154
+// bytes, and locally gawk 5.2.1 first on PATH failed the LANG=C.UTF-8 case with the same 41154.
+// mawk counts bytes in every locale, so on a mawk host only the hosted runs exercise it.
+test('a tick posts at most the last 200 new lines that fit 40960 bytes, in any locale', () => {
+  // A hosted runner sets LANG and leaves LC_ALL unset, so the step's `local LC_ALL=C` is not
+  // exported to awk; an exported LC_ALL would be, and would hide the fault.
+  for (const [wide, name, locale] of [
+    [false, 'cap line', 'LANG=C.UTF-8'],
+    [true, 'wide line', 'LANG=C.UTF-8'],
+    [true, 'wide line', 'LC_ALL=C.UTF-8'],
+    [true, 'wide line', 'LC_ALL=C'],
+  ] as const) {
+    const [variable, value] = locale.split('=');
+    const h = history();
+    const execution = runStep(
+      h,
+      heavyStep(),
+      {
+        GATE_MODE: 'affected',
+        GATE_BASE: h.base,
+        RUNTIME_OUTPUT: recorderOutput(
+          h,
+          Array.from(
+            { length: 250 },
+            (_, index) =>
+              `tool-fleet: ✓ ${name} ${String(index + 1)}${wide ? ` ${'x'.repeat(330)}` : ''}`,
+          ),
+        ),
+        RUNTIME_SLEEP: '2',
+        LC_ALL: variable === 'LC_ALL' ? value : undefined,
+        LANG: value,
+      },
+      { recorderInterval: 1 },
+    );
+    expect(execution.invocation.exitCode, execution.invocation.stderr.toString()).toBe(0);
+    const capped = recorderBodies(execution.ghCalls())
+      .map((body) => recorderSection(body, sinceTitle))
+      .filter(
+        (section) =>
+          !section.includes(' newLines=0 ') && section.includes(`${name} 250${wide ? ' ' : '\n'}`),
+      );
+    expect(capped, `${name} ${locale}`).toHaveLength(1);
+    const [header, ...lines] = (capped[0] ?? '').trimEnd().split('\n');
+    const shown = Number(/ newLines=2[5-9][0-9] shown=([0-9]+)$/.exec(header)?.[1]);
+    expect(lines, name).toHaveLength(shown);
+    // Whole, consecutive lines ending at the last one.
+    for (const [index, line] of lines.entries())
+      expect(line).toBe(
+        `tool-fleet: ✓ ${name} ${String(251 - shown + index)}${wide ? ` ${'x'.repeat(330)}` : ''}`,
+      );
+    if (wide) {
+      expect(shown).toBeLessThan(200);
+      expect(
+        Buffer.byteLength(lines.map((line) => `${line}\n`).join('')),
+        locale,
+      ).toBeLessThanOrEqual(40960);
+      // One more line would not have fitted.
+      expect(Buffer.byteLength(lines.map((line) => `${line}\n`).join('')) + 360).toBeGreaterThan(
+        40960,
+      );
+    } else expect(shown).toBe(200);
+  }
+}, 60_000);
+
+// Proof (2026-11-22): without recorder_probe's `unavailable` branch the absent tools printed
+// nothing under their labels; an absent journalctl reads unavailable in the journal section.
+test('an absent network tool reads unavailable and leaves the gate status unchanged', () => {
+  for (const status of ['0', '7']) {
+    const h = history();
+    const execution = runStep(
+      h,
+      heavyStep(),
+      { GATE_MODE: 'affected', GATE_BASE: h.base, RUNTIME_STATUS: status, RUNTIME_SLEEP: '1' },
+      { recorderInterval: 1, network: 'absent', absent: ['journalctl'] },
+    );
+    expect(execution.invocation.exitCode, execution.invocation.stderr.toString()).toBe(
+      Number(status),
+    );
+    const bodies = recorderBodies(execution.ghCalls());
+    expect(bodies.length).toBeGreaterThanOrEqual(2);
+    for (const body of bodies) {
+      const network = recorderSection(body, 'network');
+      for (const label of [
+        'ip -br addr',
+        'ip -br link',
+        'ip route',
+        'ss -s',
+        'sudo -n iptables -S, rule lines',
+        'sudo -n nft list ruleset, lines',
+      ])
+        expect(network).toContain(`$ ${label}\nunavailable\n`);
+      expect(network).toMatch(/\n\$ \S+net-dev counters\nunavailable\n$/);
+      expect(recorderSection(body, 'journal, last 3 minutes')).toBe('unavailable\n');
+    }
+  }
 }, 60_000);
 
 // Proof (2026-11-21): without the cap the final body was 92254 bytes; without the shape guard
