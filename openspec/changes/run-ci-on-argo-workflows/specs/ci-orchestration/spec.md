@@ -267,9 +267,11 @@ for each Workflow UID.
 
 ### Requirement: A report belongs to one source Workflow
 
-A report SHALL carry its source Workflow's UID. An existing report SHALL count as that
-Workflow's only when its UID equals the event's, and an event whose source Workflow no
-longer exists SHALL start nothing.
+A report SHALL carry its source Workflow's UID as a label and SHALL NOT carry an owner
+reference to it, because the two may be in different namespaces. An existing report SHALL
+count as that Workflow's only when its UID equals the event's. Before a report is
+submitted the source SHALL be read by namespace and name, and an event whose source no
+longer exists, or whose name now has another UID, SHALL start nothing.
 
 #### Scenario: A name taken by another source
 
@@ -280,6 +282,11 @@ longer exists SHALL start nothing.
 
 - **WHEN** a finish event arrives for a Workflow whose object has been removed
 - **THEN** no report is created
+
+#### Scenario: A gate's report survives garbage collection
+
+- **WHEN** a gate in the `-build` namespace has been reported from the ordinary namespace
+- **THEN** the report has no owner reference and remains until its own lifetime ends
 
 ### Requirement: The old gate hosts stay until a gate passes here
 

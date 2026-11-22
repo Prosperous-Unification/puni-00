@@ -194,6 +194,13 @@ non-production cluster has.
 - **THEN** the verifier, which may read volumes and nothing else, or the host reading
   reports it, and the drill counts as failed
 
+#### Scenario: Drill on the non-production node
+
+- **WHEN** the non-production cluster's drill runs on a node that carries `nonproduction`
+  and not `database`
+- **THEN** that node has the host reading installed before the drill, and a directory left
+  there is reported
+
 #### Scenario: Drill asked to judge its own cleanup
 
 - **WHEN** the drill's ServiceAccount lists PersistentVolumes

@@ -955,19 +955,25 @@ this change reserves is step A25, so those namespaces are not an open end.
       only then merge the app's staging Application file, which the root applies at
       once and which syncs by itself; check the file against the recorded value with
       `sha256sum --check` and restore it into the new claim only if it matches (guard 6);
-      read the restored store's applied-migration ledger, names and hashes, with the
-      app's own status command run once as a Job on the claim while the workload is at
-      zero (for WBS `migrate-status-cli.ts --capture`; for the website and request app
-      the command their migration contract names), and the set of the image about to
-      run from its `migrate-capabilities-cli.ts` response, which needs no database;
-      only when the two are equal merge one replica and the CronJob resumed; point the names the staging overlay declares
+      compare the restored store's applied-migration ledger with the image about to
+      run, by that image's own capture run once as a Job on the claim while the
+      workload is at zero. For WBS it is
+      `migrate-status-cli.ts --capture --target=<t> --attempt=<a> --candidate=<c>` from
+      the candidate image, with `DB_PATH` on the restored store and the three identities
+      of this move: it reads every applied row, refuses one whose name or hash is absent
+      or changed in the candidate's own scripts, and prints the applied and the pending
+      sets. The candidate's `migrate-capabilities-cli.ts` is asked first, as the deploy
+      callers do, and answers only whether the image knows `capture-v1`; it carries no
+      names. For the website and request app it is the command their migration contract
+      names. Only when the capture exits 0 and its pending set is empty merge one
+      replica and the CronJob resumed; point the names the staging overlay declares
       at that node; wait for the certificates from the issuer each overlay names; run the new
       backup job once. Receipt, per app: the stamp and SHA-256, and the check's "OK"; a
       read of one of staging's own backup objects with the staging credential, and a read of a
       named production object refused with an authorisation error; no pod of the app
       and no backup run on the new side before the restore finished; the restored store's
-      check equals the backup's; the restored store's ledger and the candidate's set,
-      equal, read before the first replica; for WBS, the project list of the tracker read back through
+      check equals the backup's; the capture's output with every applied hash accepted and
+      an empty pending set, taken before the first replica; for WBS, the project list of the tracker read back through
       its API, and the WBS owner's word on what `wbs-mcp` held; the pages read back on their
       names with a Ready certificate, which for WBS staging comes from the ACME staging
       issuer its overlay names and is not trusted by a browser; the solver pod of one
@@ -986,9 +992,11 @@ this change reserves is step A25, so those namespaces are not an open end.
       `solver.yml`, for the website and the request app by their owner's tooling (design
       decision 9). Stop: the Application file would be merged while the
       pins directory's head, or for the website the fleet overlay on `main`, is not the
-      zero-replica render; the SHA-256 differs; the restored store's ledger differs from
-      the candidate's set: then the workload stays at zero and the difference goes
-      through the attended schema Job with its capture and rollback (design decision 9);
+      zero-replica render; the SHA-256 differs; the candidate does not answer `capture-v1`, the
+      capture fails, which is an applied migration absent or changed in the candidate,
+      or its pending set is not empty: then the workload stays at zero and the
+      difference goes through the attended schema Job with its capture and rollback
+      (design decision 9);
       the staging credential can read a named production object, or the refusal is anything
       but an authorisation error; the restore differs from the
       backup; a backup under the new prefix predates the restore or is empty; or a
@@ -1002,14 +1010,15 @@ this change reserves is step A25, so those namespaces are not an open end.
       the `.dump` digest of design decision 7. Only then: if the two are equal, point
       the names back where they were moved and start the old side; if they differ,
       recover forward by lifting the hold, or take the stopped writer's final backup,
-      restore that onto the old side, check it, and only then start the old side. The
+      restore that onto the old side, check it, start the old side, point the names
+      back at it and read the app through each name: the newer data answers there. The
       old writer is never started while the new one runs.
 - [ ] A19 The production website and request app (R26), after A18's receipt for them. Who:
       operator, with the website's owner; owner for the Secrets and for the sync. As A18 for
       production: the owner writes the production Secrets into OpenBao; the old side is
       stopped and backed up once; the production Application is merged at zero replicas with
-      its backup job suspended, and the owner syncs it; the stamp is restored; the ledger
-      comparison of A18 is made before any replica; one replica
+      its backup job suspended, and the owner syncs it; the stamp is restored; the capture
+      of A18 is run before any replica and must exit 0 with an empty pending set; one replica
       and the job resumed are merged, and the owner syncs again; the names are pointed at
       h6apps. Receipt: as A18, plus that the merged Application stayed OutOfSync until the
       owner's sync, and that the sync was made with the local account; the node's
@@ -1022,8 +1031,8 @@ this change reserves is step A25, so those namespaces are not an open end.
       operator, with the WBS deploy tooling's owner; owner for the Secrets and for the sync.
       As A19 for WBS: Secrets and Harbor's pull credential written into OpenBao; production
       stopped on h2puni; one final backup; the `wbs` Application merged at zero replicas and
-      synced by the owner; the stamp restored; the ledger comparison of A18 made, equal,
-      before any replica; one replica merged and synced; the name
+      synced by the owner; the stamp restored; the capture of A18 run with the production
+      candidate, exit 0 and an empty pending set, before any replica; one replica merged and synced; the name
       pointed at h6apps. Receipt: as A19, plus the WBS alert group present and quiet,
       that h6apps is in no `gate_hosts` group, and the node's available memory at rest,
       during the hourly backup and during one solve, with the owner's decision to keep

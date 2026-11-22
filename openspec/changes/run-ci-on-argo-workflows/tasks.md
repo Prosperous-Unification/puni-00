@@ -154,9 +154,12 @@ All are due before CI-A1 unless they say otherwise. They follow the core change'
       `report-status`, in the ordinary namespace, submitted by the resource Sensor, which
       posts one commit status and holds the status App's key. The Sensor's filter admits
       only a Workflow whose `template` label is `gate` or `staging-build` in a terminal
-      phase; it names the report after that Workflow's UID and gives it that UID as a
-      label and an owner reference; before submitting it reads the source Workflow by
-      UID and submits nothing when the source is gone. `WorkflowTemplate`
+      phase; it names the report after that Workflow's UID and gives it that UID and the
+      source's namespace and name as labels, with no owner reference, because the
+      source of a gate is in another namespace; the report's own `ttlStrategy` removes
+      it after seven days; before submitting, the trigger reads the source Workflow by
+      namespace and name, compares its UID with the event's, and submits nothing when
+      the source is gone or the UID differs. `WorkflowTemplate`
       `pins-freshness`, started nightly by the calendar Sensor: for each app it compares
       the source commit the pins directory's head names with the latest commit on `main`
       that touches that app's source paths, the same list the trigger filters on, and fails
@@ -172,7 +175,9 @@ All are due before CI-A1 unless they say otherwise. They follow the core change'
       UID creates no second report (fault: use a generated name); a name already taken
       by a report whose UID label differs fails and alerts instead of being skipped
       (fault: treat any existing name as proof); an event whose source Workflow has been
-      removed starts nothing (fault: submit from the event's fields alone); a key that expires in 10 days fails it (fault: compare
+      removed starts nothing (fault: submit from the event's fields alone); a report of
+      a gate in the `-build` namespace carries no owner reference and is still there
+      after a garbage-collection pass (fault: set the owner reference to the source); a key that expires in 10 days fails it (fault: compare
       with today); a `report-status` that mounts any Secret but the status App's key is
       refused (fault: allow the namespace's Secrets). Due before CI-A3.
 - [ ] CI-S8 After CI-A4, with the gate documents' owner: rewrite the gate sections of

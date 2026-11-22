@@ -982,6 +982,13 @@ never run at the same time.
 - **WHEN** the stopped new store equals the restored stamp
 - **THEN** the names may be pointed back and the old side started
 
+#### Scenario: Going back with the newer data
+
+- **WHEN** the stores differ and the stopped new store's final backup has been restored
+  onto the old side and checked
+- **THEN** the old side is started, the names are pointed back at it, and the app read
+  through each name shows the newer data
+
 ### Requirement: Going back holds the new side at zero first
 
 Whenever going back is considered, before or after an app's names point at the new
@@ -1002,10 +1009,11 @@ side SHALL be seen terminated before any comparison or any start of the old side
 
 ### Requirement: A restored store starts only against its own migration set
 
-Before a workload is given a replica on a restored store, the store's applied-migration
-ledger, names and hashes, SHALL equal the migration set of the image about to run. A
-difference SHALL go through the attended schema Job with its capture and rollback, and the
-workload SHALL stay at zero replicas until then.
+Before a workload is given a replica on a restored store, the image about to run SHALL
+capture the store's applied-migration ledger with its own migration tool, SHALL accept
+every applied name and hash against its own scripts, and SHALL report no pending
+migration. Anything else SHALL go through the attended schema Job with its capture and
+rollback, and the workload SHALL stay at zero replicas until then.
 
 #### Scenario: Restored store behind the candidate
 
@@ -1014,8 +1022,14 @@ workload SHALL stay at zero replicas until then.
 
 #### Scenario: Ledger equal
 
-- **WHEN** the names and hashes of the two sets are equal
+- **WHEN** the capture succeeds and its pending set is empty
 - **THEN** the first replica may be merged
+
+#### Scenario: Applied migration unknown to the candidate
+
+- **WHEN** the restored store holds an applied migration whose name or hash the image's
+  scripts do not have
+- **THEN** the capture fails and no replica is merged
 
 ### Requirement: A final backup is of the stopped store
 

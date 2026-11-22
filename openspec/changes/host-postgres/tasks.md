@@ -131,9 +131,13 @@ which they extend.
       object storage endpoint and DNS, and the drill's pods also the API server, and
       nothing else; the drill's ServiceAccount has a Role for `Cluster` objects in its own
       namespace only; the Job `drill-verify` has a ClusterRole for get and list on
-      `persistentvolumes` alone, the API server and DNS; the `database` capability's
-      host timer lists the provisioner's directory read-only and exports the count of
-      directories no bound volume names, with its alert (design decision 3); negatives on
+      `persistentvolumes` alone, the API server and DNS; a host timer, a
+      capability-derived host setting the core's capability play (slice 1.7) installs on
+      a node that carries `database` and on one that carries `nonproduction`, lists the
+      provisioner's directory read-only and exports the count of directories no bound
+      volume names, with its alert (design decision 3); its contract test refuses a
+      node with `nonproduction` and no timer (fault: key the timer on `database`
+      alone); negatives on
       k3d: with the allow removed the dump job times out (fault: test with the namespace's
       default-deny absent), a pod in the namespace without either label is refused
       port 5432 (fault: allow the whole namespace), the dump job's pod is refused the API
@@ -195,7 +199,13 @@ which they extend.
       PersistentVolume on it with a class of its own that no provisioner serves. The
       `platform-db` unit names that class when the inventory says the server carries
       `database`, and `puni-retain` otherwise; which one is a value of the unit's overlay,
-      checked by rule (o) against the inventory. Test: the role's contract test; on the
+      checked by rule (o) against the inventory. On a node that carries `database` and
+      not `control-plane` the role provisions nothing by default: there the claim is on
+      `puni-retain` (design decision 3). It makes a volume of the static class on such
+      a node only when the inventory sets the replica path for it, which PG-A2 does if
+      the operator chooses a replica and a switchover; the role's contract test covers
+      the three cases: both capabilities, `database` alone, `database` alone with the
+      replica path set. Test: the role's contract test; on the
       disposable lab a claim of that class binds to the volume and a write past its size
       fails with no change in the host's free space. Negatives, each with its own fault:
       a `platform-db` on `puni-retain` while the server carries `database` fails the
@@ -222,16 +232,23 @@ server (design decision 4) and are not run before its trigger.
       `h10db`, with `playbooks/firewall.yml` limited to the nodes already joined first.
       Receipt: `h10db` Ready with `puni.dev/capability-database=true` and
       no other capability, the taint `puni.dev/role=database:NoSchedule` and no enrollment taint; the
-      only pods on it are the three node agents; PG-S6's role applied there, so that a
-      volume of the server's static class exists for a replica; then either a replica
-      caught up and a switchover, or, if the operator places no replica on that volume,
-      the restore of design decision 4 with the apps' writers stopped, its start and end
-      noted; the drill CronJob resumed and one run seen. Stop: validation fails, another pod is
+      only pods on it are the three node agents; then one of two paths, chosen before the
+      move and recorded. The replica path: the inventory sets it for `h10db`, PG-S6's
+      role is applied there so that a volume of the server's static class exists, and
+      the receipt is that volume, a replica caught up on it and a switchover. The
+      restore path, taken if the replica path is not chosen or the operator places no
+      replica on that volume: no static volume is made on `h10db`, the new cluster's
+      claim is on `puni-retain`, and the receipt is the restore of design decision 4
+      with the apps' writers stopped, its start and end noted. Either way: the drill CronJob resumed and one run seen. Stop: validation fails, another pod is
       scheduled there, or a restore would start without the owner's word on the hour.
       Rollback: as A13; the instance on h5plat is removed only after the new one serves.
 - [ ] PG-A3 The operator, the plugin and the non-production cluster, after A17, stage 3's
       receipt, slices 2.10 and PG-S2 to PG-S5, and the store paths design decision 3 asks of
-      pull request #935. Who: operator; owner for the values. Commands: the owner writes
+      pull request #935. Who: operator; owner for the values. Commands: first run
+      `playbooks/capabilities.yml` limited to the node that carries `nonproduction`,
+      h7obs in the minimal profile, with PG-S5 merged, which installs the drill's host
+      timer there, and read the timer active and its metric exported; A17's run of that
+      play predates PG-S5 and does not count. Then the owner writes
       into OpenBao the key of the non-production database bucket, one that cannot read a
       production bucket and is not staging's SQLite backup key, and generates the two
       canary role passwords there; merge the Application files of orders 18 to 20 for
@@ -244,7 +261,8 @@ server (design decision 4) and are not run before its trigger.
       and `memory.stat`. Receipt: the three units Synced and Healthy; the operator and
       plugin pods on h5plat; the instance on the node that carries `nonproduction`, h7obs in
       the minimal profile, with its claim bound on `puni-retain`,
-      and its job pods admitted there; both canary databases present and the role of one
+      and its job pods admitted there; the host timer active on that node before the
+      drill ran; both canary databases present and the role of one
       refused on the other; a first recoverability point and a completed base backup read
       from the plugin's metrics; one dump object per database; the drill's sanity result,
       the receipt of `drill-verify`, no volume of the throwaway cluster in any phase, and

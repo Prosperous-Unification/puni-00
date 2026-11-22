@@ -214,14 +214,14 @@ selector and toleration of core decision 1:
 `ObjectStore`, a `ScheduledBackup`, a PodMonitor, and the `Database` and `DatabaseRole`
 objects of its apps.
 
-|                                     | `platform-db`                                                                                   | `nonproduction-db`                                            |
-| ----------------------------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
-| Node                                | selector `database`, tolerating the platform and database taints: h5plat in the minimal profile | selector `nonproduction`: h7obs in the minimal profile        |
-| Namespace and its environment label | `postgres`, `platform`                                                                          | `postgres-nonproduction`, `staging`                           |
-| Instances                           | 1                                                                                               | 1                                                             |
-| Storage                             | one claim of 30 GiB: bounded on the server (PG-S6), `puni-retain` on a database node            | `puni-retain`, one claim of 10 GiB                            |
-| Backups                             | its own bucket and key                                                                          | its own bucket and key, which cannot read a production bucket |
-| Serves                              | production databases                                                                            | staging databases; dev's, once the follow-up exists           |
+|                                     | `platform-db`                                                                                                                              | `nonproduction-db`                                            |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------- |
+| Node                                | selector `database`, tolerating the platform and database taints: h5plat in the minimal profile                                            | selector `nonproduction`: h7obs in the minimal profile        |
+| Namespace and its environment label | `postgres`, `platform`                                                                                                                     | `postgres-nonproduction`, `staging`                           |
+| Instances                           | 1                                                                                                                                          | 1                                                             |
+| Storage                             | one claim of 30 GiB: bounded on the server (PG-S6); on a database node `puni-retain`, or the static class if PG-A2's replica path is taken | `puni-retain`, one claim of 10 GiB                            |
+| Backups                             | its own bucket and key                                                                                                                     | its own bucket and key, which cannot read a production bucket |
+| Serves                              | production databases                                                                                                                       | staging databases; dev's, once the follow-up exists           |
 
 - **Why staging has a cluster of its own** (PG5). Staging follows `main`, so a merged
   migration or a runaway query lands there first, and point-in-time recovery restores a whole
@@ -274,9 +274,11 @@ observers do. A Job `drill-verify` in the same unit runs after the drill as its 
 ServiceAccount, whose ClusterRole may get and list `persistentvolumes` and nothing else;
 it fails when a volume of the throwaway cluster is left, in any phase. The directory is
 read on the host, where no pod of the database namespace is admitted a host path: a
-systemd timer the `database` capability installs lists the provisioner's directory
-read-only and exports the count of directories that no bound volume names, and an alert
-reads it. In an attended drill the operator reads both. The verifier's pods are allowed
+systemd timer lists the provisioner's directory read-only and exports the count of
+directories that no bound volume names, and an alert reads it. The timer is installed
+on every node where a drill can run: by the `database` capability for `platform-db`, and
+by the `nonproduction` capability for `nonproduction-db`, whose drill restores on the
+node that carries it, h7obs in the minimal profile. In an attended drill the operator reads both. The verifier's pods are allowed
 the API server and DNS and nothing else. No other pod in the namespace may open a SQL
 connection. Both jobs run
 under these policies in PG-A3 and PG-A5, not with them lifted. Rule 2.4(k) already refuses
@@ -435,8 +437,11 @@ read), or the first app's data, unless the owner says attended drills continue (
 moves, and the plan counts on the costlier of two ways. The cheap one is a replica there
 and a switchover; but on the server the claim is of a static class that no provisioner
 serves (PG-S6), and a `Cluster` names one storage class for its instances, so a replica on
-`h10db` needs a volume of that same class there. PG-A2 applies PG-S6's role to `h10db` to
-make one; whether the operator then places a replica on it was not read. If it does not,
+`h10db` needs a volume of that same class there. Only on that path does PG-A2 apply
+PG-S6's role to `h10db` to make one, which the role does on a database-only node when
+the inventory sets the replica path and not otherwise; whether the operator then places a
+replica on it was not read. If the path is not chosen, or the operator does not, no
+static volume is made there and
 the move is a restore from the archive into a new cluster on `h10db`, on `puni-retain`,
 with the apps' writers stopped for its length, which PG-A5 has timed: planned downtime, the
 size of the data. Either way the core's capability play then takes `database` from h5plat

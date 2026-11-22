@@ -999,9 +999,10 @@ The only guards:
    Each gets one final backup after its writer is stopped, a restore of that named stamp, and
    a check against the backup's report. A store is restored while its workload is at zero
    replicas and its backup job is suspended, and its workload is not started until the
-   store's applied-migration ledger, names and hashes, equals the set of the image that
-   is about to run; a difference goes through the attended schema Job with its capture
-   and rollback (decision 9). Going back is bounded by the first write on the new side,
+   image that is about to run has captured the store's applied-migration ledger with its
+   own tool, accepted every applied name and hash against its own scripts, and reported
+   no pending migration; anything else goes through the attended schema Job with its
+   capture and rollback (decision 9). Going back is bounded by the first write on the new side,
    as the paragraph after this list states.
 2. **What the new cluster needs from escrow is read back first** (task 0.5): the registry CA
    key pair, the object storage credentials, the old cluster's age identity, and the backup
@@ -1051,7 +1052,9 @@ pointed at the new node, because the new writer may be running in both cases:
 4. _Only then may the old writer start._ If the two are equal, the names are pointed back
    where they had been moved, and the old side is started. If they differ, the choice is
    to recover forward, by lifting the hold, or to take the stopped writer's final backup,
-   restore that onto the old side, check it and only then start the old side.
+   restore that onto the old side, check it and only then start the old side. In that
+   second case too the names are pointed back at the old side and the app is read through
+   them, so the newer data is what serves.
 
 A hold is lifted by a pull request that removes the marker and restores one replica; the
 next build publishes again. A18 proves the hold, the order and the comparison once, with

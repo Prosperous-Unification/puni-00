@@ -215,12 +215,18 @@ source submits it with the finished Workflow's name, commit and result, and it p
 commit status with a context under `argo/`, through a GitHub App that may write commit
 statuses and nothing else. The Sensor acts only on a Workflow whose `template` label is `gate` or
 `staging-build` and that has reached Succeeded, Failed or Error, so a finished
-`report-status` starts nothing and the reports cannot feed themselves. The report is named after the finished Workflow's UID and carries that UID as a label
-and as an owner reference to the finished Workflow. A second event creates nothing only
+`report-status` starts nothing and the reports cannot feed themselves. The report is named after the finished Workflow's UID and carries that UID, and the
+source's namespace and name, as labels. It carries no owner reference: a gate's Workflow
+is in the `-build` namespace and its report in the ordinary one, an owner reference
+across namespaces is invalid, and the garbage collector may remove an object that has
+one, which would let a second event report again. A report is removed by its own
+`ttlStrategy` after seven days, the source's own lifetime, so it outlives no source it
+could be confused with and is not removed before it. A second event creates nothing only
 when the existing report's label equals the event's UID; a name that is taken by a
-report of another source is a failure that raises the alert, not a silent skip. An event
-whose source Workflow no longer exists, because its seven days have passed, is dropped:
-the Sensor's trigger reads the source by UID first and submits nothing when it is gone. So the gate holds no credential and its namespace no Secret.
+report of another source is a failure that raises the alert, not a silent skip. Before
+submitting, the Sensor's trigger reads the source by namespace and name and compares its
+UID with the event's: when the source is gone, because its seven days have passed, or
+the name now belongs to another UID, the event is dropped and nothing is submitted. So the gate holds no credential and its namespace no Secret.
 Every template still has an exit handler, which records the outcome in the Workflow. A status could stand in for a required
 check of the same name only if the rule accepted any source: in CI-A3 the owner pins the
 required checks `gate` and `pixels` to GitHub Actions as their source before the status
