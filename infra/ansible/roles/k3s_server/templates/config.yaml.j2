@@ -17,6 +17,13 @@ cluster-init: true
 {% else %}
 server: {{ puni_registration_url }}
 {% endif %}
+# etcd's latency is scraped on the node that may also carry a database (separate-node-roles, Risks).
+etcd-expose-metrics: true
+{% if 'platform-services' in puni_node_capabilities %}
+# `+=` appends to the NodeRestriction k3s sets itself; a plain `=` would replace it (decision 14).
+kube-apiserver-arg:
+  - enable-admission-plugins+=PodNodeSelector
+{% endif %}
 tls-san:
 {% for san in puni_tls_sans %}
   - {{ san }}
@@ -25,6 +32,10 @@ node-taint:
   - puni.io/enrollment=pending:NoSchedule
 {% if puni_cluster_id == 'workers' %}
   - puni.io/worker-control-plane=true:NoSchedule
+{% endif %}
+{% if 'platform-services' in puni_node_capabilities %}
+  # Platform services and three named node agents tolerate it; nothing else may (R25).
+  - CriticalAddonsOnly=true:NoSchedule
 {% endif %}
 node-label:
 {% for capability in puni_node_capabilities %}

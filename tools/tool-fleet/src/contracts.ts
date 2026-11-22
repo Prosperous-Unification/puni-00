@@ -195,7 +195,12 @@ const K3dHelpersToolchainSchema = HistoricalToolchainSchema.merge({
   k3dHelpers: K3dHelpers,
 });
 
-const ToolchainSchema = K3dHelpersToolchainSchema.merge({
+/**
+ * Retained only: the lock committed from the crane pin (2026-11-17) until Tailscale was locked
+ * (2026-11-22). Resources created from those revisions decode it; forward creation reads
+ * {@link ToolchainSchema}.
+ */
+const CraneToolchainSchema = K3dHelpersToolchainSchema.merge({
   '+': 'reject',
   binaries: HistoricalBinaryLocks.merge({
     '+': 'reject',
@@ -205,11 +210,31 @@ const ToolchainSchema = K3dHelpersToolchainSchema.merge({
     crane: ArchivedBinaryLock,
   }),
 });
+
+const hostPackageVersion = /^[0-9][0-9A-Za-z.+~:-]+$/;
+
+/** An apt repository whose signing keyring is fetched and compared by digest before use. */
+const AptRepositoryLock = type({
+  url: 'string.url',
+  keyring: { url: 'string.url', sha256, '+': 'reject' },
+  '+': 'reject',
+});
+
+const ToolchainSchema = CraneToolchainSchema.merge({
+  '+': 'reject',
+  // Tailscale joins each new host to the private access network (separate-node-roles, slice
+  // 1.8): the package at an exact version from the vendor's repository, whose key is locked.
+  // Proof: making the Tailscale package or its repository optional made contracts.test.ts
+  // `rejects a missing Tailscale package or repository lock` resolve (2026-11-22).
+  hostPackages: { dockerIo: hostPackageVersion, tailscale: hostPackageVersion, '+': 'reject' },
+  hostRepositories: { tailscale: AptRepositoryLock, '+': 'reject' },
+});
 /** The current lock's crane client: archive digest, extracted-executable digest and platform. */
 export type CraneLock = (typeof ToolchainSchema.infer)['binaries']['crane'];
 export type Toolchain =
   | typeof HistoricalToolchainSchema.infer
   | typeof K3dHelpersToolchainSchema.infer
+  | typeof CraneToolchainSchema.infer
   | typeof ToolchainSchema.infer;
 
 function assertHelperAgreement<Lock extends typeof K3dHelpersToolchainSchema.infer>(
@@ -344,7 +369,10 @@ export function decodeRetainedToolchain(bytes: Uint8Array, expectedSha256: strin
   // Proof: dropping K3dHelpersToolchainSchema from this union made contracts.test.ts `still
   // decodes a retained k3dHelpers lock committed before the crane pin` reject 1b94e080b's real
   // lock bytes (2026-11-17).
+  // Proof: dropping CraneToolchainSchema from this union made contracts.test.ts `still decodes a
+  // retained crane lock committed before Tailscale was locked` reject 7a0279c7d's lock (2026-11-22).
   const retained = HistoricalToolchainSchema.or(K3dHelpersToolchainSchema)
+    .or(CraneToolchainSchema)
     .or(ToolchainSchema)
     .assert(input);
   // Proof: dropping this agreement call made contracts.test.ts `still checks k3d agreement on a
@@ -358,11 +386,13 @@ export function decodeRetainedToolchain(bytes: Uint8Array, expectedSha256: strin
 // Proof: widening this union to nonempty string made the unknown-capability production decoder
 // negative fail by accepting `database`.
 const CapabilitySchema = type(
-  "'control-plane' | 'product' | 'ingress' | 'observability' | 'forge' | 'execution'",
+  "'control-plane' | 'platform-services' | 'product' | 'nonproduction' | 'ingress' | 'observability' | 'forge' | 'execution'",
 );
 const fleetCapabilities = [
   'control-plane',
+  'platform-services',
   'product',
+  'nonproduction',
   'ingress',
   'observability',
   'forge',
@@ -372,16 +402,30 @@ const fleetCapabilities = [
 /**
  * Node capabilities each cluster purpose may carry. The fleet decoder rejects any other
  * capability on a node, and the platform validator rejects a workload that selects one.
+ * `platform-services` places the secret store, registry and delivery beside the server, and
+ * `nonproduction` places staging and dev (openspec/changes/separate-node-roles, decision 1).
  */
 export const purposeCapabilities = {
-  platform: ['control-plane', 'product', 'ingress', 'observability', 'forge'],
+  // Proof: adding `platform-services` or `nonproduction` to `workers` made contracts.test.ts
+  // `refuses a workers node that carries <capability>` resolve, once for each (2026-11-22).
+  platform: [
+    'control-plane',
+    'platform-services',
+    'product',
+    'nonproduction',
+    'ingress',
+    'observability',
+    'forge',
+  ],
   workers: ['control-plane', 'execution'],
 } as const satisfies Record<'platform' | 'workers', readonly (typeof fleetCapabilities)[number][]>;
 
 const LifecycleSchema = type("'present' | 'draining' | 'retired'");
 const RequiredCapabilitiesSchema = type({
   'control-plane?': 'number.integer>=1',
+  'platform-services?': 'number.integer>=1',
   'product?': 'number.integer>=1',
+  'nonproduction?': 'number.integer>=1',
   'ingress?': 'number.integer>=1',
   'observability?': 'number.integer>=1',
   'forge?': 'number.integer>=1',
@@ -738,12 +782,73 @@ function identifyProvider(node: FleetNode): string {
     : `ssh:${node.provider.machineId}`;
 }
 
+/** What the server of a cluster that requires `platform-services` may never carry beside it. */
+const serverExcludedCapabilities = [
+  'product',
+  'nonproduction',
+  'ingress',
+  'observability',
+] as const satisfies readonly Capability[];
+
+/**
+ * The trust classes a node of a cluster that requires `platform-services` may belong to; its
+ * capabilities are a subset of one. The third is the minimal profile's one named co-location:
+ * `nonproduction` and `ingress` beside `observability` (separate-node-roles, decisions 1 and
+ * 11). `database` joins the first with the change `host-postgres`.
+ */
+const trustClasses = [
+  ['control-plane', 'platform-services'],
+  ['product', 'ingress'],
+  ['observability', 'nonproduction', 'ingress'],
+] as const satisfies readonly (readonly Capability[])[];
+
+/**
+ * Refuses a node whose capabilities mix trust classes. Product beside non-production is refused
+ * in every cluster; the server and class rules apply only where the cluster requires
+ * `platform-services`, so the existing two-node cluster keeps its combined server.
+ */
+function assertTrustClass(node: FleetNode, cluster: Cluster): void {
+  // Proof: checking this on the server only made contracts.test.ts `refuses an agent that
+  // carries product and nonproduction` fail (2026-11-22).
+  if (node.capabilities.includes('product') && node.capabilities.includes('nonproduction')) {
+    throw new Error(`Node ${node.id} carries both product and nonproduction`);
+  }
+  if (cluster.requiredCapabilities['platform-services'] === undefined) return;
+  if (node.lifecycle === 'retired') return;
+  if (node.capabilities.includes('control-plane')) {
+    // Proof: dropping this comparison, or comparing against the earlier three names without
+    // `observability`, made contracts.test.ts `refuses a platform-services server that also
+    // carries product` or `... observability` fail (2026-11-22).
+    const excluded = serverExcludedCapabilities.find((capability) =>
+      node.capabilities.includes(capability),
+    );
+    if (excluded !== undefined) {
+      throw new Error(`Server ${node.id} of ${cluster.id} carries ${excluded}`);
+    }
+    if (!node.capabilities.includes('platform-services')) {
+      throw new Error(`Server ${node.id} of ${cluster.id} lacks platform-services`);
+    }
+  }
+  // Proof: splitting the third class into `observability` and `nonproduction, ingress` made
+  // contracts.test.ts `accepts the minimal profile` throw on h7obs (2026-11-22).
+  const fits = trustClasses.some((members) =>
+    node.capabilities.every((capability) =>
+      members.some((member: Capability) => member === capability),
+    ),
+  );
+  if (!fits) {
+    throw new Error(
+      `Node ${node.id} of ${cluster.id} carries ${node.capabilities.join(', ')}: no trust class holds them`,
+    );
+  }
+}
+
 /**
  * Decode desired fleet state and enforce identities and placement rules that
  * cannot be expressed as independent object fields.
  *
  * Duplicate logical/provider identities, duplicate SSH addresses, unknown cluster references, invalid
- * server topology, and cross-cluster capability placement throw.
+ * server topology, cross-cluster capability placement and a node outside its trust class throw.
  */
 export function decodeFleet(input: unknown): Fleet {
   const decoded = FleetSchema(input);
@@ -835,6 +940,7 @@ export function decodeFleet(input: unknown): Fleet {
       // pass with a product capability assigned to the execution cluster.
       throw new Error(`Platform capability for ${node.id} must belong to platform`);
     }
+    assertTrustClass(node, cluster);
   }
 
   for (const cluster of decoded.clusters) {

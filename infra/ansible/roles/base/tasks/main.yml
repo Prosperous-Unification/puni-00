@@ -223,3 +223,43 @@
     name: chrony
     state: started
     enabled: true
+
+- name: Create the console account that sshd refuses
+  # Separated inventories only (R49): the break-glass login on the provider's console, with a
+  # password hash from $OPS. The drop-in below keeps it off SSH.
+  when: puni_console_account is defined
+  block:
+    - name: Require the console account's password hash
+      ansible.builtin.assert:
+        that:
+          - puni_console_account is match('^[a-z][a-z0-9-]*$')
+          - puni_console_account != puni_operator_name
+          - puni_console_password_hash is match('^\$6\$')
+        fail_msg: A console account other than the operator and its SHA-512 password hash are required
+      no_log: true
+
+    - name: Create the console account
+      ansible.builtin.user:
+        name: '{{ puni_console_account }}'
+        shell: /bin/bash
+        password: '{{ puni_console_password_hash }}'
+        create_home: true
+        groups: sudo
+        append: true
+      no_log: true
+
+    - name: Refuse the console account over SSH
+      # Proof: dropping the DenyUsers line from the template made node-roles.test.ts `renders
+      # every host of both static inventories as the judges require` fail (2026-11-22).
+      ansible.builtin.template:
+        src: sshd-console.conf.j2
+        dest: /etc/ssh/sshd_config.d/00-puni-console.conf
+        owner: root
+        group: root
+        mode: '0644'
+        validate: /usr/sbin/sshd -t -f %s
+      notify: Reload sshd
+
+- name: Join the private access network
+  when: puni_tailscale_tag is defined
+  ansible.builtin.include_tasks: tailscale.yml

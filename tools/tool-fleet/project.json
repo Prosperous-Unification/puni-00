@@ -269,6 +269,17 @@
         "command": "bun test ./infra/ansible/tests/registry-pulls.test.ts --timeout=180000"
       }
     },
+    "test:node-roles": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "env": {
+          "CLAUDECODE": "0",
+          "AGENT": "0"
+        },
+        "command": "bun test --preload ./tools/test/scratch/preload.ts ./infra/ansible/tests/node-roles.test.ts --timeout=300000"
+      }
+    },
     "rehearse:registry-client-installation": {
       "executor": "nx:run-commands",
       "cache": false,

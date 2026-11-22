@@ -63,6 +63,7 @@ function inventoryReport(
       },
     ],
     kernelSettings: [],
+    hostRenders: [],
   };
 }
 
@@ -107,12 +108,12 @@ describe('ansible judgements', () => {
     expect(judgeInventories(inventoryReport({ selectors: ['puni-fleet=puni'] }))[0]).toContain(
       'not puni-fleet=puni,puni-cluster=platform',
     );
-    expect(judgeInventories({ syntax: [], inventories: [], kernelSettings: [] })).toEqual([
-      'no hcloud inventories were validated',
-    ]);
-    expect(judgeAnsibleSyntax({ syntax: [], inventories: [], kernelSettings: [] })).toEqual([
-      'no playbooks were syntax-checked',
-    ]);
+    expect(
+      judgeInventories({ syntax: [], inventories: [], kernelSettings: [], hostRenders: [] }),
+    ).toEqual(['no hcloud inventories were validated']);
+    expect(
+      judgeAnsibleSyntax({ syntax: [], inventories: [], kernelSettings: [], hostRenders: [] }),
+    ).toEqual(['no playbooks were syntax-checked']);
   });
 
   it('reports a playbook that fails --syntax-check', () => {
@@ -410,6 +411,7 @@ describe('the k3s kernel settings judgement', () => {
     syntax: [],
     inventories: [],
     kernelSettings,
+    hostRenders: [],
   });
 
   it('accepts the port floor on ingress hosts only', () => {

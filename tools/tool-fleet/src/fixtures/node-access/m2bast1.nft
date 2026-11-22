@@ -1,0 +1,39 @@
+destroy table inet puni_bastion
+table inet puni_bastion {
+  set private_ipv4 {
+    type ipv4_addr
+    flags interval
+    elements = { 10.10.1.0/24 }
+  }
+
+  set ssh_sources_ipv4 {
+    type ipv4_addr
+    size 65535
+    flags dynamic,timeout
+    timeout 1m
+  }
+
+  set ssh_sources_ipv6 {
+    type ipv6_addr
+    size 65535
+    flags dynamic,timeout
+    timeout 1m
+  }
+
+  # Public SSH, new connections limited per source address; from the private network the
+  # observability node's prober alone (R16); established traffic; nothing else inbound.
+  chain input {
+    type filter hook input priority 0; policy drop;
+    iifname "lo" accept
+    ct state established,related accept
+    icmpv6 type { nd-neighbor-solicit, nd-neighbor-advert, nd-router-solicit, nd-router-advert } accept
+    ct state invalid drop
+    ip saddr @private_ipv4 drop comment "nothing else from the private network"
+    meta nfproto ipv4 tcp dport 22 ct state new add @ssh_sources_ipv4 { ip saddr limit rate 10/minute burst 5 packets } accept
+    meta nfproto ipv6 tcp dport 22 ct state new add @ssh_sources_ipv6 { ip6 saddr limit rate 10/minute burst 5 packets } accept
+  }
+
+  chain output {
+    type filter hook output priority 0; policy accept;
+  }
+}

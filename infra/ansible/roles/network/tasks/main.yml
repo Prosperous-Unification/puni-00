@@ -1,20 +1,6 @@
 ---
-- name: Require private-network inputs
-  ansible.builtin.assert:
-    that:
-      - puni_cluster_id is defined
-      - puni_cluster_id | length > 0
-      - puni_node_ip is defined
-      - puni_node_ip is match('^[0-9]{1,3}(\.[0-9]{1,3}){3}$')
-      - puni_private_interface is defined
-      - puni_private_interface in ansible_interfaces
-      - puni_private_mtu is defined
-      - puni_private_mtu | int >= 1280
-      - puni_cluster_cidr is defined
-      - puni_cluster_cidr is match('^[0-9]{1,3}(\.[0-9]{1,3}){3}/[0-9]{1,2}$')
-      - puni_enrolled_private_addresses is defined
-      - puni_enrolled_private_addresses | length > 0
-    fail_msg: Cluster, private address/interface/MTU, and enrolled peers are required
+- name: Require private-network inputs and the interface's MTU
+  ansible.builtin.include_tasks: inputs.yml
 
 - name: Create the fleet nftables directory
   ansible.builtin.file:

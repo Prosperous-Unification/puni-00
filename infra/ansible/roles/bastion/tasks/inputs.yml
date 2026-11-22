@@ -1,0 +1,31 @@
+---
+# The inputs the inventory alone supplies, and the forwards computed from it. Rendering
+# (tests/render-hosts.yml) runs this file too, so the assertions guard every render.
+- name: Require the bastion's inventory inputs
+  ansible.builtin.assert:
+    that:
+      - puni_bastion_private_address is match('^[0-9]{1,3}(\.[0-9]{1,3}){3}$')
+      - puni_bastion_address == puni_bastion_private_address
+      - puni_private_network is match('^[0-9]{1,3}(\.[0-9]{1,3}){3}/[0-9]{1,2}$')
+      - puni_bastion_probers is sequence
+      - puni_operator_name | length > 0
+      - puni_console_account | length > 0
+      - inventory_hostname not in puni_bastion_forwarded_hosts
+    fail_msg: >-
+      The bastion's private address, the private network, its probers, the operator and console
+      accounts are required, and the bastion forwards to no host of its own group
+
+- name: Compute the forwards from the inventory's servers
+  # Every k3s host and every host the inventory forwards to outside the cluster, by its private
+  # `ansible_host` (R55); a temporary server of A6 is forwarded while it is in the inventory.
+  ansible.builtin.set_fact:
+    puni_bastion_permit_open: >-
+      {{ puni_bastion_forwarded_hosts | map('extract', hostvars, 'ansible_host')
+         | map('regex_replace', '$', ':22') | list }}
+
+- name: Require each forward to be one IPv4 address and port 22
+  ansible.builtin.assert:
+    that:
+      - puni_bastion_permit_open | length > 0
+      - puni_bastion_permit_open | select('match', '^[0-9]{1,3}(\.[0-9]{1,3}){3}:22$') | list | length == puni_bastion_permit_open | length
+    fail_msg: 'PermitOpen must name private addresses at port 22 only: {{ puni_bastion_permit_open }}'

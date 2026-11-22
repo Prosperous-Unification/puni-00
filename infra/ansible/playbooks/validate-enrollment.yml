@@ -70,17 +70,31 @@
         --namespace kube-system --timeout=180s
       changed_when: false
 
+    - name: Read the tolerations CoreDNS is packaged with
+      ansible.builtin.command: >-
+        k3s kubectl get deployment coredns --namespace kube-system
+        --output=jsonpath={.spec.template.spec.tolerations}
+      register: puni_coredns_tolerations
+      changed_when: false
+
     - name: Allow CoreDNS to start while enrollment remains restricted
+      # A JSON patch that appends one entry: a strategic patch replaces `tolerations`, a list with
+      # no merge key, and dropped the packaged `CriticalAddonsOnly` toleration that CoreDNS needs
+      # on a `platform-services` server (separate-node-roles, decision 1, slice 1.2).
+      # Proof: restoring the strategic patch made ansible.test.ts `appends the enrollment
+      # toleration to CoreDNS and keeps the packaged ones` fail (2026-11-22).
       # Proof: kubectl v1.36.4 treated `--patch-file=-` as a literal missing file in the live
       # Ubuntu cluster and exited 1 before CoreDNS could be scheduled.
+      when: >-
+        puni_coredns_tolerations.stdout | from_json | selectattr('key', 'defined')
+        | selectattr('key', 'equalto', 'puni.io/enrollment') | list | length == 0
       ansible.builtin.command: >-
         k3s kubectl patch deployment coredns --namespace kube-system
-        --type=strategic --patch-file=/dev/stdin
+        --type=json --patch-file=/dev/stdin
       args:
         stdin: |
-          {"spec":{"template":{"spec":{"tolerations":[{"key":"puni.io/enrollment","operator":"Exists","effect":"NoSchedule"}]}}}}
-      register: puni_coredns_toleration
-      changed_when: "'(no change)' not in puni_coredns_toleration.stdout"
+          [{"op":"add","path":"/spec/template/spec/tolerations/-","value":{"key":"puni.io/enrollment","operator":"Exists","effect":"NoSchedule"}}]
+      changed_when: true
 
     - name: Wait for cluster DNS
       ansible.builtin.command: >-

@@ -1,0 +1,38 @@
+write-kubeconfig-mode: "0600"
+node-name: m1plat1
+node-ip: 10.10.1.11
+flannel-iface: enp8s0
+flannel-backend: vxlan
+cluster-cidr: 10.42.0.0/16
+service-cidr: 10.43.0.0/16
+secrets-encryption: true
+disable:
+  - traefik
+  - servicelb
+disable-cloud-controller: false
+token-file: /etc/rancher/k3s/server-token
+agent-token-file: /etc/rancher/k3s/agent-token
+cluster-init: true
+# etcd's latency is scraped on the node that may also carry a database (separate-node-roles, Risks).
+etcd-expose-metrics: true
+# `+=` appends to the NodeRestriction k3s sets itself; a plain `=` would replace it (decision 14).
+kube-apiserver-arg:
+  - enable-admission-plugins+=PodNodeSelector
+tls-san:
+  - 10.10.1.11
+node-taint:
+  - puni.io/enrollment=pending:NoSchedule
+  # Platform services and three named node agents tolerate it; nothing else may (R25).
+  - CriticalAddonsOnly=true:NoSchedule
+node-label:
+  - puni.dev/capability-control-plane=true
+  - puni.dev/capability-platform-services=true
+# Pods never swap (Kubernetes NodeSwap defaults to NoSwap) while host services may use the fleet
+# swap file. The reservations cap the kubepods cgroup below host memory, so the host's own
+# services, such as h3mon's Victoria and MLflow, keep what the reservation names. Each default
+# eviction threshold is restated because overriding one resets the others to zero.
+kubelet-arg:
+  - fail-swap-on=false
+  - system-reserved=memory=1024Mi
+  - kube-reserved=memory=1536Mi
+  - eviction-hard=memory.available<256Mi,nodefs.available<10%,imagefs.available<15%,nodefs.inodesFree<5%

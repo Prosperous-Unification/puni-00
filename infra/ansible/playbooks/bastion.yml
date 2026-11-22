@@ -1,0 +1,11 @@
+---
+# The SSH bastion of the platform cluster's inventory (separate-node-roles, slice 1.9). Run with
+# `--limit` from the controller with the bastion's own admin key (slice 2.5); `ansible_host` and
+# the keys come from $OPS. Stop: `sshd -T` differs from the render; nothing is enrolled through it.
+- name: Configure the SSH bastion
+  hosts: bastion
+  become: true
+  gather_facts: true
+  serial: 1
+  roles:
+    - role: bastion

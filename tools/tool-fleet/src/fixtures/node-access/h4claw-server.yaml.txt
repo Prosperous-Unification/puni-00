@@ -1,0 +1,34 @@
+write-kubeconfig-mode: "0600"
+node-name: h4claw
+node-ip: 10.1.0.4
+flannel-iface: enp7s0
+flannel-backend: vxlan
+cluster-cidr: 10.42.0.0/16
+service-cidr: 10.43.0.0/16
+secrets-encryption: true
+disable:
+  - traefik
+  - servicelb
+disable-cloud-controller: false
+token-file: /etc/rancher/k3s/server-token
+agent-token-file: /etc/rancher/k3s/agent-token
+cluster-init: true
+# etcd's latency is scraped on the node that may also carry a database (separate-node-roles, Risks).
+etcd-expose-metrics: true
+tls-san:
+  - 10.1.0.4
+node-taint:
+  - puni.io/enrollment=pending:NoSchedule
+node-label:
+  - puni.dev/capability-control-plane=true
+  - puni.dev/capability-product=true
+  - puni.dev/capability-ingress=true
+# Pods never swap (Kubernetes NodeSwap defaults to NoSwap) while host services may use the fleet
+# swap file. The reservations cap the kubepods cgroup below host memory, so the host's own
+# services, such as h3mon's Victoria and MLflow, keep what the reservation names. Each default
+# eviction threshold is restated because overriding one resets the others to zero.
+kubelet-arg:
+  - fail-swap-on=false
+  - system-reserved=memory=1536Mi
+  - kube-reserved=memory=512Mi
+  - eviction-hard=memory.available<256Mi,nodefs.available<10%,imagefs.available<15%,nodefs.inodesFree<5%

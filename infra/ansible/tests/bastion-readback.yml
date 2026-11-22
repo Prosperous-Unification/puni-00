@@ -1,0 +1,12 @@
+---
+# Runs the bastion role's read-back against an `sshd` that node-roles.test.ts supplies through
+# `puni_bastion_sshd`, so an earlier drop-in's value fails it. Touches no host.
+- name: Read back sshd's options for jump through a supplied sshd
+  hosts: localhost
+  gather_facts: false
+  connection: local
+  vars_files:
+    - ../roles/bastion/vars/main.yml
+  tasks:
+    - name: Run the role's read-back
+      ansible.builtin.include_tasks: ../roles/bastion/tasks/readback.yml

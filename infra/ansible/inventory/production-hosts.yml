@@ -1,0 +1,74 @@
+all:
+  vars:
+    # The new platform cluster: fleet id `platform-2` in infra/fleet/desired.yaml, cluster id
+    # `platform-production` on the hosts (openspec/changes/separate-node-roles, R5). Each revision
+    # of slice 1.3 adds one node here and in desired.yaml; placement.test.ts binds the two files.
+    puni_cluster_id: platform-production
+    # The provider's private network reports an MTU of 1442; the network role refuses an
+    # interface that reports less before it changes the link.
+    puni_private_mtu: 1442
+    puni_private_network: 10.10.1.0/24
+    # Disjoint from the private network above; preflight also refuses host and Docker overlaps.
+    puni_cluster_cidr: 10.42.0.0/16
+    puni_service_cidr: 10.43.0.0/16
+    # Node addresses only: never the bastion, which has public SSH (design decision 12).
+    puni_enrolled_private_addresses: [10.10.1.11]
+    # The bastion m2bast1 below; SSH on a server is admitted from this address alone (R55).
+    puni_bastion_address: 10.10.1.12
+    puni_tailnet_interface: tailscale0
+    # The otel-gateway Service's NodePorts (infra/platform/observability/production/otlp-ingress.yaml),
+    # admitted from the enrolled addresses and the CI server's. The CI server is recorded by slice
+    # CI-S2 of the change run-ci-on-argo-workflows; until then the list is empty.
+    puni_otel_gateway_node_ports: [30417, 30419]
+    puni_ci_private_addresses: []
+    # Available space on /: the platform node's claims of design decision 2 (Harbor 40, platform-db
+    # 30, one restore drill 30, OpenBao and etcd snapshots 10, Rancher's images 5 GiB). A1 compares
+    # the filesystem's size against the 182 GiB floor separately.
+    puni_required_mounts: [{ path: /, minimum_bytes: 123480309760 }]
+    puni_registration_url: https://10.10.1.11:6443
+    puni_registration_host: m1plat1
+    puni_tls_sans: [10.10.1.11]
+    puni_disable_cloud_controller: false
+    puni_operator_name: puni-fleet
+    # New hosts: no administrator keeps a cloud-init sudo grant.
+    puni_remove_cloud_init_sudoers: true
+    # The local console account that sshd refuses (R49); its password hash is an input in $OPS.
+    puni_console_account: puni-console
+  children:
+    k3s_bootstrap_servers:
+      hosts:
+        m1plat1:
+          # The private address; the controller reaches it through the bastion with a ProxyJump
+          # (R55), so this inventory never holds a public address.
+          ansible_host: 10.10.1.11
+          # Read on 2026-11-22; must equal desired.yaml (placement.test.ts).
+          puni_machine_id: 4afccc54c48c40de8aa2a52ab0d5a2e7
+          puni_node_name: m1plat1
+          puni_node_ip: 10.10.1.11
+          puni_private_interface: enp8s0
+          puni_node_capabilities: [control-plane, platform-services]
+          # No public port: the server serves nothing to the internet (design decision 12).
+          puni_public_ports: []
+          puni_tailscale_tag: tag:platform
+          puni_swap_file_mib: 0
+          # Design decision 2: system 1,024, kubelet with the k3s server and etcd 1,536, eviction 256.
+          puni_kubelet_system_reserved_memory: 1024Mi
+          puni_kubelet_kube_reserved_memory: 1536Mi
+          puni_kubelet_eviction_memory: 256Mi
+          # 32 GB bought; `free -g` read 31 GiB on 2026-11-22.
+          puni_preflight_minimum_memory_mib: 30000
+          puni_preserved_listeners: [0.0.0.0:22]
+          puni_preserved_containers: []
+    k3s_join_servers:
+      hosts: {}
+    k3s_agents:
+      hosts: {}
+    # playbooks/bastion.yml (slice 1.9). In no k3s group and not a gate host; the placement check
+    # refuses either. Its `ansible_host` is an input in $OPS, never in this repository.
+    bastion:
+      hosts:
+        m2bast1:
+          puni_machine_id: d4ea18c92e1648a38927bef3d0969ddd
+          puni_bastion_private_address: 10.10.1.12
+          # The observability node's address, R16's prober, once slice 1.3 records h7obs.
+          puni_bastion_probers: []

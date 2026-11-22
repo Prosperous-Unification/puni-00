@@ -1,5 +1,5 @@
 schemaVersion: 1
-revision: production-h4claw-h3mon-v1
+revision: production-platform-2-m1plat1-v1
 clusters:
   - id: platform
     purpose: platform
@@ -13,6 +13,15 @@ clusters:
     controlPlane: single
     bootstrap: required
     requiredCapabilities: { execution: 2 }
+  # The rebuilt platform cluster beside the old one (openspec/changes/separate-node-roles, R5):
+  # cluster id `platform-production` on its hosts, inventory/production-hosts.yml. Each slice 1.3
+  # revision adds a node and raises the floor of its capability.
+  - id: platform-2
+    purpose: platform
+    apiEndpoint: https://10.10.1.11:6443
+    controlPlane: single
+    bootstrap: required
+    requiredCapabilities: { platform-services: 1 }
 nodes:
   - id: h4claw
     cluster: platform
@@ -24,3 +33,8 @@ nodes:
     capabilities: [observability]
     lifecycle: present
     provider: { kind: ssh, machineId: bed07fdd1c9d47c08540df462db009f4, address: 10.1.0.2 }
+  - id: m1plat1
+    cluster: platform-2
+    capabilities: [control-plane, platform-services]
+    lifecycle: present
+    provider: { kind: ssh, machineId: 4afccc54c48c40de8aa2a52ab0d5a2e7, address: 10.10.1.11 }

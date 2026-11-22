@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 
@@ -7,6 +7,7 @@ import { parse, parseAllDocuments } from 'yaml';
 
 import { judgeBackupJob, judgeVerifyJob, type K8sObject } from './check-backup';
 import { readToolchain } from './contracts';
+import { type HostRender, judgeHostRenders } from './node-access';
 import { validatePlatform } from './platform';
 import { platformReleases } from './platform-releases';
 
@@ -312,6 +313,34 @@ export interface AnsibleReport {
     rendered: string | null;
     error: string | null;
   }[];
+  /** `infra/ansible/tests/render-hosts.yml` rendered for each host of a static inventory. */
+  readonly hostRenders: readonly (Omit<HostRender, 'host'> & {
+    host: string | null;
+    error: string | null;
+  })[];
+}
+
+/**
+ * The host renders, judged by {@link judgeHostRenders} against the existing inventory's
+ * committed firewalls. A render that failed is a problem with its error.
+ */
+export async function judgeAnsibleRenders(root: string, report: AnsibleReport): Promise<string[]> {
+  const problems: string[] = [];
+  const renders: HostRender[] = [];
+  for (const entry of report.hostRenders) {
+    if (entry.error !== null || entry.host === null) {
+      problems.push(`${entry.inventory} does not render its hosts: ${entry.error ?? 'no host'}`);
+    } else {
+      renders.push({ ...entry, host: entry.host });
+    }
+  }
+  const directory = join(root, 'tools/tool-fleet/src/fixtures/firewall-existing-hosts');
+  const committed: Record<string, string> = {};
+  for (const name of await readdir(directory)) {
+    committed[`inventory/production-existing-hosts.yml/${name.replace(/\.nft$/, '')}`] =
+      await readFile(join(directory, name), 'utf8');
+  }
+  return [...problems, ...judgeHostRenders(renders, committed)];
 }
 
 const unprivilegedPortFloor = 'net.ipv4.ip_unprivileged_port_start = 0';
@@ -544,13 +573,18 @@ export async function runFleetChecks(
   if (report !== null) {
     const syntax = judgeAnsibleSyntax(report);
     for (const message of syntax) failures.push({ family: 'ansible-syntax', message });
-    for (const message of [...judgeInventories(report), ...judgeKernelSettings(report)]) {
+    for (const message of [
+      ...judgeInventories(report),
+      ...judgeKernelSettings(report),
+      ...(await judgeAnsibleRenders(root, report)),
+    ]) {
       failures.push({ family: 'ansible-inventory', message });
     }
     log(
       `ansible: ${String(report.syntax.length)} playbooks syntax-checked, ` +
         `${String(report.inventories.length)} inventories listed against the fixture API, ` +
-        `k3s-sysctl rendered for ${String(report.kernelSettings.length)} static hosts`,
+        `k3s-sysctl rendered for ${String(report.kernelSettings.length)} static hosts, ` +
+        `node and bastion files for ${String(report.hostRenders.length)}`,
     );
   }
 

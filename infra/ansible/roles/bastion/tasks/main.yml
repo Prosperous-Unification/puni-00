@@ -1,0 +1,167 @@
+---
+# The SSH bastion m2bast1 (separate-node-roles, R55 and slice 1.9): the one SSH path to every
+# server. It holds no key, joins no tailnet and runs nothing but sshd.
+- name: Require the bastion's inventory inputs and compute its forwards
+  ansible.builtin.include_tasks: inputs.yml
+
+- name: Require the bastion's keys and console password from $OPS
+  # Three distinct keys (R55): the jump key, which `jump` alone accepts; the bastion's admin key,
+  # for the operator's shell here; and the servers' admin key, which never lands on this host.
+  ansible.builtin.assert:
+    that:
+      - ansible_distribution == 'Ubuntu'
+      - ansible_distribution_version in ['24.04', '26.04']
+      - puni_bastion_jump_authorized_keys | length > 0
+      - puni_bastion_admin_authorized_keys | length > 0
+      - puni_bastion_jump_authorized_keys | intersect(puni_bastion_admin_authorized_keys) | length == 0
+      - >-
+        puni_operator_authorized_keys is not defined or
+        (puni_operator_authorized_keys | intersect(puni_bastion_jump_authorized_keys
+        + puni_bastion_admin_authorized_keys) | length == 0)
+      - puni_console_password_hash is match('^\$6\$')
+    fail_msg: >-
+      The jump key, the bastion's admin key (distinct from each other and from the servers' admin
+      key) and the console account's SHA-512 password hash are required
+  no_log: true
+
+- name: Install the bastion's packages
+  ansible.builtin.apt:
+    name: [nftables, openssh-server]
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Create the jump user with no login shell
+  # Proof: dropping the shell line made ansible.test.ts `gives the bastion's jump user no login
+  # shell` fail (2026-11-22).
+  ansible.builtin.user:
+    name: jump
+    shell: /usr/sbin/nologin
+    password: '!'
+    create_home: true
+
+- name: Create the jump user's SSH directory
+  ansible.builtin.file:
+    path: /home/jump/.ssh
+    state: directory
+    owner: jump
+    group: jump
+    mode: '0700'
+
+- name: Install the jump key alone
+  ansible.builtin.copy:
+    dest: /home/jump/.ssh/authorized_keys
+    content: |
+      {{ puni_bastion_jump_authorized_keys | join('\n') }}
+    owner: jump
+    group: jump
+    mode: '0600'
+
+- name: Create the operator's login with a shell
+  ansible.builtin.user:
+    name: '{{ puni_operator_name }}'
+    shell: /bin/bash
+    create_home: true
+    groups: sudo
+    append: true
+
+- name: Create the operator's SSH directory
+  ansible.builtin.file:
+    path: '/home/{{ puni_operator_name }}/.ssh'
+    state: directory
+    owner: '{{ puni_operator_name }}'
+    group: '{{ puni_operator_name }}'
+    mode: '0700'
+
+- name: Install the bastion's admin key for the operator
+  ansible.builtin.copy:
+    dest: '/home/{{ puni_operator_name }}/.ssh/authorized_keys'
+    content: |
+      {{ puni_bastion_admin_authorized_keys | join('\n') }}
+    owner: '{{ puni_operator_name }}'
+    group: '{{ puni_operator_name }}'
+    mode: '0600'
+
+- name: Install the operator sudo boundary
+  ansible.builtin.template:
+    src: ../../base/templates/operator-sudoers.j2
+    dest: '/etc/sudoers.d/90-{{ puni_operator_name }}-fleet'
+    owner: root
+    group: root
+    mode: '0440'
+    validate: /usr/sbin/visudo -cf %s
+
+- name: Create the console account that sshd refuses
+  # The break-glass of R49: the provider's console, as this account; the drop-in denies it.
+  ansible.builtin.user:
+    name: '{{ puni_console_account }}'
+    shell: /bin/bash
+    password: '{{ puni_console_password_hash }}'
+    create_home: true
+    groups: sudo
+    append: true
+  no_log: true
+
+- name: Render the bastion sshd drop-in, read before every other
+  ansible.builtin.template:
+    src: sshd.conf.j2
+    dest: /etc/ssh/sshd_config.d/00-puni-bastion.conf
+    owner: root
+    group: root
+    mode: '0644'
+    validate: /usr/sbin/sshd -t -f %s
+  notify: Reload sshd
+
+- name: Remove the drop-in made by hand on 2026-11-22
+  # Its `AllowUsers root jump` would add root, since sshd accumulates AllowUsers across files.
+  ansible.builtin.file:
+    path: /etc/ssh/sshd_config.d/10-puni-jump.conf
+    state: absent
+  notify: Reload sshd
+
+- name: Validate the whole sshd configuration
+  ansible.builtin.command: '{{ puni_bastion_sshd }} -t'
+  changed_when: false
+
+- name: Apply sshd before reading it back
+  ansible.builtin.meta: flush_handlers
+
+- name: Read back what sshd applies to jump
+  ansible.builtin.include_tasks: readback.yml
+
+- name: Create the fleet nftables directory
+  ansible.builtin.file:
+    path: /etc/nftables.d
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Render the bastion firewall
+  ansible.builtin.template:
+    src: bastion.nft.j2
+    dest: /etc/nftables.d/puni-bastion.nft
+    owner: root
+    group: root
+    mode: '0600'
+  notify: Restart bastion firewall
+
+- name: Validate the bastion firewall before changing active rules
+  ansible.builtin.command: unshare --net nft -c -f /etc/nftables.d/puni-bastion.nft
+  changed_when: false
+
+- name: Install the persistent bastion firewall service
+  ansible.builtin.template:
+    src: puni-bastion-firewall.service.j2
+    dest: /etc/systemd/system/puni-bastion-firewall.service
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart bastion firewall
+
+- name: Start the persistent bastion firewall
+  ansible.builtin.systemd_service:
+    name: puni-bastion-firewall
+    state: started
+    enabled: true
+    daemon_reload: true

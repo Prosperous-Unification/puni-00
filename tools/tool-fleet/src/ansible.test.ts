@@ -1088,9 +1088,43 @@ describe('the Ansible host and k3s contract', () => {
     expect(tasks).not.toMatch(/groups:.*sudo/);
   });
 
+  it('appends the enrollment toleration to CoreDNS and keeps the packaged ones', async () => {
+    const root = join(import.meta.dir, '../../..');
+    const play = parse(
+      await readFile(join(root, 'infra/ansible/playbooks/validate-enrollment.yml'), 'utf8'),
+    ) as {
+      tasks: { name: string; when?: string; args?: { stdin?: string }; [key: string]: unknown }[];
+    }[];
+    const task = play[0].tasks.find(
+      ({ name }) => name === 'Allow CoreDNS to start while enrollment remains restricted',
+    );
+    // A strategic patch replaces `tolerations`, which has no merge key, and drops the packaged
+    // CriticalAddonsOnly toleration a platform-services server needs (slice 1.2).
+    expect(String(task?.['ansible.builtin.command'])).toContain('--type=json');
+    expect(JSON.parse(task?.args?.stdin ?? 'null')).toEqual([
+      {
+        op: 'add',
+        path: '/spec/template/spec/tolerations/-',
+        value: { key: 'puni.io/enrollment', operator: 'Exists', effect: 'NoSchedule' },
+      },
+    ]);
+    expect(task?.when).toContain("selectattr('key', 'equalto', 'puni.io/enrollment')");
+  });
+
+  it("gives the bastion's jump user no login shell", async () => {
+    const root = join(import.meta.dir, '../../..');
+    const tasks = parse(
+      await readFile(join(root, 'infra/ansible/roles/bastion/tasks/main.yml'), 'utf8'),
+    ) as Record<string, { name?: string; shell?: string } | undefined>[];
+    const jump = tasks
+      .map((task) => task['ansible.builtin.user'])
+      .find((user) => user?.name === 'jump');
+    expect(jump?.shell).toBe('/usr/sbin/nologin');
+  });
+
   it('ships no role defaults for required security or identity state', async () => {
     const root = join(import.meta.dir, '../../..');
-    for (const role of ['base', 'network', 'storage', 'k3s_server', 'k3s_agent']) {
+    for (const role of ['base', 'network', 'storage', 'k3s_server', 'k3s_agent', 'bastion']) {
       const defaults = Bun.file(join(root, `infra/ansible/roles/${role}/defaults/main.yml`));
       expect(await defaults.exists()).toBe(false);
     }

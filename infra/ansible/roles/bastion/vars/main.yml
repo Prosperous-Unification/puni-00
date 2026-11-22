@@ -1,0 +1,19 @@
+---
+# The hosts the bastion forwards to: every k3s group and `bastion_forward_hosts`, the hosts this
+# inventory reaches outside the cluster. A group the inventory does not declare forwards nothing.
+puni_bastion_forwarded_hosts: >-
+  {{ (groups.get('k3s_bootstrap_servers', []) + groups.get('k3s_join_servers', [])
+      + groups.get('k3s_agents', []) + groups.get('bastion_forward_hosts', [])) | unique }}
+# The options `sshd -T -C user=jump,...` must report after the play, in sshd's lowercase spelling.
+puni_bastion_jump_effective_options:
+  - passwordauthentication no
+  - kbdinteractiveauthentication no
+  - permitrootlogin no
+  - permittty no
+  - allowagentforwarding no
+  - x11forwarding no
+  - allowstreamlocalforwarding no
+  - permittunnel no
+  - allowtcpforwarding local
+  - "permitopen {{ puni_bastion_permit_open | join(' ') }}"
+puni_bastion_sshd: /usr/sbin/sshd

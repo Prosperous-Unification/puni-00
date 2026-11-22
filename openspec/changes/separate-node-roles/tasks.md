@@ -2,7 +2,9 @@ Agent slices (phases 1 to 3) change source and run tests; none touches a host. A
 (A1 to A28) each name who runs them, the command, the receipt, the stop condition and the
 rollback. Assumption and decision numbers refer to [design.md](design.md). Every slice that
 adds a safety check lands it with a production-path negative, watched failing with the check
-removed, and an adjacent `Proof:` comment. Nothing here has been done yet.
+removed, and an adjacent `Proof:` comment. Slices 1.1, 1.2, 1.8 and 1.9 and the first revision
+of 1.3 landed on 2026-11-22 in source and tests only; no host was touched. Their proofs are in
+[verify.md](verify.md#failure-proofs).
 
 `fleet_ansible` is the controller wrapper of
 [enroll h4claw and h3mon](../../../docs/infra/enroll-h4claw-h3mon.md#1-prepare-the-controller-on-h2puni),
@@ -91,14 +93,14 @@ and the step reads back that the name answers (design decision 12).
 
 ## 1. Fleet model and roles (agent slices)
 
-- [ ] 1.1 Add the capabilities `platform-services` and `nonproduction` to `CapabilitySchema`,
+- [x] 1.1 Add the capabilities `platform-services` and `nonproduction` to `CapabilitySchema`,
       `fleetCapabilities`, `purposeCapabilities.platform` and `RequiredCapabilitiesSchema` in
       `tools/tool-fleet/src/contracts.ts`. Test: `contracts.test.ts` accepts a platform node
       that carries each. Negatives, for each capability: a workers node carrying it is
       refused; a platform cluster whose floor names it with no such node is refused. Fault to
       inject: add each to `purposeCapabilities.workers` and watch its workers negative pass
       wrongly.
-- [ ] 1.2 Trust-class rules and the platform taint. In the production placement check: the
+- [x] 1.2 Trust-class rules and the platform taint. In the production placement check: the
       `control-plane` node of a platform cluster that requires `platform-services` carries it
       and none of `product`, `nonproduction`, `ingress` and `observability`; no node carries
       both `product` and `nonproduction`; a node may carry `nonproduction` and `ingress`
@@ -132,6 +134,12 @@ and the step reads back that the name answers (design decision 12).
       patch). The existing two-node path keeps passing its tests unchanged. Stop: validation
       cannot pass on one node with both taints. Then the cause is reported and the owner
       decides; R25's alternative (selectors and rule 2.4(f) alone) is not applied silently.
+      Done 2026-11-22 except the rehearsal part, which is receipt 2.7/A3 (a). The fleet rules
+      are in `decodeFleet`, the inventory rules in `inventory-binding.ts`, the template judges in
+      `node-access.ts`, run by `tool-fleet:check` and `infra/ansible/tests/node-roles.test.ts`.
+      The trust-class rules apply only where the cluster requires `platform-services`: the
+      existing inventory keeps h4claw as a gate host and a server. Every server, h4claw
+      included, now writes `etcd-expose-metrics: true`, as this slice says.
 - [ ] 1.3 Repeats once per server of the platform cluster, after A1, A12 and A16 and before the step that enrolls
       the host, and once more before A17, to give h7obs the capabilities `nonproduction` and
       `ingress` and raise those two floors (minimal profile, once the sum of design decision 2 holds at the reading after A15). The first revision follows the A1 that creates the server that stays: a
@@ -160,6 +168,10 @@ and the step reads back that the name answers (design decision 12).
       to `platform-2` beside the existing pair. Negatives: a machine id that differs between
       the two files is refused; a node present in one file only is refused. Fault to inject:
       compare node names only and watch the machine-id negative pass wrongly.
+      First revision done 2026-11-22: m1plat1 in `platform-2` and `production-hosts.yml`, with the
+      bastion of slice 1.9; the revisions for h6apps, h7obs and A17 remain. The binding is
+      `tools/tool-fleet/src/inventory-binding.ts`; the cluster and service CIDRs stay k3s's
+      10.42.0.0/16 and 10.43.0.0/16, disjoint from 10.10.1.0/24.
 - [ ] 1.4 Reservations and coexistence record for a node without Docker services or a
       migration overlap: a record for `h7obs` under `infra/argocd/units/observability`, the
       reservations in the new inventory, MLflow's limit (R15), and, as application
@@ -211,7 +223,7 @@ and the step reads back that the name answers (design decision 12).
       refused (fault: skip the placement check). Stop: k3s reverts a label the play set
       when the agent restarts. Then the play's rewrite of the configuration file is what
       holds it, and the restart is part of the test.
-- [ ] 1.8 Private access on hosts (design decision 12, R47, R49, R52). Lock the Tailscale
+- [x] 1.8 Private access on hosts (design decision 12, R47, R49, R52). Lock the Tailscale
       package and its repository key in `infra/versions/toolchain.json`. The `base` role
       installs it and joins the host with the single-use key from `$OPS`, with the tag of
       the host's trust class from the inventory, and reads back that the device is tagged
@@ -269,8 +281,14 @@ and the step reads back that the name answers (design decision 12).
       names only); a
       policy file that names a person is refused (fault: skip the check for groups); the
       console account can log in over SSH (fault: drop the `DenyUsers` line).
+      Done 2026-11-22 for source and tests. Left at their owners' boundaries: every rehearsal
+      negative (2.7); the egress negative of rule 2.4(k) (slice 2.4); the store's private
+      listener's exception (pull request #935 defines it); the controller's `ProxyJump` (2.5).
+      The public side is every interface but loopback, the private one, the tailnet and the pod
+      network, because no public interface name is recorded. Not run on a host: the join, the
+      second run's `changed=0` and the console account's refusal by a live `sshd`.
 
-- [ ] 1.9 The bastion as code (R55, design decision 12), after the first revision of 1.3,
+- [x] 1.9 The bastion as code (R55, design decision 12), after the first revision of 1.3,
       which creates the inventory file, and before A26. m2bast1 was set up by hand on
       2026-11-22. Add it to `infra/ansible/inventory/production-hosts.yml` in a group
       `bastion`, with its private address and its `ansible_host` from `$OPS`, in no k3s
@@ -307,6 +325,11 @@ and the step reads back that the name answers (design decision 12).
       `AllowTcpForwarding` other than `local` for `jump` is refused (fault: check
       `PermitOpen` alone). Stop: `sshd -T` on the live bastion differs from the render after
       the play; then the difference is reported and nothing is enrolled through it.
+      Done 2026-11-22 for source and tests; the outside probe is slice 3.2's and the first run
+      is A26. The read-back was tested against a stand-in `sshd`, not a live one. The drop-in
+      names the operator and `jump` in `AllowUsers` and refuses root, and the role removes the
+      hand-made `10-puni-jump.conf`, whose `AllowUsers root jump` would accumulate; the hand-made
+      nftables rules are left for A26 to read and remove.
 
 ## 2. Argo CD delivery (agent slices)
 
