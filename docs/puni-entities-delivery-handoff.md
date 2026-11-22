@@ -1,22 +1,48 @@
-# Paused PUNI entities delivery
+# PUNI entities delivery handoff
 
-This records the original pause. The delivery goal later resumed and pushed CI
-repairs at `ab6e0c69a90561167bb2eaccc704d3428d5446f1`. Read the live PR head and
-required checks before using the historical status below.
+PR #917 is open and awaiting the required `gate` and `pixels` checks.
+The delivery goal is to merge the WBS entity and catalogue work and the
+existing PUNI CLI integration. Broader CLI and client-script inventory work
+is deferred. The approved catalogue design uses a stopped-service window.
+Live migration and deployment remain outside delivery.
 
-The user paused implementation on 2026-11-22, then explicitly requested pushing
-everything in progress. This document accompanies that WIP checkpoint. Do not
-resume implementation or merge without a new user request. The delivery goal is
-paused, not completed.
+## Current checkpoint
 
-The goal is to push and merge the current scope so the broader entities/CLI goal
-can be regrouped. Finish current delivery repairs; do not add features or restart
-the deferred client-script inventory. The user previously authorized push, PR
-updates and merge, and requested Astra reviews for tricky changes. The later pause
-controls further work. The SC14 exception permits this catalogue migration design;
-it does not authorize a live migration or deployment.
+- Published head `46a9b35fd56c90541ca7f6a71fc4c0cb9ef0c6c2` on
+  `feat/puni-entities-cli`. Verify the live PR head if it has advanced.
+- Current hosted CI run
+  [45027102609](https://github.com/Prosperous-Unification/puni-00/actions/runs/45027102609).
+- Authoritative working checkout
+  `/tmp/puni-combined-proposal-v1/fixture-check-09a`
+  on branch `proposal/puni-fixture-repairs-09a`. The checkout under
+  `/home/df/wd/puni/puni-00` holds unrelated work. Preserve it.
+- At the published head, 530 focused SQLite tests passed across the follow-up
+  commits. The production blockage regression and all 35 activation and
+  blockage cases passed. Devsync passed its uncached Nx lint and three
+  native checkout cases after the workspace lint repair.
+- The previous run
+  [45023017951](https://github.com/Prosperous-Unification/puni-00/actions/runs/45023017951)
+  recorded 564 SQLite failures. Published fixes cover suites that accounted
+  for 402 of them in that run, leaving 162 recorded results across 55
+  untouched suites as a triage list. The partial backend and Twilight
+  artifacts also recorded failures before the push superseded those jobs.
+- The exact previous failure lists are in
+  `/tmp/puni-33ed-sqlite-failure-owners.json`,
+  `/tmp/puni-33ed-backend-failure-owners.json`, and
+  `/tmp/puni-33ed-twilight-failure-owners.json`. Matching readable logs are
+  next to the JSON files. Remote Source failed when its single 310-second
+  watchdog covered both child cases. The unchanged wrapper passed locally
+  in 254 seconds. Preserve the per-case native evidence when verifying any
+  wrapper repair.
+- Use Nx affected selection and focused owner tests for local iterations.
+  The hosted PR checks validate the exact source that will merge. Keep the
+  normal hooks enabled and publish only reviewed and locally verified fixes.
+  Merge only when both required checks pass at the exact PR head.
 
-## Find the work
+The sections below record the earlier paused checkout. Use their evidence
+paths and background as historical context.
+
+## Earlier checkpoint locations
 
 - PR: <https://github.com/Prosperous-Unification/puni-00/pull/917>.
 - Local delivery checkout: `/tmp/puni-combined-proposal-v1/tree`.

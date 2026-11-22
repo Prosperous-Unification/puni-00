@@ -2299,3 +2299,16 @@ Nx typecheck passed.
   schema cases. The historical fixtures use their original physical names
   and migration ranges. The expired revocation refuses rollback and retains
   the complete ledger before a separate empty rollback succeeds.
+
+### Backend runtime and Dash recovery fixtures
+
+- The native backend runtime-write suite passed 61 tests with 364 assertions.
+  The fixture uses the existing membership and preserves the tested grant as
+  the runtime principal's only writer authority. It authors a distinct
+  project-scoped step set per package and exercises the original lease,
+  revocation and rollback behavior.
+- The focused native Dash recovery dispatch and cleanup suites passed 47 tests
+  and 191 assertions with both normal lifetime preloads. The receiver creates
+  the project and binds Plan through mounted catalogue endpoints, then checks
+  that the package inherits exactly that one step. The backend, SQLite and
+  Twilight Dash Nx typechecks passed.

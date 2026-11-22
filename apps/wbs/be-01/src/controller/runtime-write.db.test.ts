@@ -34,6 +34,7 @@ import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
 import { CLAIM_LEASE_MS, CONTRIBUTOR_CAP } from '@wbs/domain';
 import { SqliteCommandAccess } from '@wbs/store-sqlite/command-access';
+import { openDatabase } from '@wbs/store-sqlite/db';
 import { MachineCredentialRepository } from '@wbs/store-sqlite/machine-credential';
 import { SqliteOrganizationAccess } from '@wbs/store-sqlite/organization-access';
 import { SqliteResourceRuntime } from '@wbs/store-sqlite/resource-runtime';
@@ -66,6 +67,51 @@ function value<T>(reply: RuntimeReply<T>): T {
   if (!reply.ok) throw new Error(`runtime refused: ${JSON.stringify(reply)}`);
   return reply.value;
 }
+/** Gives each package a project so its runtime steps resolve only for that package. */
+async function definePackageSteps(
+  dbPath: string,
+  source: ReturnType<typeof openSqliteSource>,
+  workPackageId: string,
+  steps: readonly string[],
+) {
+  const project = 'runtime-project-' + workPackageId;
+  const database = openDatabase(dbPath);
+  try {
+    database.transaction(() => {
+      database.run(
+        "INSERT INTO project(id,organization_id,name,created_at,created_by) VALUES(?,'org-a',?,1,'ada')",
+        [project, project],
+      );
+      database.run('UPDATE work_package SET project_id=? WHERE id=?', [project, workPackageId]);
+    })();
+  } finally {
+    database.close();
+  }
+  for (const [index, id] of steps.entries()) {
+    const position = (index + 1) * 10;
+    const defined = await source.stores.stepCatalogue.defineAndBindStep(
+      'org-a',
+      {
+        id,
+        name: id,
+        code: id,
+        position,
+        defaultEstimateUnit: 'workdays',
+        defaultAllowancePercent: 0,
+      },
+      {
+        bindingId: id + '-binding',
+        scopeKind: 'project',
+        scopeId: project,
+        workItemTypeId: null,
+        position,
+      },
+      stamp,
+    );
+    if (!defined.ok) throw new Error('runtime fixture step refused: ' + defined.reason);
+  }
+}
+
 async function seeded(shared = false, runtimeContext = context, clock: Clock = testClock) {
   const directory = mkdtempSync(join(tmpdir(), 'wbs-runtime-write-'));
   const dbPath = await openSpaceDatabase(directory);
@@ -90,8 +136,9 @@ async function seeded(shared = false, runtimeContext = context, clock: Clock = t
     await source.close();
     rmSync(directory, { recursive: true, force: true });
   });
+  // The runtime principal has only the explicit org role below, including during revocation.
   sqlite.db.run(
-    "INSERT INTO organization_membership (organization_id,user_id,role,created_at) VALUES ('org-a','ada','member',1)",
+    "DELETE FROM access_grant WHERE organization_id='org-a' AND scope_kind='work_package' AND subject_kind='user' AND subject_id='ada' AND origin='creation'",
   );
   sqlite.db.run(
     "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('runtime-ada','org-a','organization','org-a','user','ada','project-contributor','route',1)",
@@ -135,18 +182,7 @@ async function seeded(shared = false, runtimeContext = context, clock: Clock = t
   expect(
     await source.stores.directory.patchPerson('agent', { accountId: 'ada' }, stamp),
   ).toMatchObject({ ok: true });
-  for (const id of ['dev', 'review'])
-    await source.stores.steps.add(
-      {
-        id,
-        workPackageId: 'a1',
-        name: id,
-        code: id,
-        allowancePercent: 0,
-        estimateUnit: 'workdays',
-      },
-      stamp,
-    );
+  await definePackageSteps(dbPath, sqlite, 'a1', ['dev', 'review']);
   await source.stores.workItems.insert(
     workItemRow({ id: 'leaf', workPackageId: 'a1', readiness: 'ready' }),
     [],
@@ -204,17 +240,7 @@ async function seeded(shared = false, runtimeContext = context, clock: Clock = t
   if (shared) {
     sqlite.db.run("UPDATE organization SET shared_people=1 WHERE id='org-a'");
     sqlite.db.run("UPDATE work_package SET start_date='2026-10-05' WHERE id IN ('a1','a2')");
-    await source.stores.steps.add(
-      {
-        id: 'dev2',
-        workPackageId: 'a2',
-        name: 'dev2',
-        code: 'dev2',
-        allowancePercent: 0,
-        estimateUnit: 'workdays',
-      },
-      stamp,
-    );
+    await definePackageSteps(dbPath, sqlite, 'a2', ['dev2']);
     await source.stores.workItems.insert(
       workItemRow({ id: 'leaf2', workPackageId: 'a2', readiness: 'ready' }),
       [],
@@ -956,7 +982,9 @@ describe('runtime write transaction boundaries', () => {
       ok: false,
       reason: 'runtime_scope_unavailable',
     });
-    sqlite.db.run("UPDATE organization_membership SET role='viewer' WHERE user_id='ada'");
+    sqlite.db.run(
+      "UPDATE organization_membership SET role='viewer' WHERE organization_id='org-a' AND user_id='ada'",
+    );
     sqlite.db.run("UPDATE access_grant SET role_id='org-viewer' WHERE id='runtime-ada'");
     const before = await snapshot();
     expect(await runner.writeRuntime(context, request)).toEqual({
@@ -965,7 +993,9 @@ describe('runtime write transaction boundaries', () => {
       permission: 'package.write',
     });
     expect(await snapshot()).toEqual(before);
-    sqlite.db.run("UPDATE organization_membership SET role='admin' WHERE user_id='ada'");
+    sqlite.db.run(
+      "UPDATE organization_membership SET role='admin' WHERE organization_id='org-a' AND user_id='ada'",
+    );
     sqlite.db.run("UPDATE access_grant SET role_id='org-admin' WHERE id='runtime-ada'");
     expect(
       await source.stores.directory.patchPerson('agent', { accountId: null }, stamp),
@@ -973,7 +1003,9 @@ describe('runtime write transaction boundaries', () => {
     expect(await runner.writeRuntime(context, await write([release], 'admin'))).toMatchObject({
       ok: true,
     });
-    sqlite.db.run("UPDATE organization_membership SET role='member' WHERE user_id='ada'");
+    sqlite.db.run(
+      "UPDATE organization_membership SET role='member' WHERE organization_id='org-a' AND user_id='ada'",
+    );
     sqlite.db.run("UPDATE access_grant SET role_id='project-contributor' WHERE id='runtime-ada'");
     expect(
       await runner.writeRuntime(
@@ -1501,17 +1533,7 @@ async function openLinkedRuntime() {
     ['a2', 'leaf2', 'dev2'],
     ['a3', 'leaf3', 'dev3'],
   ]) {
-    await fixture.source.stores.steps.add(
-      {
-        id: stepId,
-        workPackageId,
-        name: stepId,
-        code: stepId,
-        allowancePercent: 0,
-        estimateUnit: 'workdays',
-      },
-      stamp,
-    );
+    await definePackageSteps(fixture.dbPath, fixture.sqlite, workPackageId, [stepId]);
     await fixture.source.stores.workItems.insert(
       workItemRow({ id: workItemId, workPackageId, readiness: 'ready' }),
       [],

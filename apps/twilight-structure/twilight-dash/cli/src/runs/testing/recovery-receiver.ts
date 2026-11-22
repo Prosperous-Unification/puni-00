@@ -144,7 +144,39 @@ async function createReceiver(
     let workItemId: string;
     let stepId: string;
     if (setup.kind === 'fresh') {
+      const project = await harness.call(username, 'POST', '/api/projects', {
+        name: 'Recovery project',
+      });
+      if (project.status !== 201) throw new Error(JSON.stringify(project));
+      const parent = harness.sqlite
+        .query<{ id: string }, []>(
+          "SELECT id FROM project WHERE organization_id = 'org-a' AND name = 'Recovery project'",
+        )
+        .get();
+      if (parent === null) throw new Error('receiver fixture project is absent');
+      const defined = await harness.call(username, 'POST', '/api/organization/step-bindings', {
+        scopeKind: 'project',
+        scopeId: parent.id,
+        workItemTypeId: null,
+        position: 10,
+        define: {
+          name: 'Plan',
+          code: 'plan',
+          position: 10,
+          defaultEstimateUnit: 'workdays',
+          defaultAllowanceBps: 0,
+        },
+      });
+      if (defined.status !== 201) throw new Error(JSON.stringify(defined));
+      const plan = harness.sqlite
+        .query<{ id: string }, []>(
+          "SELECT id FROM step_definition WHERE organization_id = 'org-a' AND code = 'plan'",
+        )
+        .get();
+      if (plan === null) throw new Error('receiver fixture Plan definition is absent');
+      stepId = plan.id;
       const workPackage = await harness.call(username, 'POST', '/api/work-packages', {
+        projectId: parent.id,
         name: 'Recovery',
       });
       if (workPackage.status !== 200) throw new Error(JSON.stringify(workPackage));
@@ -166,25 +198,13 @@ async function createReceiver(
         parentId: null,
         name: 'Recover',
       });
-      const step = await harness.call(
-        username,
-        'POST',
-        `/api/work-packages/${workPackageId}/steps`,
-        {
-          name: 'Plan',
-          code: 'plan',
-        },
-      );
-      if (step.status !== 200) throw new Error(JSON.stringify(step));
-      stepId = (step.body as { step: { id: string } }).step.id;
-      // Plan is the claimed activity; default Dev and QA otherwise block it with workflow FS.
-      const positioned = harness.sqlite.run(
-        'UPDATE step SET position = 0 WHERE id = ? AND work_package_id = ?',
-        [stepId, workPackageId],
-      );
-      // Proof: an absent Plan ID failed "real receiver ordered effects and sender receiver reopen
-      // staged-before-post" here; restoring the ID passed the same case.
-      if (positioned.changes !== 1) throw new Error('fixture Plan step position was not updated');
+      const active = harness.sqlite
+        .query<{ step_id: string }, [string]>(
+          'SELECT step_id FROM work_package_step WHERE work_package_id = ? ORDER BY step_id',
+        )
+        .all(workPackageId);
+      if (active.length !== 1 || active.at(0)?.step_id !== stepId)
+        throw new Error('receiver package did not inherit exactly its Plan step');
       harness.sqlite.run("INSERT INTO external_system (id,name) VALUES ('task3','Task3')");
       harness.sqlite.run(
         "INSERT INTO external_system_organization (resource_id,organization_id,name) VALUES ('task3','org-a','Task3')",
