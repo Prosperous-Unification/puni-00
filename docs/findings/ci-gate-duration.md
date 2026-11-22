@@ -301,8 +301,10 @@ scope's `scopeCpuUsec`, so the real slowdown can be read from them.
 The suite does not explain the 67m03s losses. `tool-fleet:test` took 2027 s (33.8 minutes) in CI,
 in the surviving workspace shard of run 44797660117, and 1873 s on a laptop inside a 12G
 scope. The leaf is lost about 20 minutes after its work should have ended.
-A-CI-LEAF-RECORDER-1 changes no budget. Every 120 s the `tool-fleet` leaf PATCHes a comment on
-issue #963 with `phaseElapsedSeconds` and the log tail, so even a lost run keeps a timing trail
+A-CI-LEAF-RECORDER-1 changes no budget, and neither does A-CI-LEAF-RECORDER-2: the recorder runs
+outside the scope and the phase budget. Every 45 s (120 s before RECORDER-2) the `tool-fleet` leaf
+PATCHes a comment on issue #963 with `phaseElapsedSeconds` and the log lines since the previous
+tick, so even a lost run keeps a timing trail
 ([R5-32](checks-that-cannot-fail.md#a-lost-hosted-runner-leaves-no-step-conclusion-and-no-log)).
 
 ## Disk fields, 2026-11-22

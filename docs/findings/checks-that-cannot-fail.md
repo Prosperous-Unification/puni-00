@@ -907,6 +907,81 @@ Each of these faults failed a test:
   - run that leaf's native tests on the gate hosts;
   - give the leaf a runner label that keeps it off the AWS pool, if GitHub offers one.
 
+### Amendment, 2026-11-22 (second): an AWS leaf goes dark 22 minutes in
+
+Main `142c91669` (run 44982325124) ran its `tool-fleet` leaf, job 137085408175, on an AWS host:
+the #963 header read `cloud=aws dmiProduct=m8id.xlarge`. The job started at 03:49:35Z and the
+phase at about 03:50:50Z. The recorder's last tick read
+`state=tick 11 utc=2026-11-22T04:11:04Z phaseElapsedSeconds=1214`, and no PATCH followed. The
+next one was due by about 04:13Z, so the runner went dark between 04:11:04Z and about 04:13Z,
+22 minutes after job start. At 04:50Z GitHub still showed the job as `in_progress`.
+
+**The last tick shows a healthy host:**
+
+- `Runner.Listener` and `Runner.Worker` were alive, and the largest `bun` held 3.4 GB RSS.
+- `memAvailable` was 11 GB, the host ran 197 tasks, and the scope held 47 pids and 5.6 GiB.
+- Every disk path had 84 GB free, and the kernel log of the last 3 minutes read "No entries".
+- The log tail ended in `tools/tool-fleet/src/k3d-resource-caller.test.ts`, at the test
+  "Task44 sealed v3 reader refuses runtime-graph before teardown". Docker, k3d and kubectl are
+  fakes in that file.
+
+Those tests end every 1.8 s, so the 15-line tail covered only 30 s. The test running at the loss
+is one of the next 60 or so in execution order, and the tail cannot say which.
+
+**GitHub declares the loss about 45 minutes late.** The earlier losses lasted 67m00s to 67m03s
+from job start. If they went dark the same way, each one died about 22 minutes in, and the fixed
+67 minutes is the declaration timeout. That is an inference from one observed death. It means
+the previous amendment's "hangs for about 27 minutes past the point where a healthy one has
+finished" is wrong. The runner dies about 10 to 18 minutes before a healthy leaf would finish.
+Azure-hosted leaves finish in 31 to 40 minutes, and AWS-hosted ones die.
+
+The order of test files differs between hosts. The Azure leaf of run 44972618306 reached the same
+test about 11 minutes into its phase, the AWS leaf about 20 minutes in. So the Azure order of the
+files that come next is a guide only.
+
+**The sharpened recorder (A-CI-LEAF-RECORDER-2).** It is the same step text in both copies, and
+still optional telemetry:
+
+- **Tick.** Every 45 s instead of 120 s, one PATCH per tick, with the 61440-byte cap kept.
+- **Log section.** Every other `nx-gate.log` line written since the previous tick, read from a
+  stored byte offset as whole lines, the last 200 kept, with ANSI escapes stripped and the
+  redaction kept. Its last line is therefore the last completed test at the tick. A tick with no
+  new line says so and repeats the last earlier line, so a hang keeps the name of the last test
+  that passed.
+- **Network.** `ip -br addr`, `ip -br link`, `ip route`, `ss -s`, the first 20 lines of
+  `resolvectl status` (or `/etc/resolv.conf`), and the line counts of `sudo -n iptables -S` and
+  `sudo -n nft list ruleset`. Then the byte, packet, error and drop counters from `/proc/net/dev`
+  for every interface but `lo`, with the default route's interface marked, beside the previous
+  tick's counters. Each probe prints `unavailable` when it fails. A dead link shows as counters
+  that stop moving, a missing route or a changed address.
+- **Recent processes.** Processes started in the last 60 s, newest first, at most 30, with their
+  arguments cut near 120 characters. The recorder's and the sampler's own trees are left out. A
+  test's helper (`bwrap`, `unshare`, `dockerd`, `k3d`, `python3`) is named here.
+
+`pr-merge-base.test.ts` covers it with the production step text. A pass-through `sleep` scaled
+45 times runs the real 45 s tick; fake `ip`, `ss` and `iptables` stand in for the network tools,
+and a scratch `/proc/net/dev` is bound through the step's `recorder_net_dev=` line. Each of these
+faults failed a test:
+
+- `recorder_interval=120` asked for no 45 s nap and posted 3 ticks in the 8 s window, where 45 s
+  posts at least 6.
+- Dropping the offset update reposted the log from byte 0.
+- Dropping the 200-line cap posted 258 lines.
+- Dropping the probes' `unavailable` branch left absent tools' labels empty.
+- Dropping the network section, the previous tick's counters, the 60 s filter or the own-tree
+  exclusion failed the living-comment test.
+- A 60 s tick in the heavy-leaf copy alone failed the byte-equality test.
+
+**The lever, once the next AWS leaf dies:**
+
+- **The last tick names a test.** If the dying test is named, skip it loudly on `cloud=aws`, with
+  the gate hosts running it instead, or fix its AWS incompatibility.
+- **The link dies with no test boundary.** If the counters stop or the route goes and no test
+  stands out, the fault is the host's. Move the leaf off the AWS pool with a runner label, or run
+  it on the gate hosts.
+
+Both levers need the next loss's last tick, so the cause stays open until then.
+
 ## Checks kept without a reachable negative
 
 This section is outside the mapped payload region below: it is new prose, not a block preserved
