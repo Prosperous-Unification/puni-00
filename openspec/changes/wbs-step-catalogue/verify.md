@@ -2392,3 +2392,15 @@ Nx typecheck passed.
   capture and outbox recording. Thirteen selected native lifecycle cases
   passed, including exact release rollback, selected-contract retirement
   and linked dependency safety.
+
+### Window backup CLI, queue and writer capability fixtures
+
+- All 32 native window backup report checks passed with 141 assertions.
+  The fixture uses the actual catalogue predecessor, and invokes both the
+  real backup and verifier programs. Missing, unreadable and corrupted
+  receipts retain the original evidence and exact diagnostics.
+- The focused uncached SQLite Nx target passed all 18 durable queue and
+  Source capability checks with 59 assertions. The queue uses real current
+  package owners and closes the inspected writer. The Source still refuses
+  malformed capability evidence before opening SQLite and binds the durable
+  receipt to an admitted writer.

@@ -7,8 +7,8 @@ import type { Scope, TransactionalStores } from '@wbs/core';
 import { permitsExternalDependencies } from '@wbs/core/ports/external-dependency-authoring';
 import { afterEach, expect, test } from 'bun:test';
 
-import { runMigrations } from './migrate';
 import { openSqliteSource, type SqliteSource } from './source';
+import { migrateEmptyCatalogueFixture } from './testing/catalogue-database';
 import { seedDependencyAuthority } from './testing/dependency-activation';
 
 const incapable = {
@@ -29,7 +29,7 @@ afterEach(async () => {
 function fixture(dependencyCapability: DependencyRuntimeCapability) {
   const directory = mkdtempSync(join(tmpdir(), 'wbs-source-capability-'));
   const path = join(directory, 'source.db');
-  runMigrations(path, new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname);
+  migrateEmptyCatalogueFixture({ path, directory, reportedAt: 1 }, { hasUnknownOwner: false });
   const source = openSqliteSource({ dbPath: path, dependencyCapability });
   opened.push({ source, directory });
   return { source, path };

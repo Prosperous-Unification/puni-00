@@ -4,8 +4,7 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'bun:test';
 
-import { openDatabase, openDrizzle } from './db';
-import { runMigrations } from './migrate';
+import { type Connection, type Drizzle, openConnection, openDatabase } from './db';
 import { reserveSolverSlot } from './optimization-admission';
 import { releaseSolverSlot } from './optimization-drain';
 import { allocateGeneration, readGeneration } from './optimization-generation';
@@ -15,37 +14,43 @@ import {
   enqueueSolverRequest,
 } from './optimization-queue';
 import { solverQueue, solverSlot } from './schema';
+import { migrateEmptyCatalogueFixture } from './testing/catalogue-database';
+import { seedLegacyPackageParent } from './testing/legacy-package-parent';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const BLUE = '7+0.1.0';
 const GREEN = '8+0.1.0';
-const dirs: string[] = [];
+const opened: { dir: string; connection: Connection }[] = [];
 
 afterEach(() => {
-  for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
+  for (const { dir, connection } of opened.splice(0)) {
+    connection.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 function prepared() {
   const dir = mkdtempSync(join(tmpdir(), 'wbs-optimization-queue-'));
-  dirs.push(dir);
   const path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
+  migrateEmptyCatalogueFixture({ path, directory: dir, reportedAt: 1 }, { hasUnknownOwner: false });
+  seedLegacyPackageParent(path, 'fixture-org', 'fixture-project');
   const raw = openDatabase(path);
   try {
     raw.run(`INSERT INTO users (id, username, password_hash, created_at)
       VALUES ('u-1', 'owner', 'hash', 1)`);
     for (const id of ['p-a', 'p-b']) {
       raw.run(
-        `INSERT INTO work_package (id, name, owner_id, restricted, revision, created_at,
+        `INSERT INTO work_package (id, name, project_id, created_by, restricted, revision, created_at,
                               optimization_enabled, schedule_engine, schedule_objective)
-         VALUES (?, ?, 'u-1', 0, 0, 1, 1, 'optimized', 'pri')`,
+         VALUES (?, ?, 'fixture-project', 'u-1', 0, 0, 1, 1, 'optimized', 'pri')`,
         [id, id],
       );
     }
   } finally {
     raw.close();
   }
-  const db = openDrizzle(path);
+  const connection = openConnection(path);
+  opened.push({ dir, connection });
+  const { db } = connection;
   for (const workPackageId of ['p-a', 'p-b']) {
     allocateGeneration(db, workPackageId, BLUE, `hash-${workPackageId}`, 1);
   }
@@ -54,7 +59,7 @@ function prepared() {
 }
 
 function enqueue(
-  db: ReturnType<typeof openDrizzle>,
+  db: Drizzle,
   entry: {
     workPackageId: string;
     contractVersion: string;

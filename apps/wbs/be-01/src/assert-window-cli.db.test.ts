@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 import { openDatabase } from '@wbs/store-sqlite/db';
 import { runMigrations } from '@wbs/store-sqlite/migrate';
+import { copyRecoveryPrefix } from '@wbs/store-sqlite/testing/recovery-state';
 import type { WindowBackupReport } from '@wbs/store-sqlite/window-backup';
 import { afterEach, expect, test } from 'bun:test';
 
@@ -37,7 +38,8 @@ async function fixture(sourceName = 'source.db') {
   const sourcePath = join(root, sourceName);
   const snapshotPath = join(root, 'snapshot.db');
   const reportPath = join(root, 'report.json');
-  runMigrations(sourcePath, join(APP_ROOT, 'drizzle'));
+  const migrations = copyRecoveryPrefix(root, '20261115120000_add_step_migration_report');
+  runMigrations(sourcePath, migrations);
   const writer = openDatabase(sourcePath);
   try {
     writer.run('CREATE TABLE window_verification_marker (value TEXT NOT NULL)');
