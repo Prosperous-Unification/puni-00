@@ -761,8 +761,12 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       bytes and SHA-256 and the names of the store's schema objects beside it under
       `/data/schema-hook` and an attempt record last;
       runs `migrate-cli.ts`; captures again and requires the applied set to be the
-      captured one plus the captured pending one, with nothing pending; and removes the
-      snapshot kept from the attempt before only now. On a failure
+      captured one plus the captured pending one, with nothing pending; removes the
+      snapshot kept from the attempt before only now; and then removes the attempt
+      record, syncs the directory to disk and reads the record absent before it exits
+      0, so that a later sync of the same candidate finds nothing pending and no
+      record and reverses nothing that the new backend has since written with. On a
+      failure
       after the attempt record it runs
       `migrate-down-cli.ts --capture-file --capture-sha256 --target --attempt --candidate`,
       captures again, requires the complete name and hash ledger and the schema
@@ -780,8 +784,15 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       needs the owner's decision. The staging overlay requests 16 GiB for `wbs-data`
       (design decision 2). Its render holds,
       besides the backend: the parameter ConfigMap in wave -2, listing the candidate
-      digest first and then up to two digests of earlier renders, and the candidate's
-      `wbs-backend-config` in that wave; with a backend replica, the hook Job in wave
+      digest first, then the digest that serves and then up to two digests of earlier
+      renders, and in that wave also the candidate's `wbs-backend-config` and the
+      ConfigMap that carries the candidate's hook script, so that a changed script
+      never arrives after its Job. The digest that serves is read at render time: the
+      render asks the staging backend's public health response for its boot commit
+      (`apps/wbs/be-01/src/app.ts`), takes that commit's digest from the pins
+      repository's history and always lists it, however many publications failed
+      since; when the response cannot be read, or its commit has no render in the
+      history, the render publishes nothing for that app and fails; with a backend replica, the hook Job in wave
       -1, annotated `argocd.argoproj.io/hook: Sync` and
       `hook-delete-policy: BeforeHookCreation`, with `backoffLimit: 0`, no
       `ttlSecondsAfterFinished`, the candidate digest, the backend's service account
@@ -815,7 +826,14 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       is marked for the owner (fault: read the table's existence only); a hook in wave 0 or later is refused by the
       rule (fault: read the annotation's presence only); a production overlay with the
       hook is refused (fault: scope the rule to staging files); the ConfigMap's script
-      differs from the source by one byte (fault: compare lengths). The rehearsal
+      differs from the source by one byte (fault: compare lengths); after a successful
+      migration and a write that uses the new schema, a second run of the same
+      candidate finds no record, changes nothing and exits 0 (fault: keep the record
+      on success); a render after four failed publications still lists the serving
+      digest (fault: list the newest three only); a render that cannot read the
+      serving commit publishes nothing (fault: fall back to the newest three); the
+      script's ConfigMap in wave -1 or later is refused by the rule (fault: check the
+      Job's wave only). The rehearsal
       2.7/A18 gains a case: on k3d under Argo CD, an additive migration is applied by a
       new pins commit with no command and the new pod serves; a failing one leaves the
       sync failed, the old pod serving, the ledger equal and no further commit applied
@@ -823,8 +841,11 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       failing migration and its reversal run is read afterwards, with no table's row
       count lower than before and no schema object left over; a candidate that would
       refuse to boot fails the sync with the old pod serving; a commit that edits an
-      applied migration is refused by the render step; a zero-replica render syncs with
-      no hook pod; and what a repeated attempt at the same commit does
+      applied migration is refused by the render step; after a successful migration
+      the new backend writes with the new schema, the same commit is synced again and
+      that write is read afterwards; three failing publications in a row are followed
+      by a restart of the serving pod, which is admitted; a zero-replica render syncs
+      with no hook pod; and what a repeated attempt at the same commit does
       under self-heal is observed and recorded. Stop: the hook cannot be made to run
       before the Deployment's wave on this version, the old pod cannot keep serving
       while the Job holds the claim on the same node, or the acknowledged edit is lost. Then schema-changing commits stay

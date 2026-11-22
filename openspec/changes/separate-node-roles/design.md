@@ -1294,10 +1294,16 @@ The build itself:
     than before and no schema object left over. A lost edit is slice 3.9's stop. With
     no fence a failed hook changes nothing that serves: the old pod runs on, on the old
     schema.
-  - _The admission list._ The render writes the candidate digest first and then up to two
-    digests of earlier renders, so the pod that is running stays admitted across two
-    publications that failed. After a third in a row the old pod would not be admitted
-    again if it restarted; the staging sync alert fires at the first.
+  - _The admission list._ The render writes the candidate digest first, then the digest
+    that serves, then up to two digests of earlier renders. The serving digest is not
+    counted out: the render reads the boot commit from the staging backend's public
+    health response, takes that commit's digest from the pins repository's history and
+    lists it however many publications failed since, so a restart of the running pod is
+    always admitted. If it cannot read the response, or that commit has no render, it
+    publishes nothing for the app. The staging sync alert fires at the first failure.
+  - _The attempt record after success._ The hook removes its record once the forward
+    ledger is verified and before it exits 0. A record left behind would make a later
+    sync of the same candidate reverse a schema the new backend already writes with.
   - _The backup before a change, and its room._ The snapshot above, on the claim, kept
     until the next one succeeds, and the hourly custody job, which reads one
     transaction and needs no pause. At the worst moment the claim holds the store, its
@@ -2024,8 +2030,8 @@ change `host-postgres`, and the one for the agents' hosts in `add-agent-hosts`.
   (R53, decision 9). It rests on forward migrations being additive, which the migration
   lint holds and nothing at run time does. Three cases stay attended: a commit that
   removes or edits an applied migration, an attempt left by another candidate, and a
-  reversal that failed. After three failed publications in a row the running pod's
-  digest leaves the admission list.
+  reversal that failed. The render publishes nothing for the app while it cannot read
+  which commit serves.
 - **The website API applies a schema change at its own start, with no reversal command**
   (decision 9). Going back is the previous image on the newer, additive schema. Its
   Deployment's update strategy and replica count are in the private fleet repository and
