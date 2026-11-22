@@ -27,7 +27,6 @@
     "dev:test": "bash bin/dev.test.sh",
     "heavy-lock:test": "bash bin/heavy-lock.test.sh",
     "gate-pinning:test": "bash bin/h2puni-gate.test.sh",
-    "website-dev-reset:test": "bash bin/puni-website-dev-reset.test.sh",
     "private:checkout": "bun run tools/tool-private/src/checkout.ts",
     "private:check": "nx run tool-private:private:check",
     "private:rehearse": "nx run tool-private:private:rehearse"
