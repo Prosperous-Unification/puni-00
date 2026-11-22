@@ -9,11 +9,14 @@ import { sql } from 'drizzle-orm';
 import { AccessGrantRepository, writeGrantIn } from './access-grant';
 import { type Connection, openConnection } from './db';
 import { OPEN, WriteCoordinator } from './gate';
-import { runMigrations } from './migrate';
 import { removeMembershipIn } from './organization';
+import {
+  type CatalogueFixtureCustody,
+  migrateEmptyCatalogueFixture,
+} from './testing/catalogue-database';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 let directory: string;
+let custody: CatalogueFixtureCustody;
 let connection: Connection;
 let grants: AccessGrantRepository;
 let sequence: number;
@@ -70,9 +73,10 @@ async function rejectionOf(pending: Promise<unknown>): Promise<Error> {
 }
 
 beforeEach(() => {
+  custody = { hasUnknownOwner: false };
   directory = mkdtempSync(join(tmpdir(), 'wbs-access-audit-store-'));
   const path = join(directory, 'plan.db');
-  runMigrations(path, FOLDER);
+  migrateEmptyCatalogueFixture({ path, directory: directory, reportedAt: 1 }, custody);
   connection = openConnection(path);
   sequence = 0;
   grants = new AccessGrantRepository(connection.db, OPEN);
@@ -92,6 +96,12 @@ beforeEach(() => {
   }
 });
 afterEach(() => {
+  // Proof: sqlite-cohort1-v233-access-audit-store injected a throw after
+  // real close returned. Omission masked this diagnostic with an unacquired
+  // connection TypeError; restoration reported retained custody. This fault
+  // retained the directory even with the guard omitted.
+  if (custody.hasUnknownOwner)
+    throw new Error('SQLite fixture has unknown native custody; retained ' + directory);
   connection.close();
   rmSync(directory, { recursive: true, force: true });
 });

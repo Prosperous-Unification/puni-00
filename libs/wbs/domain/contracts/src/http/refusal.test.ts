@@ -225,7 +225,7 @@ test('the compiler enforces closed refusal codes, detail variants and command co
       '--noEmit',
       '--strict',
       '--skipLibCheck',
-      '--workPackage',
+      '--project',
       'libs/wbs/domain/contracts/tsconfig.spec.json',
     ],
     cwd: new URL('../../../../../../', import.meta.url).pathname,

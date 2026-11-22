@@ -1,4 +1,3 @@
-import { decodeSourceStartupRequest, type CurrentSourceStartupRequest } from './source-startup-profile';
 import { fenceBackendsUnderOwner, inspectBackendFenceUnderOwner } from './backend-exclusion';
 import {
   type DependencyServingSelection,
@@ -35,6 +34,10 @@ import {
   type SourceDevExclusion,
   withSourceDevExcluded,
 } from './source-dev-exclusion';
+import {
+  type CurrentSourceStartupRequest,
+  decodeSourceStartupRequest,
+} from './source-startup-profile';
 
 /**
  * First owner slice only. Retains all ownership and fence records on every exit.
@@ -216,7 +219,8 @@ export async function excludeSourceAndManagedUnderOwner<T>(
   startup?: CurrentSourceStartupRequest,
 ): Promise<T> {
   const retained = startup === undefined ? undefined : decodeSourceStartupRequest(startup);
-  if (retained !== undefined && !('expectedProfile' in retained)) throw new Error('current dependency owner source profile differs');
+  if (retained !== undefined && !('expectedProfile' in retained))
+    throw new Error('current dependency owner source profile differs');
   const { prod, dev } = layouts;
   await fenceDependencyIngress(owner, [prod, dev], runDocker, deadline, expectedServing);
   const value = await withSolverDrainUnderOwner(
@@ -226,47 +230,55 @@ export async function excludeSourceAndManagedUnderOwner<T>(
     ports,
     deadline,
     (solver) =>
-      withSourceDevExcluded(owner, { prod, dev }, plan.sha, runDocker, deadline, async (source) => {
-        await fenceGatewaysUnderOwner(owner, prod, plan.sha, runDocker, deadline);
-        await fenceBackendsUnderOwner(
-          owner,
-          prod,
-          plan.sha,
-          runDocker,
-          deadline,
-          namespaceProof,
-          execDocker,
-          source,
-          solver,
-        );
-        const inspect = async () => {
-          await inspectDependencyIngress(owner, [prod, dev], runDocker, deadline);
-          // Proof: replacing hashed Docker with raw retention leaked the composed environment sentinel; combined coordinator test failed.
-          await inspectGatewayFenceUnderLock(
-            prod,
-            ownerDockerHashed(owner, prod, runDocker),
-            deadline,
-          );
-          await inspectBackendFenceUnderOwner(
+      withSourceDevExcluded(
+        owner,
+        { prod, dev },
+        plan.sha,
+        runDocker,
+        deadline,
+        async (source) => {
+          await fenceGatewaysUnderOwner(owner, prod, plan.sha, runDocker, deadline);
+          await fenceBackendsUnderOwner(
             owner,
             prod,
             plan.sha,
             runDocker,
             deadline,
-            source,
             namespaceProof,
             execDocker,
+            source,
             solver,
           );
-          await inspectSourceDevExclusion(owner, source);
-        };
-        await inspect();
-        try {
-          return await action(owner, source, solver);
-        } finally {
+          const inspect = async () => {
+            await inspectDependencyIngress(owner, [prod, dev], runDocker, deadline);
+            // Proof: replacing hashed Docker with raw retention leaked the composed environment sentinel; combined coordinator test failed.
+            await inspectGatewayFenceUnderLock(
+              prod,
+              ownerDockerHashed(owner, prod, runDocker),
+              deadline,
+            );
+            await inspectBackendFenceUnderOwner(
+              owner,
+              prod,
+              plan.sha,
+              runDocker,
+              deadline,
+              source,
+              namespaceProof,
+              execDocker,
+              solver,
+            );
+            await inspectSourceDevExclusion(owner, source);
+          };
           await inspect();
-        }
-      }, retained),
+          try {
+            return await action(owner, source, solver);
+          } finally {
+            await inspect();
+          }
+        },
+        retained,
+      ),
   );
   return value;
 }

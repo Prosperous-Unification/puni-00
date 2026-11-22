@@ -116,7 +116,8 @@ describe('planForgeAdmission', () => {
 
   it('refuses a second forge image while another environment holds the first', () => {
     const held = {
-      ...base, owners: { alpha: '/srv/puni/worktrees/alpha' },
+      ...base,
+      owners: { alpha: '/srv/puni/worktrees/alpha' },
       installationOwners: { alpha: INSTALLATION },
     };
     expect(() =>
@@ -163,9 +164,12 @@ describe('updateForgeAdmission', () => {
       [COMMITTED, '/srv/puni/worktrees/alpha', '/srv/puni/worktrees/beta', SOLVER_NODE_PATH].sort(),
     );
     expect(decodeForgeAdmission(server.current(), 'f9').installationOwners).toEqual({
-      alpha: INSTALLATION, beta: INSTALLATION,
+      alpha: INSTALLATION,
+      beta: INSTALLATION,
     });
-    expect(readInstallationRoots(decodeForgeAdmission(server.current(), 'f9'))).toEqual([INSTALLATION]);
+    expect(readInstallationRoots(decodeForgeAdmission(server.current(), 'f9'))).toEqual([
+      INSTALLATION,
+    ]);
   });
 
   it('releases a root by slug and gives up after bounded conflicts', async () => {
@@ -206,8 +210,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function readRecord(value: unknown): Record<string, unknown> {
-  if (!isRecord(value))
-    throw new Error('trusted-workload fixture is not an object');
+  if (!isRecord(value)) throw new Error('trusted-workload fixture is not an object');
   return value;
 }
 
@@ -215,32 +218,49 @@ it('round-trips exact installation claims separately from writable worktree poli
   const parameters = configMap();
   const before = decodeForgeAdmission(parameters, 'f9');
   const claimed = planForgeAdmission(before, {
-    kind: 'claim', slug: 'alpha', root: '/srv/puni/worktrees/alpha', image: IMAGE,
+    kind: 'claim',
+    slug: 'alpha',
+    root: '/srv/puni/worktrees/alpha',
+    image: IMAGE,
     installationRoot: INSTALLATION,
   });
   const encoded = encodeForgeAdmission(parameters, claimed);
-  expect(readRecord(encoded['data'])['forgeWorktreeRoots']).toBe(COMMITTED + ',/srv/puni/worktrees/alpha,' + SOLVER_NODE_PATH);
+  expect(readRecord(encoded['data'])['forgeWorktreeRoots']).toBe(
+    COMMITTED + ',/srv/puni/worktrees/alpha,' + SOLVER_NODE_PATH,
+  );
   expect(readRecord(encoded['data'])['forgePuniInstallationRoots']).toBe(INSTALLATION);
   expect(readRecord(encoded['metadata'])['resourceVersion']).toBe('1');
   expect(decodeForgeAdmission(encoded, 'f9')).toEqual(claimed);
-  const restored = planForgeAdmission(claimed, { kind: 'restore', slug: 'alpha', previous: before });
+  const restored = planForgeAdmission(claimed, {
+    kind: 'restore',
+    slug: 'alpha',
+    previous: before,
+  });
   expect(decodeForgeAdmission(encodeForgeAdmission(encoded, restored), 'f9')).toEqual(before);
 });
 
 it('refuses absent explicit installation admission fields instead of accepting a legacy parameter object', () => {
   const withoutRoots = configMap();
   delete readRecord(withoutRoots['data'])['forgePuniInstallationRoots'];
-  expect(() => decodeForgeAdmission(withoutRoots, 'f9')).toThrow('explicit PUNI installation admission state');
+  expect(() => decodeForgeAdmission(withoutRoots, 'f9')).toThrow(
+    'explicit PUNI installation admission state',
+  );
   const withoutOwners = configMap();
-  delete readRecord(readRecord(withoutOwners['metadata'])['annotations'])['puni.dev/forge-installation-owners'];
-  expect(() => decodeForgeAdmission(withoutOwners, 'f9')).toThrow('explicit PUNI installation admission state');
+  delete readRecord(readRecord(withoutOwners['metadata'])['annotations'])[
+    'puni.dev/forge-installation-owners'
+  ];
+  expect(() => decodeForgeAdmission(withoutOwners, 'f9')).toThrow(
+    'explicit PUNI installation admission state',
+  );
 });
 
 it('refuses ambiguous installation directory spelling before policy encoding', () => {
   for (const path of ['relative', '/', '/srv/puni/../other', '/srv/puni/a,/etc', '/srv/puni/a/']) {
-    const parameters = configMap({ annotations: {
-      'puni.dev/forge-installation-owners': JSON.stringify({ alpha: path }),
-    } });
+    const parameters = configMap({
+      annotations: {
+        'puni.dev/forge-installation-owners': JSON.stringify({ alpha: path }),
+      },
+    });
     expect(() => decodeForgeAdmission(parameters, 'f9')).toThrow('one exact absolute directory');
   }
 });
@@ -252,9 +272,11 @@ it('refuses installation policy roots that do not exactly reflect their retained
   const repeated = configMap();
   readRecord(repeated['data'])['forgePuniInstallationRoots'] = INSTALLATION + ',' + INSTALLATION;
   expect(() => decodeForgeAdmission(repeated, 'f9')).toThrow('repeats an installation root');
-  const withoutWorktree = configMap({ annotations: {
-    'puni.dev/forge-installation-owners': JSON.stringify({ alpha: INSTALLATION }),
-  } });
+  const withoutWorktree = configMap({
+    annotations: {
+      'puni.dev/forge-installation-owners': JSON.stringify({ alpha: INSTALLATION }),
+    },
+  });
   readRecord(withoutWorktree['data'])['forgePuniInstallationRoots'] = INSTALLATION;
   expect(() => decodeForgeAdmission(withoutWorktree, 'f9')).toThrow('without worktree claims');
 });
@@ -263,10 +285,15 @@ it('refuses a malformed incoming installation claim before replacing admission a
   for (const installationRoot of [INSTALLATION + ',/etc', INSTALLATION + '/', 'relative']) {
     const server = apiServer(configMap());
     await updateForgeAdmission(server, 'f9', {
-      kind: 'claim', slug: 'alpha', root: '/srv/puni/worktrees/alpha', image: IMAGE,
+      kind: 'claim',
+      slug: 'alpha',
+      root: '/srv/puni/worktrees/alpha',
+      image: IMAGE,
       installationRoot: INSTALLATION,
     });
-    expect(decodeForgeAdmission(server.current(), 'f9').installationOwners).toEqual({ alpha: INSTALLATION });
+    expect(decodeForgeAdmission(server.current(), 'f9').installationOwners).toEqual({
+      alpha: INSTALLATION,
+    });
     const before = structuredClone(server.current());
     let replacements = 0;
     const observed: ForgeAdmissionStore = {
@@ -279,7 +306,10 @@ it('refuses a malformed incoming installation claim before replacing admission a
     let rejection: unknown;
     try {
       await updateForgeAdmission(observed, 'f9', {
-        kind: 'claim', slug: 'alpha', root: '/srv/puni/worktrees/alpha', image: IMAGE,
+        kind: 'claim',
+        slug: 'alpha',
+        root: '/srv/puni/worktrees/alpha',
+        image: IMAGE,
         installationRoot,
       });
     } catch (cause: unknown) {

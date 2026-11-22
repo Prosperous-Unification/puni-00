@@ -117,9 +117,10 @@ bunx nx run-many -t test lint typecheck -p twilight-navigator --skip-nx-cache
 `twilight-navigator:test` needs a non-root runner: the unreadable-input proof relies on file
 modes, so under uid 0 it throws instead of passing vacuously. The
 [OpenSpec change](../../../../openspec/changes/twilight-navigator-plan-reference/verify.md)
-records the original checks and fault proofs. The current12–14 slice has a separate
-[verification record](../../../../openspec/changes/wbs-work-packages/verification-1.7-navigator.json),
-with accepted first-property limits and private artifact descriptors.
+records the original checks and fault proofs. The current12–14 slice's
+[verification summary](../../../../openspec/changes/wbs-work-packages/verify.md#navigator17-accepted-proofs-and-private-closing-2026-11-12)
+records accepted first-property limits and private artifact descriptors. Its referenced
+`verification-1.7-navigator.json` packet is absent from this checkout.
 
 The [receipt consistency change](../../../../openspec/changes/navigator-receipt-plan-consistency/verify.md)
 records the shared checker proofs and scoped verification.

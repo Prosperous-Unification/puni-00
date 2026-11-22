@@ -17,13 +17,15 @@ import { type Connection, openConnection } from './db';
 import { DirectoryRepository } from './directory';
 import { OPEN, WriteCoordinator } from './gate';
 import { MachineCredentialAdministrationRepository } from './machine-credential-administration';
-import { runMigrations } from './migrate';
 import { OrganizationRepository } from './organization';
 import { ScimUserRepository } from './scim-user';
 import { LastSuperAdmin } from './super-admin';
+import {
+  type CatalogueFixtureCustody,
+  migrateEmptyCatalogueFixture,
+} from './testing/catalogue-database';
 import { TrustedIssuerAdministrationRepository } from './trusted-issuer-administration';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const ORGANIZATION: GrantScope = { kind: 'organization' };
 const createAdaAct = (): AccessAct => ({
   actor: { kind: 'user', userId: 'ada' },
@@ -41,6 +43,7 @@ const FOREIGN_KEY = '00000000-0000-4000-8000-000000000003';
 const CONSENT = '00000000-0000-4000-8000-000000000004';
 
 let dir: string;
+let custody: CatalogueFixtureCustody;
 let path: string;
 let connection: Connection;
 let grants: AccessGrantRepository;
@@ -74,8 +77,12 @@ function seed(): void {
     ['wp-a', 'org-a'],
     ['wp-b', 'org-b'],
   ]) {
+    const projectId = 'fixture-parent-' + organizationId;
     run(
-      `INSERT INTO work_package (id, name, owner_id, created_at) VALUES ('${workPackageId}', '${workPackageId}', 'ada', 1)`,
+      `INSERT INTO project (id, organization_id, name, created_at, created_by) VALUES ('${projectId}', '${organizationId}', '${projectId}', 1, 'ada')`,
+    );
+    run(
+      `INSERT INTO work_package (id, project_id, name, created_by, created_at) VALUES ('${workPackageId}', '${projectId}', '${workPackageId}', 'ada', 1)`,
     );
     run(
       `INSERT INTO work_package_organization (resource_id, organization_id) VALUES ('${workPackageId}', '${organizationId}')`,
@@ -132,15 +139,22 @@ function grantCount(): number {
 }
 
 beforeEach(() => {
+  custody = { hasUnknownOwner: false };
   dir = mkdtempSync(join(tmpdir(), 'wbs-access-grant-store-'));
   path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
+  migrateEmptyCatalogueFixture({ path, directory: dir, reportedAt: 1 }, custody);
   connection = openConnection(path);
   grants = new AccessGrantRepository(connection.db, OPEN);
   seed();
 });
 
 afterEach(() => {
+  // Proof: sqlite-cohort1-v231-access-grant-store injected a throw after
+  // real close returned. Omission masked this diagnostic with an unacquired
+  // connection TypeError; restoration reported retained custody. This fault
+  // retained the directory even with the guard omitted.
+  if (custody.hasUnknownOwner)
+    throw new Error('SQLite fixture has unknown native custody; retained ' + dir);
   connection.close();
   rmSync(dir, { recursive: true, force: true });
 });

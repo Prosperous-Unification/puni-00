@@ -5,9 +5,9 @@ import { parseSecretsOrThrow } from '@shared/validation';
 
 import { hashBytes } from '../evidence/content-manifest';
 import { readJson, readOperatorFile } from '../policy/preparation-inputs';
+import { isSameToolkitSource } from '../policy/source-selection';
 import type { SelectedBunToolkit } from '../policy/toolkit';
-import {isSameToolkitSource} from '../policy/source-selection';
-import { PuniTestLevelManifest, TestLevelDescriptor,TestLevelSource } from './puni-test-levels';
+import { PuniTestLevelManifest, TestLevelDescriptor, TestLevelSource } from './puni-test-levels';
 
 /**
  * Join new-profile metadata and required tool/worker bytes to the already verified toolkit.
@@ -16,16 +16,27 @@ import { PuniTestLevelManifest, TestLevelDescriptor,TestLevelSource } from './pu
  */
 export function readRequiredTestLevelAssets(distDirectory: string, toolkit: SelectedBunToolkit) {
   const directory = realpathSync.native(distDirectory);
-  const manifest = parseSecretsOrThrow(PuniTestLevelManifest,
-    readJson(readOperatorFile(join(directory, 'package-manifest.json'))));
+  const manifest = parseSecretsOrThrow(
+    PuniTestLevelManifest,
+    readJson(readOperatorFile(join(directory, 'package-manifest.json'))),
+  );
   const descriptorBytes = readOperatorFile(join(directory, 'test-level-assets.json'));
   if (hashBytes(descriptorBytes) !== manifest.testLevelIdentity)
     throw new Error('installed test-level descriptor differs from required package identity');
   const descriptor = parseSecretsOrThrow(TestLevelDescriptor, readJson(descriptorBytes));
-  if(!isSameToolkitSource(manifest.sourceSelection,toolkit.sourceSelection)||!isSameToolkitSource(descriptor.sourceSelection,manifest.sourceSelection))
-    throw new Error('installed test-level source selection differs from required toolkit/profile identity');
-  if (descriptor.sourceRevision !== manifest.sourceRevision || descriptor.bunVersion !== Bun.version ||
-      descriptor.platform !== process.platform || descriptor.architecture !== process.arch)
+  if (
+    !isSameToolkitSource(manifest.sourceSelection, toolkit.sourceSelection) ||
+    !isSameToolkitSource(descriptor.sourceSelection, manifest.sourceSelection)
+  )
+    throw new Error(
+      'installed test-level source selection differs from required toolkit/profile identity',
+    );
+  if (
+    descriptor.sourceRevision !== manifest.sourceRevision ||
+    descriptor.bunVersion !== Bun.version ||
+    descriptor.platform !== process.platform ||
+    descriptor.architecture !== process.arch
+  )
     throw new Error('installed test-level source, runtime or native platform differs');
   if (toolkit.trustedNodeModulesIdentity !== descriptor.toolchain.identity)
     throw new Error('installed test-level toolchain differs from required toolkit closure');
@@ -39,7 +50,8 @@ export function readRequiredTestLevelAssets(distDirectory: string, toolkit: Sele
   const nodeModules = contained(join(directory, descriptor.toolchain.directory));
   function executable(path: string): string {
     const native = contained(join(nodeModules, path));
-    if (!statSync(native).isFile()) throw new Error('installed test-level tool is not a regular file');
+    if (!statSync(native).isFile())
+      throw new Error('installed test-level tool is not a regular file');
     return native;
   }
   const worker = readOperatorFile(contained(join(directory, descriptor.judge.entrypoint)));
@@ -48,14 +60,20 @@ export function readRequiredTestLevelAssets(distDirectory: string, toolkit: Sele
   const sourceRoot = readOperatorFile(contained(join(directory, descriptor.sourceRoot.entrypoint)));
   if (hashBytes(sourceRoot) !== descriptor.sourceRoot.sha256)
     throw new Error('installed source-root manifest differs from required producer identity');
-  const sourceManifest=parseSecretsOrThrow(TestLevelSource,readJson(sourceRoot));
-  if(!isSameToolkitSource(sourceManifest.sourceSelection,descriptor.sourceSelection))
+  const sourceManifest = parseSecretsOrThrow(TestLevelSource, readJson(sourceRoot));
+  if (!isSameToolkitSource(sourceManifest.sourceSelection, descriptor.sourceSelection))
     throw new Error('installed source-root selection differs from required test-level identity');
   return {
-    sourceRoot: {bytes: Uint8Array.from(sourceRoot), sha256: descriptor.sourceRoot.sha256},
-    sourceRevision: descriptor.sourceRevision, sourceSelection:descriptor.sourceSelection, toolkit,
-    assets: {nodeModules, playwrightEntrypoint: executable(descriptor.toolchain.playwright),
-      viteEntrypoint: executable(descriptor.toolchain.vite), nxEntrypoint: executable(descriptor.toolchain.nx)},
-    worker: {bytes: Uint8Array.from(worker), sha256: descriptor.judge.sha256},
+    sourceRoot: { bytes: Uint8Array.from(sourceRoot), sha256: descriptor.sourceRoot.sha256 },
+    sourceRevision: descriptor.sourceRevision,
+    sourceSelection: descriptor.sourceSelection,
+    toolkit,
+    assets: {
+      nodeModules,
+      playwrightEntrypoint: executable(descriptor.toolchain.playwright),
+      viteEntrypoint: executable(descriptor.toolchain.vite),
+      nxEntrypoint: executable(descriptor.toolchain.nx),
+    },
+    worker: { bytes: Uint8Array.from(worker), sha256: descriptor.judge.sha256 },
   };
 }

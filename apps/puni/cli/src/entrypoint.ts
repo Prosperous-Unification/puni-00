@@ -16,7 +16,11 @@ export interface Completion {
 function requiresExit(command: Command | undefined): boolean {
   if (
     command?.tool === 'dash' &&
-    (command.request.command === 'install-puni' || command.request.command === 'dev' || command.request.command === 'dev-env' || command.request.command === 'browser' || command.request.command === 'performance')
+    (command.request.command === 'install-puni' ||
+      command.request.command === 'dev' ||
+      command.request.command === 'dev-env' ||
+      command.request.command === 'browser' ||
+      command.request.command === 'performance')
   )
     return true;
   if (
@@ -75,7 +79,10 @@ export async function main(args: readonly string[], context: Context): Promise<C
     // Proof: root-main-discovery; `["--help"] discovers through the actual root without provider runtimes, clock, network or PATH` failed under its recorded production fault and passed after restoration.
     if (invocation.kind === 'printed') return { kind: 'drain', status: 0 };
     command = invocation.command;
-    if (command.tool === 'dash' && (command.request.command === 'dev' || command.request.command === 'dev-env')) {
+    if (
+      command.tool === 'dash' &&
+      (command.request.command === 'dev' || command.request.command === 'dev-env')
+    ) {
       const capability = context.developmentIO;
       if (capability !== undefined)
         // Proof: `actual development main retains its diagnostic lookup across caller capability

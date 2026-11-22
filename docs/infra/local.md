@@ -540,7 +540,6 @@ The CLI consumes `inspectRawAllocation` in [the Linux adapter](../../tools/tool-
 
 Keep baseline inputs and native receipts under the owner-only ignored `.puni/fleet-labs/observability-baseline` directory so a reboot does not erase them. Missing old receipts never become successful acceptance. The existing platform/fleet profile admission remains unchanged; the separately approved small-component budgets do not establish full-stack sizing.
 
-
 ### Current PUNI Forge installation inputs
 
 Current Forge up requires an independently reviewed absolute selection-record path and its independently expected SHA256 through --puni-selection and --puni-selection-sha256. The explicit local puni dash install-puni operation writes puni-selection.json only after owned installation and main verification, preserving its prior stdout. Retain the record digest through your authenticated delivery process; hashing an untrusted adjacent record is not authentication.

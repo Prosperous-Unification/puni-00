@@ -76,6 +76,18 @@ export default ({
       ['apps/puni/cli/src/packaging/prepare-test-level-assets-cli.ts'],
       ['^@puni/burokrat/packaging$'],
     ),
+    // Proof: devsync-process-boundary-red-v297 failed real-client admission and exact options.
+    // Independent v299 consumer and browser-facade faults failed their actual Nx denial assertions;
+    // lost anchors and inherited buildable enforcement failed exact effective options.
+    // Each restored control passed; anchor/options checks do not qualify unresolved aliases.
+    allowFacades(
+      ['tools/tool-devsync/src/performance-processes.ts'],
+      [
+        '^@wbs/contracts/solver/supervisor-protocol$',
+        '^@wbs/domain$',
+        '^@puni/dash/performance-processes$',
+      ],
+    ),
     // Proof: each source-client selector was broadened independently; its adjacent-file refusal failed.
     // Facade omissions failed real import admission. Lost regex anchors failed exact effective options.
     allowFacades(

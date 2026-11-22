@@ -409,7 +409,7 @@ export function ColumnsControl({
       </summary>
       <div
         data-columns-panel
-        className="scroll-cue bg-popover absolute z-50 mt-1 max-h-[min(40rem,calc(100dvh-10rem))] w-56 overflow-y-auto rounded-md border p-3 text-sm shadow-md"
+        className="scroll-cue bg-popover absolute z-50 mt-1 max-h-[calc(100dvh-10rem)] w-56 overflow-y-auto rounded-md border p-3 text-sm shadow-md"
       >
         {offered.map(({ id, label }) => {
           const boxId = `${prefix}-${id}`;

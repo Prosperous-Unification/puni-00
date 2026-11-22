@@ -361,7 +361,20 @@ export default [
         '@wbs/store-sqlite/migration-set',
       ],
     ],
-    ['fixtures/dependency-complete-activation.ts', ['@wbs/store-sqlite/migrate']],
+    // Proof: all four new leaves still produced actual Nx noImportOfNonBuildableLibraries
+    // refusals in owned catalogue-boundary-negative-v222.ts outside these exact importers.
+    [
+      'fixtures/dependency-complete-activation.ts',
+      ['@wbs/store-sqlite/migrate', '@wbs/store-sqlite/testing/catalogue-database'],
+    ],
+    [
+      'lib/dependency-complete-fixture.test.ts',
+      [
+        '@wbs/store-sqlite/db',
+        '@wbs/store-sqlite/migrate-down',
+        '@wbs/store-sqlite/testing/recovery-state',
+      ],
+    ],
   ].map(([file, aliases]) => ({
     files: [`tools/tool-remote-scripts/src/${file}`],
     rules: {

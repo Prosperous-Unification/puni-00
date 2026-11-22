@@ -696,7 +696,10 @@ function ProjectRow({
 }): React.JSX.Element {
   return (
     <tr className="bg-muted">
-      <th scope="row" className={`${CELL_CLASS} ${PINNED_CELL_CLASS} font-medium`}>
+      <th
+        scope="row"
+        className={`${CELL_CLASS} ${PINNED_CELL_CLASS} font-medium [overflow-wrap:anywhere]`}
+      >
         {group.project.name}
       </th>
       <RollUpCells rollUp={rollUp} />

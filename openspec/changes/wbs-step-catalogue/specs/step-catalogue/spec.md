@@ -459,6 +459,18 @@ report row of design.md SC23 until the rules file rules it, SHALL record each me
 `step_identity_history`, and history readers SHALL translate merged ids on read only
 (SC11–SC13).
 
+Current catalogue startup and newly generated backend swap plans SHALL NOT dispatch the
+predecessor NULL-code backfill. SC23's explicit report/apply confirmation SHALL remain
+responsible for formerly uncoded predecessor steps. Existing migration, backup, writer,
+runtime and exposure checks SHALL retain their contracts; omission of the predecessor
+mutator SHALL NOT claim a new catalogue/profile certification.
+
+#### Scenario: Current backend plans omit predecessor code mutation
+
+- **WHEN** a current backend replacement or first-deployment plan is generated
+- **THEN** it omits `backfill-step-codes`, retains the post-stop vocabulary check before alias/routing exposure and commit, and preserves the existing migration/backup/runtime admission ordering
+- **AND** explicit historical backfill helper and direct executor calls retain their original failure and manual-completion behavior
+
 #### Scenario: Unsupported live parent points refuse catalogue admission
 
 - **GIVEN** a genuine predecessor database retains a concrete point fact on a work item that has children

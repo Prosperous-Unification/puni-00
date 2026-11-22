@@ -4,10 +4,15 @@ import { join } from 'node:path';
 import ts from 'typescript';
 
 import { hashBytes } from '../evidence/content-manifest';
-import type { SourceFiles } from './source-files';
 import { readJson, readOperatorFile, readSourceFile } from './preparation-inputs';
 import { assertPinnedTypeScript, assertReleaseRuntime } from './release';
-import { buildModuleNames, puniModuleNames, hashSelectedModules, packageDirectory } from './trusted-modules';
+import type { SourceFiles } from './source-files';
+import {
+  buildModuleNames,
+  hashSelectedModules,
+  packageDirectory,
+  puniModuleNames,
+} from './trusted-modules';
 
 /** A pre-copy byte identity of a stable operator-owned installation, not lockfile provenance. */
 export interface BuildDependencies {
@@ -110,11 +115,17 @@ function readSelectedBuildDependencies(
 }
 
 /** Admit the unchanged historical/compiler role closure. */
-export function readBuildDependencies(source: SourceFiles, installationRoot: string): BuildDependencies {
+export function readBuildDependencies(
+  source: SourceFiles,
+  installationRoot: string,
+): BuildDependencies {
   return readSelectedBuildDependencies(source, installationRoot, buildModuleNames);
 }
 
 /** Admit actual PUNI execution dependencies from the same captured/host-matched authority before private copying. */
-export function readPuniBuildDependencies(source: SourceFiles, installationRoot: string): BuildDependencies {
+export function readPuniBuildDependencies(
+  source: SourceFiles,
+  installationRoot: string,
+): BuildDependencies {
   return readSelectedBuildDependencies(source, installationRoot, puniModuleNames);
 }

@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
+
 import { expect, test } from 'bun:test';
 
 import {
@@ -131,10 +132,15 @@ test('public request refusal discards private parser input and cause chains befo
   expect(refusal.cause).toBeUndefined();
 });
 
-
 // Independent declarative goldens only; these bytes grant no tree, installation or activation authority.
-const currentSourceSelection = readFileSync(new URL('../fixtures/source-cold-v2-selection.json', import.meta.url), 'utf8');
-const currentSourceManifest = readFileSync(new URL('../fixtures/source-cold-v2-manifest.json', import.meta.url), 'utf8');
+const currentSourceSelection = readFileSync(
+  new URL('../fixtures/source-cold-v2-selection.json', import.meta.url),
+  'utf8',
+);
+const currentSourceManifest = readFileSync(
+  new URL('../fixtures/source-cold-v2-manifest.json', import.meta.url),
+  'utf8',
+);
 const currentSelectionSha256 = '0c18fe56c9b759a19238ecbcf17c1bfc91014bf18677740b7b8db44cbc467b80';
 const currentManifestSha256 = 'f2478c57656defcf044d199f67d57dd65c6472264a84bf94a42d5ac5d8f34f17';
 function readCurrentSourceRequest() {
@@ -160,45 +166,94 @@ function readCurrentSourceRequest() {
 test('current source request explicitly routes cold-v2 while retaining the detached historical request', () => {
   const historical = request();
   const retained = decodeCompleteDependencyActivationRequest(historical, performance.now() + 60000);
-  expect<unknown>(retained.source).toEqual(historical.source);
-  expect(createHash('sha256').update(currentSourceManifest).digest('hex')).toBe(currentManifestSha256);
-  expect(createHash('sha256').update(currentSourceSelection).digest('hex')).toBe(currentSelectionSha256);
+  const retainedSource: unknown = retained.source;
+  expect(retainedSource).toEqual(historical.source);
+  expect(createHash('sha256').update(currentSourceManifest).digest('hex')).toBe(
+    currentManifestSha256,
+  );
+  expect(createHash('sha256').update(currentSourceSelection).digest('hex')).toBe(
+    currentSelectionSha256,
+  );
   const supplied = readCurrentSourceRequest();
   const expected = structuredClone(supplied.source);
   const decoded = decodeCompleteDependencyActivationRequest(supplied, performance.now() + 60000);
-  expect<unknown>(decoded.source).toEqual(expected);
+  const decodedSource: unknown = decoded.source;
+  expect(decodedSource).toEqual(expected);
   supplied.source.puniSelectionContents = 'changed after request decoding';
   supplied.source.pins.puniSelectionSha256 = 'f'.repeat(64);
-  expect<unknown>(decoded.source).toEqual(expected);
+  const retainedAfterEdit: unknown = decoded.source;
+  expect(retainedAfterEdit).toEqual(expected);
 });
 
 test('current source request refuses a pinned historical declaration instead of downgrading its explicit profile', () => {
   const current = readCurrentSourceRequest();
-  expect<unknown>(decodeCompleteDependencyActivationRequest(current, performance.now() + 60000).source).toEqual(current.source);
-  const historical = JSON.stringify({
-    format: 'wbs-source-startup', version: 1, profile: 'wbs-source-cold-v1', sourceSha: sha,
-    entries: [{ root: 'source', path: 'owned.txt', kind: 'file', mode: 420, size: 1, sha256: 'e'.repeat(64) }],
-    configuration: ['backend', 'gateway', 'mcp', 'frontend'].map((slot) => ({ slot, size: 1, sha256: 'e'.repeat(64) })),
-  }) + '\n';
+  const source: unknown = decodeCompleteDependencyActivationRequest(
+    current,
+    performance.now() + 60000,
+  ).source;
+  expect(source).toEqual(current.source);
+  const historical =
+    JSON.stringify({
+      format: 'wbs-source-startup',
+      version: 1,
+      profile: 'wbs-source-cold-v1',
+      sourceSha: sha,
+      entries: [
+        {
+          root: 'source',
+          path: 'owned.txt',
+          kind: 'file',
+          mode: 420,
+          size: 1,
+          sha256: 'e'.repeat(64),
+        },
+      ],
+      configuration: ['backend', 'gateway', 'mcp', 'frontend'].map((slot) => ({
+        slot,
+        size: 1,
+        sha256: 'e'.repeat(64),
+      })),
+    }) + '\n';
   const supplied = {
     ...current,
-    source: { ...current.source, manifestContents: historical, pins: { ...current.source.pins, manifestSha256: createHash('sha256').update(historical).digest('hex') } },
+    source: {
+      ...current.source,
+      manifestContents: historical,
+      pins: {
+        ...current.source.pins,
+        manifestSha256: createHash('sha256').update(historical).digest('hex'),
+      },
+    },
   };
-  expect(() => decodeCompleteDependencyActivationRequest(supplied, performance.now() + 60000)).toThrow();
+  expect(() =>
+    decodeCompleteDependencyActivationRequest(supplied, performance.now() + 60000),
+  ).toThrow();
 });
 
 test('current source request requires the independently expected retained installation record', () => {
   const current = readCurrentSourceRequest();
-  expect<unknown>(decodeCompleteDependencyActivationRequest(current, performance.now() + 60000).source).toEqual(current.source);
+  const source: unknown = decodeCompleteDependencyActivationRequest(
+    current,
+    performance.now() + 60000,
+  ).source;
+  expect(source).toEqual(current.source);
   for (const fault of ['absent-contents', 'wrong-digest', 'missing-pin'] as const) {
     const supplied: Record<string, unknown> = structuredClone(current.source);
     if (fault === 'absent-contents') delete supplied['puniSelectionContents'];
-    else if (fault === 'wrong-digest') supplied['puniSelectionContents'] = currentSourceSelection + '\n';
+    else if (fault === 'wrong-digest')
+      supplied['puniSelectionContents'] = currentSourceSelection + '\n';
     else {
       const pins: Record<string, unknown> = { ...current.source.pins };
       delete pins['puniSelectionSha256'];
       supplied['pins'] = pins;
     }
-    expect(() => decodeCompleteDependencyActivationRequest({ ...current, source: supplied }, performance.now() + 60000), fault).toThrow();
+    expect(
+      () =>
+        decodeCompleteDependencyActivationRequest(
+          { ...current, source: supplied },
+          performance.now() + 60000,
+        ),
+      fault,
+    ).toThrow();
   }
 });

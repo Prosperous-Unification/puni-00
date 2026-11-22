@@ -6,21 +6,29 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { rowsChanged } from './changes';
 import { openDrizzle } from './db';
-import { runMigrations } from './migrate';
-
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+import {
+  type CatalogueFixtureCustody,
+  migrateEmptyCatalogueFixture,
+} from './testing/catalogue-database';
 
 let dir: string;
+let custody: CatalogueFixtureCustody;
 let db: ReturnType<typeof openDrizzle>;
 
 beforeEach(() => {
+  custody = { hasUnknownOwner: false };
   dir = mkdtempSync(join(tmpdir(), 'wbs-changes-'));
   const path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
+  migrateEmptyCatalogueFixture({ path, directory: dir, reportedAt: 1 }, custody);
   db = openDrizzle(path);
 });
 
 afterEach(() => {
+  // Proof: sqlite-pilot-v226-changes omitted/restored: after real close returned
+  // then reported uncertainty, omission deleted this directory; restoration
+  // retained it. This did not inject a leaked native handle.
+  if (custody.hasUnknownOwner)
+    throw new Error('SQLite fixture has unknown native custody; retained ' + dir);
   rmSync(dir, { recursive: true, force: true });
 });
 

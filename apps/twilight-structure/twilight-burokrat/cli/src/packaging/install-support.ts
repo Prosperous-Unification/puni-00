@@ -1,4 +1,3 @@
-
 import { runLintChild } from '../lint-child';
 import type { SubscribeLintInterrupts } from '../lint-interrupts';
 import type { LintRuntime } from '../lint-runtime';
@@ -28,4 +27,3 @@ export async function runInstallChild(
 ) {
   return await runLintChild({ ...request, stage: 'package install', stdin: undefined });
 }
-

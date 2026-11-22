@@ -20,6 +20,7 @@ import { readChainSnapshotIn } from './chain-snapshot';
 import { openConnection, openDatabase } from './db';
 import { OPEN, WriteCoordinator } from './gate';
 import type { ReadSnapshotLifetime } from './read-snapshot-lifetime';
+import * as settings from './settings';
 import { openSqliteSource, openSqliteSourceWithCaptureReadSeam } from './source';
 import { sqliteUnitOfWork } from './sqlite-unit-of-work';
 import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
@@ -40,9 +41,6 @@ beforeEach(async () => {
   const client = openDatabase(path);
   try {
     client.run("UPDATE organization_activation SET state = 'activated', activated_at = 1");
-    client.run(
-      "INSERT INTO organization_membership (organization_id,user_id,role,created_at) VALUES ('org-a','ada','member',1)",
-    );
     client.run(
       "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('snapshot-ada','org-a','organization','org-a','user','ada','project-contributor','route',1)",
     );
@@ -519,26 +517,87 @@ test('suspended runtime work package resolution expires before membership SQL in
     logger: { logQuery: (query) => queries.push(query) },
   });
   const source = sqlite.bindLivePlans({ schedulerOf: () => fastScheduler });
-  const workPackages = new WorkPackageRepository(sqlite.db, OPEN);
-  const find = workPackages.findInOrganization.bind(workPackages);
-  let pause = true;
-  const lookup = spyOn(WorkPackageRepository.prototype, 'findInOrganization').mockImplementation(
-    async (workPackageId, organizationId) => {
-      const workPackage = await find(workPackageId, organizationId);
-      if (pause) {
-        pause = false;
-        reached.release();
-        await released.promise;
-      }
-      return workPackage;
-    },
-  );
+  const resolvePromise = Promise.resolve.bind(Promise);
+  const readTarget = settings.readSettingTargetIn;
+  let targetReads = 0;
+  let pauses = 0;
+  let isAwaitSpyActive = false;
+  let restoreAwait: (() => void) | undefined;
+  let restoreLookup: (() => void) | undefined;
   let pending: Promise<Error> | undefined;
   try {
+    const lookup = spyOn(settings, 'readSettingTargetIn');
+    restoreLookup = () => {
+      lookup.mockRestore();
+    };
+    type TargetScope = Parameters<typeof readTarget>[1];
+    type PackageTarget = Extract<
+      NonNullable<ReturnType<typeof readTarget>>,
+      { kind: 'work_package' }
+    >;
+    /**
+     * Pauses only the real selected target read's next empty await.
+     * Proof: snapshot-expiry-v239 removed only the resolver's post-await guard:
+     * its final guard still answered closed, but membership SQL broke the empty
+     * query assertion; exact restoration passed. Promise restores before pause.
+     */
+    function pauseAfterTarget(
+      db: Parameters<typeof readTarget>[0],
+      targetScope: Exclude<TargetScope, { level: 'work_package' }>,
+      organizationId: string | null,
+    ): never;
+    function pauseAfterTarget(
+      db: Parameters<typeof readTarget>[0],
+      targetScope: TargetScope,
+      organizationId: string | null,
+    ): PackageTarget;
+    function pauseAfterTarget(
+      db: Parameters<typeof readTarget>[0],
+      targetScope: TargetScope,
+      organizationId: string | null,
+    ): PackageTarget {
+      const target = readTarget(db, targetScope, organizationId);
+      if (
+        targetScope.level !== 'work_package' ||
+        targetScope.id !== 'a1' ||
+        organizationId !== 'org-a'
+      )
+        throw new Error('unexpected settings read in runtime suspension fixture');
+      if (target?.kind !== 'work_package' || targetReads !== 0 || pauses !== 0 || isAwaitSpyActive)
+        throw new Error('selected runtime target read did not occur exactly once');
+      targetReads += 1;
+      const yielding = spyOn(Promise, 'resolve');
+      isAwaitSpyActive = true;
+      restoreAwait = () => {
+        if (isAwaitSpyActive) {
+          yielding.mockRestore();
+          isAwaitSpyActive = false;
+        }
+      };
+      function pauseAtNextAwait(): Promise<void>;
+      function pauseAtNextAwait<Value>(value: Value): Promise<Awaited<Value>>;
+      function pauseAtNextAwait<Value>(value: Value | PromiseLike<Value>): Promise<Awaited<Value>>;
+      function pauseAtNextAwait<Value>(
+        value?: Value | PromiseLike<Value>,
+      ): Promise<Awaited<Value> | undefined> {
+        if (arguments.length !== 0 || targetReads !== 1 || pauses !== 0 || !isAwaitSpyActive)
+          throw new Error('selected runtime read did not reach its exact next empty await');
+        pauses += 1;
+        yielding.mockRestore();
+        isAwaitSpyActive = false;
+        reached.release();
+        return released.promise.then(() => resolvePromise(value));
+      }
+      yielding.mockImplementation(pauseAtNextAwait);
+      return target;
+    }
+    lookup.mockImplementation(pauseAfterTarget);
     await source.uow.run(async (scope) => {
       const resolver = scope.fanoutCapture?.resolveWorkPackageWriteScope;
       if (resolver === undefined) throw new Error('missing runtime resolver');
       pending = failureOf(resolver('a1', 'org-a', 'ada', undefined));
+      if (targetReads !== 1 || pauses !== 1 || isAwaitSpyActive)
+        throw new Error('actual selected runtime await was not paused exactly once');
       await reached.promise;
       return { commit: true, value: undefined };
     });
@@ -552,8 +611,18 @@ test('suspended runtime work package resolution expires before membership SQL in
     });
   } finally {
     released.release();
-    if (pending !== undefined) await pending;
-    lookup.mockRestore();
-    await source.close();
+    try {
+      if (pending !== undefined) await pending;
+    } finally {
+      try {
+        restoreAwait?.();
+      } finally {
+        try {
+          restoreLookup?.();
+        } finally {
+          await source.close();
+        }
+      }
+    }
   }
 });

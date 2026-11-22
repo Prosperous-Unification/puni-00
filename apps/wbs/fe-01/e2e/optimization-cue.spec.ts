@@ -308,6 +308,10 @@ test.describe('the schedule cue, in a browser', () => {
         box.x + box.width,
         `the menu is cropped on the right at ${String(width)}: ${String(Math.round(box.x))}px + ${String(Math.round(box.width))}px`,
       ).toBeLessThanOrEqual(width);
+      expect(
+        await menu.evaluate((node) => node.scrollWidth - node.clientWidth),
+        `the menu's labels overflow at ${String(width)}`,
+      ).toBeLessThanOrEqual(0);
       await page.keyboard.press('Escape');
     }
   });

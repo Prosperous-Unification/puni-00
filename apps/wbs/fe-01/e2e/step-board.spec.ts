@@ -6,7 +6,7 @@ import type { PlanCommandWire } from '@wbs/contracts';
 
 import { addedBoardJournalRow, readBoardJournal } from './board-journal';
 import { ORDINARY_STEPS } from './catalogue-fixture';
-import { openOrdinaryContext } from './ordinary-context';
+import { assertOrdinaryAccount, openOrdinaryContext } from './ordinary-context';
 import { expect, type Locator, type Page, test } from './ordinary-test';
 import {
   fixtureClient,
@@ -487,7 +487,7 @@ test('uses the numbered keyboard control and a phone touch tap with delivered fo
   try {
     const touch = await touchContext.newPage();
     await touch.goto('/');
-    await expect(touch.getByRole('button', { name: 'local-dev' })).toBeVisible();
+    await assertOrdinaryAccount(touch);
     await openSeededPlan(touch, seeded);
     await touch.getByRole('button', { name: 'Board', exact: true }).click();
     await boardOf(touch).getByRole('button', { name: 'Move 010 Build / Dev to In progress' }).tap();

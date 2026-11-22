@@ -4,7 +4,9 @@ import { readInvocation, UsageRefusal } from './cli-parser';
 
 function readRequest(args: readonly string[]) {
   const output: string[] = [];
-  const invocation = readInvocation(args, (chunk) => { output.push(chunk); });
+  const invocation = readInvocation(args, (chunk) => {
+    output.push(chunk);
+  });
   return { invocation, output: output.join('') };
 }
 
@@ -16,16 +18,28 @@ function expectExistingDevelopmentHelp(namespace: string): void {
 
 describe('PUNI browser and performance execution grammar', () => {
   for (const namespace of ['dash', 'd']) {
-    for (const mode of ['ordinary', 'packaged', 'portable']) {
+    for (const mode of ['ordinary', 'packaged', 'portable'] as const) {
       it(`composes browser execution for ${namespace} ${mode}`, () => {
         expectExistingDevelopmentHelp(namespace);
         const observed = readRequest([
-          namespace, 'browser', mode, '--repository', '/absent candidate with spaces',
+          namespace,
+          'browser',
+          mode,
+          '--repository',
+          '/absent candidate with spaces',
         ]);
-        expect<unknown>(observed).toEqual({
-          invocation: { kind: 'command', command: { tool: 'dash', request: {
-            command: 'browser', mode, repository: '/absent candidate with spaces',
-          } } },
+        expect(observed).toEqual({
+          invocation: {
+            kind: 'command',
+            command: {
+              tool: 'dash',
+              request: {
+                command: 'browser',
+                mode,
+                repository: '/absent candidate with spaces',
+              },
+            },
+          },
           output: '',
         });
       });
@@ -34,14 +48,25 @@ describe('PUNI browser and performance execution grammar', () => {
     it(`composes performance execution with an explicit policy for ${namespace}`, () => {
       expectExistingDevelopmentHelp(namespace);
       const observed = readRequest([
-        namespace, 'performance', '--repository', '/absent candidate with spaces',
-        '--rule-policy', '/absent independent policy.json',
+        namespace,
+        'performance',
+        '--repository',
+        '/absent candidate with spaces',
+        '--rule-policy',
+        '/absent independent policy.json',
       ]);
-      expect<unknown>(observed).toEqual({
-        invocation: { kind: 'command', command: { tool: 'dash', request: {
-          command: 'performance', repository: '/absent candidate with spaces',
-          rulePolicy: '/absent independent policy.json',
-        } } },
+      expect(observed).toEqual({
+        invocation: {
+          kind: 'command',
+          command: {
+            tool: 'dash',
+            request: {
+              command: 'performance',
+              repository: '/absent candidate with spaces',
+              rulePolicy: '/absent independent policy.json',
+            },
+          },
+        },
         output: '',
       });
     });
@@ -49,12 +74,23 @@ describe('PUNI browser and performance execution grammar', () => {
     it(`leaves performance policy selection to captured execution inputs for ${namespace}`, () => {
       expectExistingDevelopmentHelp(namespace);
       const observed = readRequest([
-        namespace, 'performance', '--repository', '/absent candidate with spaces',
+        namespace,
+        'performance',
+        '--repository',
+        '/absent candidate with spaces',
       ]);
-      expect<unknown>(observed).toEqual({
-        invocation: { kind: 'command', command: { tool: 'dash', request: {
-          command: 'performance', repository: '/absent candidate with spaces', rulePolicy: undefined,
-        } } },
+      expect(observed).toEqual({
+        invocation: {
+          kind: 'command',
+          command: {
+            tool: 'dash',
+            request: {
+              command: 'performance',
+              repository: '/absent candidate with spaces',
+              rulePolicy: undefined,
+            },
+          },
+        },
         output: '',
       });
     });

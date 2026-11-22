@@ -5,32 +5,37 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { type Drizzle, openDatabase, openDrizzle } from './db';
-import { runMigrations } from './migrate';
 import { allocateGeneration, readGeneration } from './optimization-generation';
 import { optimizedScheduleCache, solverQueue, solverSlot } from './schema';
-
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+import {
+  type CatalogueFixtureCustody,
+  migrateEmptyCatalogueFixture,
+} from './testing/catalogue-database';
+import { seedLegacyPackageParent } from './testing/legacy-package-parent';
 
 /** The two releases running against one file during a swap. */
 const BLUE = '7+1.0.0';
 const GREEN = '8+1.0.0';
 
 let dir: string;
+let custody: CatalogueFixtureCustody;
 let path: string;
 let db: Drizzle;
 
 beforeEach(() => {
+  custody = { hasUnknownOwner: false };
   dir = mkdtempSync(join(tmpdir(), 'wbs-optimization-generation-'));
   path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
+  migrateEmptyCatalogueFixture({ path, directory: dir, reportedAt: 1 }, custody);
+  seedLegacyPackageParent(path, 'optimization-generation-org', 'optimization-generation-project');
   const seed = openDatabase(path);
   try {
     seed.run(
       `INSERT INTO users (id, username, password_hash, created_at) VALUES ('u-1', 'u', 'h', 1)`,
     );
     seed.run(
-      `INSERT INTO work_package (id, name, owner_id, restricted, revision, created_at)
-       VALUES ('p-1', 'Rewire the shed', 'u-1', 0, 0, 1)`,
+      `INSERT INTO work_package (id, project_id, name, created_by, restricted, revision, created_at)
+       VALUES ('p-1', 'optimization-generation-project', 'Rewire the shed', 'u-1', 0, 0, 1)`,
     );
   } finally {
     seed.close();
@@ -39,6 +44,11 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  // Proof: sqlite-cohort2-v244-generation injected a throw after real close
+  // returned. Omission deleted this directory; restoration retained it.
+  // No leaked native handle was injected.
+  if (custody.hasUnknownOwner)
+    throw new Error('SQLite fixture has unknown native custody; retained ' + dir);
   rmSync(dir, { recursive: true, force: true });
 });
 

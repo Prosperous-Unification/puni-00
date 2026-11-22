@@ -44,6 +44,8 @@ nx-gate.log
 test-results/
 test-results-packaged/
 playwright-report/
+apps/wbs/fe-01/test-results-local/
+apps/wbs/fe-01/playwright-report-local/
 .claude/worktrees
 # `.nxignore` codifies `.worktrees/<name>` as the convention for agent lanes, and
 # a nested worktree is untracked. `bin/h2puni-gate.sh` refuses a tree that is

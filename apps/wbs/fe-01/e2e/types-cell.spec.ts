@@ -1,4 +1,5 @@
 import { createWorkPackage } from './create-work-package';
+import { assertOrdinaryAccount } from './ordinary-context';
 import { expect, type Page, test } from './ordinary-test';
 
 /**
@@ -35,7 +36,7 @@ const ROW_HEIGHT_BUDGET = 28;
  */
 async function openSignedIn(page: Page): Promise<void> {
   await page.goto('/');
-  await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
+  await assertOrdinaryAccount(page);
 }
 
 /** Turns a hidden column on from the `Columns` control and waits for its header. */

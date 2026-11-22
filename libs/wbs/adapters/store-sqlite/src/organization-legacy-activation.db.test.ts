@@ -11,16 +11,20 @@ import { OPEN } from './gate';
 import { runMigrations } from './migrate';
 import { beginOptimizationDrain, finishOptimizationDrain } from './optimization-drain';
 import { activateLegacyOrganization } from './organization-legacy-activation';
-
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+import { copyRecoveryPrefix } from './testing/recovery-state';
 
 let dir: string;
 let connection: Connection;
 
+/**
+ * Actual immutable migration111 follows the package rename but precedes required project
+ * parents. Populated owner_id rows with no organization are this legacy
+ * activation operator's input; current empty-catalogue birth cannot model it.
+ */
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-legacy-activation-'));
   const path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
+  runMigrations(path, copyRecoveryPrefix(dir, '20261110100000_rename_project_to_work_package'));
   const raw = openDatabase(path);
   try {
     raw.run("INSERT INTO users (id, username, created_at) VALUES ('u1', 'dany', 1)");

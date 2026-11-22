@@ -6,6 +6,7 @@ import {
 } from '@wbs/contracts';
 
 import { createWorkPackage } from './create-work-package';
+import { assertOrdinaryAccount, openCompactAccount } from './ordinary-context';
 import { expect, type Locator, type Page, test } from './ordinary-test';
 import { createOrdinaryHeaders } from './plan-fixture';
 
@@ -93,7 +94,7 @@ async function directoryCommands<T>(page: Page, list: Record<string, unknown>[])
 
 async function seed(page: Page): Promise<Seed> {
   await page.goto('/');
-  await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
+  await assertOrdinaryAccount(page);
   await createWorkPackage(page);
 
   await expect
@@ -966,6 +967,7 @@ test.describe('390x844 reference sheets', () => {
     await page.reload();
 
     for (const palette of ['Light', 'Dark'] as const) {
+      await openCompactAccount(page);
       await chooseTheme(page, palette);
       for (const field of fields) {
         const dialog = await openSheet(field);

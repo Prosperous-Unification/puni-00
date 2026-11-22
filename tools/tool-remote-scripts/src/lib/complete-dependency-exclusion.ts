@@ -309,7 +309,11 @@ async function activateCompleteUnderOwner(
     // Proof: missing-source reached ingress reload when the original source census was omitted.
     if (sourceMembers.length !== 1 || sourceRaw === undefined)
       throw new Error('activation requires existing source participant');
-    const initialSource = decodeSourceDev(sourceRaw, layouts.dev, 'expectedProfile' in request.source ? request.source : undefined);
+    const initialSource = decodeSourceDev(
+      sourceRaw,
+      layouts.dev,
+      'expectedProfile' in request.source ? request.source : undefined,
+    );
     if (initialSource.image !== request.source.pins.runtimeImageId)
       throw new Error('activation original source runtime differs');
     async function select(role: 'backend' | 'gateway'): Promise<SelectedParticipant> {
@@ -623,7 +627,13 @@ async function activateCompleteUnderOwner(
           // Proof: source replacement after ingress reached storage without this original identity binding.
           assertSame(
             sourceDevIdentity(initialSource),
-            sourceDevIdentity(decodeSourceDev(excludedSource, layouts.dev, 'expectedProfile' in request.source ? request.source : undefined)),
+            sourceDevIdentity(
+              decodeSourceDev(
+                excludedSource,
+                layouts.dev,
+                'expectedProfile' in request.source ? request.source : undefined,
+              ),
+            ),
             'activation original installed source identity',
           );
           await inspectExcludedSolverMembers(owner, layouts.prod, solver, before);

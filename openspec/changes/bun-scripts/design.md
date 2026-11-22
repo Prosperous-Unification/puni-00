@@ -172,7 +172,6 @@ The two actual package-owned Bash failures authorize this caller slice, not guar
 
 Keep historical dev.sh/dev.test.sh and their Proofs until remaining verification/CI/input/shellcheck callers have an actual migration matrix. Source caller tests use finite local Bun/Nx with the exact actual package command bytes and controlled source main; later one-session packed/installed join, TTY/signal/capture through the adapter and actual container configuration/runtime owners remain required. Existing four-tier/two-preparation graph evidence does not become a new container runtime claim.
 
-
 ## Forge explicit local delivery (open PUNI3.1d.9c / Bun2.3d.3)
 
 PUNI owns the exact canonical local package metadata factory and a narrow workspace packaging facade. The provisioner adds an owned selection record only after actual install/probe success, retaining the prior stdout contract. A caller supplies the independently expected record digest; neither the record's adjacent SHA nor the supplied installation directory creates provenance. No public package pin, automatic default, registry lookup or standalone installer is added.
@@ -185,7 +184,6 @@ The actual Bun Forge supervisor owns the frozen install and PUNI parent with sep
 
 Verification is sequential, not an atomic host-filesystem snapshot. The selected installation publisher must keep files stable while consumed; inode checks cannot freeze children or prevent a trusted host write during/after an observation. The SDK and shared verifier sources are currently outside the legacy non-test tool-devsync fingerprint; full source-profile/loaded-closure qualification remains an explicit next integration obligation. The immutable source-cold-v1 manifest/decoder is not weakened, relabelled or reused as a current PUNI certificate. A distinct current source-cold-v2 producer/router, actual mounted artifact/native descendant controls and remaining shell/CI/verification consumers stay open.
 
-
 ## Explicit current source profile and loaded supervisor closure
 
 The current source branch is explicitly named wbs-source-cold-v2. Its closed pins are version2 and bind the independently expected PUNI selection digest; its canonical manifest is version2 with the exact read-only /opt/puni-dev mapping and selected relative entrypoint. Its complete activation request retains the exact selection record bytes. An absent current tag still selects only the historical version1 shape. The historical source-startup-manifest module, old launch checks and old wire profile remain unchanged rather than accepting the new package scripts under an old label.
@@ -195,7 +193,6 @@ The current producer checks clean standalone Git/source/dependency/configuration
 The current frontend logical-input selector is a separate exact source/dependency epoch. It does not renew the historical complete HTTP-body certificate or establish browser readiness. Actual current HTTP/native container owners remain necessary before activation certification.
 
 The old non-test tool-devsync directory fingerprint is insufficient for its newly loaded SDK/shared dependencies. The chosen next boundary is a producer-owned Bun compiler/metafile closure plus a retained explicit runtime/asset manifest. Builtin imports are bound to the retained Bun runtime; filesystem assets and lazy/native edges must be declared and observed or rejected before a successor. A directory watch or conservative literal graph alone cannot certify executed closure. The first owner must change an owned captured SDK or asset after frozen install and before a fresh successor, with an append-only launch witness. This checkpoint does not implement or certify that successor guard, and does not retire remaining shell/CI/verification consumers.
-
 
 ## Shipped Forge execution and explicit source mode
 
@@ -207,13 +204,11 @@ The explicit source library mode is separate: its producer compiles and brackets
 
 Both modes call the same core with a required execution inspection before frozen install, after install and before fresh parent acquisition. The core keeps the existing native/stop ownership, current installation re-verification,20s grace plus5s hard-settlement limit, and no-successor rule after uncertain stop. Inherited Pod streams are not claimed as readable EOF. Linux native observations do not certify a Darwin Forge adapter, Pod/cgroup custody or actual node mounts. The source/installed controls, effective import policy, actual packed producer, current cold-profile routing, final strict quality and finite guard effects remain distinct observations. Remaining dev:test/CI/shellcheck/live-flush/split-CSI/native capture owners and old script retirement stay open.
 
-
 ### Internal source API versus installed client boundary
 
 The internal source-library compiler mode is retained explicitly for trusted in-repository callers and its loaded-input regression owners. It compiles and executes its own observed core; it authenticates the separately selected PUNI child delivery, but does not assert that the source core equals an installed Forge core or shares its sourceRevision. Those internal positives certify neither installed execution nor client cutover. This is a distinct mode, never a missing-asset fallback.
 
 Every actual client route—the typed PUNI supervise operation, rendered Pod/bootstrap vector and advertised operator surface—uses only the independently selected shipped/hash-bound core. The former forge-supervisor.ts executable branch is removed. dev-environment imports the pure state symbol rather than initializing the internal compiler. The production core remains shared source, but its captured producer's TypeScript transforms/virtual paths and raw internal source compilation are not assumed byte-equivalent. Each mode must own its actual bootstrap/emitted/runtime/data closure and native observations independently. Parent accepted this explicit boundary; correctness/custody/source and packed first positives still require their own actual observations.
-
 
 ## Producer-owned retained Forge loader
 

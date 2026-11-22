@@ -254,7 +254,9 @@ const TrustedWorkloadImages = type({
     'annotations?': 'Record<string, string>',
   },
   data: {
-    solverImages: 'string', forgeImage: 'string', forgeWorktreeRoots: 'string',
+    solverImages: 'string',
+    forgeImage: 'string',
+    forgeWorktreeRoots: 'string',
     forgePuniInstallationRoots: 'string',
   },
 });

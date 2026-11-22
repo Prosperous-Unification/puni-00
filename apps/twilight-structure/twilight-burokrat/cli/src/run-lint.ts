@@ -48,15 +48,19 @@ export async function readLintCandidate(
   runtime: LintRuntime,
   subscribeInterrupts: SubscribeLintInterrupts,
 ): Promise<LintCandidateOutcome> {
-  return await readRepositoryRoot({repository:invocation.request.repository,callerDirectory:invocation.callerDirectory},runtime,subscribeInterrupts);
+  return await readRepositoryRoot(
+    { repository: invocation.request.repository, callerDirectory: invocation.callerDirectory },
+    runtime,
+    subscribeInterrupts,
+  );
 }
 
 /** Actual supported Git/root admission without inventing a candidate selection DTO. */
 export async function readRepositoryRoot(
-  selection:{readonly repository:string;readonly callerDirectory:string},
-  runtime:LintRuntime,
-  subscribeInterrupts:SubscribeLintInterrupts,
-):Promise<LintCandidateOutcome> {
+  selection: { readonly repository: string; readonly callerDirectory: string },
+  runtime: LintRuntime,
+  subscribeInterrupts: SubscribeLintInterrupts,
+): Promise<LintCandidateOutcome> {
   const common = {
     // Proof: preflight-trusted-cwd; `runs both Git probes from the trusted runtime cwd after PATH is frozen` fails with this injected fault and passes after restoration.
     directory: runtime.directory,

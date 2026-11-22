@@ -28,7 +28,29 @@ spec:
     - name: source
       image: dev-environment
       workingDir: /src
-      command: ['/usr/bin/env', '-u', 'BUN_OPTIONS', '-u', 'BUN_INSPECT_PRELOAD', '-u', 'NODE_OPTIONS', '-u', 'BUN_BE_BUN', 'bun', '--no-env-file', '--config=/dev/null', '/opt/puni-dev/selection-required.mjs', 'dash', 'dev-env', 'supervise', '--repository', '/src', '--termination-log', '/dev/termination-log']
+      command:
+        [
+          '/usr/bin/env',
+          '-u',
+          'BUN_OPTIONS',
+          '-u',
+          'BUN_INSPECT_PRELOAD',
+          '-u',
+          'NODE_OPTIONS',
+          '-u',
+          'BUN_BE_BUN',
+          'bun',
+          '--no-env-file',
+          '--config=/dev/null',
+          '/opt/puni-dev/selection-required.mjs',
+          'dash',
+          'dev-env',
+          'supervise',
+          '--repository',
+          '/src',
+          '--termination-log',
+          '/dev/termination-log',
+        ]
       ports:
         - { name: web, containerPort: 4200 }
         - { name: mcp, containerPort: 3300 }

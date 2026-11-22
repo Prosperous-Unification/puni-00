@@ -188,7 +188,7 @@ test.describe('a hover card answers at once, whole, and out past its cell', () =
     // Undated, the sentence goes on to say which day of the plan this is and
     // how to get a date (review of PR #409).
     expect(await cell.getAttribute('data-start-said')).toMatch(
-      /^Starts with the workPackage — Day 0/,
+      /^Starts with the work package — Day 0/,
     );
 
     await cell.hover();

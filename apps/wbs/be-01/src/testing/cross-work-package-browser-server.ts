@@ -1,3 +1,7 @@
+import { prepareWorkPackageBirth } from '@wbs/core/module/work-package/work-package-birth';
+import { openConnection } from '@wbs/store-sqlite/db';
+import { OPEN } from '@wbs/store-sqlite/gate';
+import { ProjectRepository } from '@wbs/store-sqlite/project';
 import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-activation';
 
 import { TEST_JWT_KEY } from './auth-fixture';
@@ -142,6 +146,40 @@ async function callFixture(username: 'ada' | 'grace', method: string, path: stri
     'X-WBS-Expected-Organization': principal.organizationId,
   });
 }
+/** Creates only this fixture's private parent and its real scoped creator grant. */
+async function createFixtureParent(name: string, organizationId: string, actorId: string) {
+  const connection = openConnection(harness.databasePath());
+  const creation = await new ProjectRepository(connection.db, OPEN)
+    .create(
+      { id: crypto.randomUUID(), organizationId, name: name + ' parent' },
+      {
+        actor: { kind: 'user', userId: actorId },
+        at: 1,
+        grantId: crypto.randomUUID(),
+        projectAuditId: crypto.randomUUID(),
+        grantAuditId: crypto.randomUUID(),
+      },
+    )
+    .then(
+      (value) => ({ ok: true as const, value }),
+      (cause: unknown) => ({ ok: false as const, cause }),
+    );
+  try {
+    connection.close();
+  } catch (cleanup: unknown) {
+    if (!creation.ok)
+      throw new AggregateError(
+        [creation.cause, cleanup],
+        'fixture project creation and close failed',
+        { cause: cleanup },
+      );
+    throw cleanup;
+  }
+  if (!creation.ok) throw creation.cause;
+  if (typeof creation.value === 'string' || creation.value.kind !== 'created')
+    throw new Error('fixture project refused: ' + JSON.stringify(creation.value));
+  return creation.value.project.id;
+}
 const workPackages: Record<string, { id: string; row: string; step: string } | undefined> = {};
 let ready = false;
 const server = Bun.serve({
@@ -239,25 +277,51 @@ for (const name of [
   'DatedB',
   'DatedC',
 ]) {
-  const answer = await callFixture(
-    name === 'Foreign' ? 'grace' : 'ada',
-    'POST',
-    '/api/work-packages',
-    {
-      name,
-    },
-  );
-  if (answer.status !== 200)
-    throw new Error(`fixture work package refused: ${JSON.stringify(answer)}`);
-  const body = answer.body as { workPackage: { id: string }; steps: { id: string }[] };
+  const username = name === 'Foreign' ? 'grace' : 'ada';
+  const organizationId = principals[username].organizationId;
+  const stamp = { at: 1, by: harness.userId(username) };
+  const projectId = await createFixtureParent(name, organizationId, stamp.by);
+  const stepId = crypto.randomUUID();
+  const body = await harness.publicWrites().uow.run(async ({ stores }) => {
+    const defined = await stores.stepCatalogue.defineAndBindStep(
+      organizationId,
+      {
+        id: stepId,
+        code: 'browser-' + name.toLowerCase(),
+        name: name + ' step',
+        position: 10,
+        defaultEstimateUnit: 'workdays',
+        defaultAllowancePercent: 0,
+      },
+      {
+        bindingId: crypto.randomUUID(),
+        scopeKind: 'project',
+        scopeId: projectId,
+        workItemTypeId: null,
+        position: 10,
+      },
+      stamp,
+    );
+    if (!defined.ok) throw new Error('fixture step definition refused: ' + defined.reason);
+    const prepared = prepareWorkPackageBirth(name, projectId, stamp, () => crypto.randomUUID());
+    const created = await stores.workPackages.createWithSteps(prepared.workPackage, stamp, {
+      kind: 'scoped',
+      organizationId,
+      creatorGrant: { id: crypto.randomUUID(), auditId: crypto.randomUUID() },
+    });
+    if (typeof created === 'string') throw new Error('fixture work package refused: ' + created);
+    return { commit: true, value: created };
+  });
   const step = body.steps.at(0);
-  if (step === undefined) throw new Error('missing fixture step');
+  if (
+    body.steps.length !== 1 ||
+    step?.id !== stepId ||
+    step.estimateUnit !== 'workdays' ||
+    step.allowancePercent !== 0
+  )
+    throw new Error('fixture package did not capture its one authored step');
   const workPackage = { id: body.workPackage.id, row: crypto.randomUUID(), step: step.id };
   workPackages[name] = workPackage;
-  harness.sqlite.run('DELETE FROM step WHERE work_package_id = ? AND id <> ?', [
-    workPackage.id,
-    workPackage.step,
-  ]);
   harness.sqlite.run(
     "INSERT INTO work_item (id, work_package_id, position, name, readiness) VALUES (?, ?, 10, ?, 'ready')",
     [workPackage.row, workPackage.id, `${name} row`],

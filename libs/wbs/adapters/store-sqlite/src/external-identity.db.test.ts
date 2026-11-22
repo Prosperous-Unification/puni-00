@@ -7,21 +7,29 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { openDatabase, openDrizzle } from './db';
 import { backfillExternalIdentities, ExternalIdentityRepository } from './external-identity';
 import { OPEN } from './gate';
-import { runMigrations } from './migrate';
-
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+import {
+  type CatalogueFixtureCustody,
+  migrateEmptyCatalogueFixture,
+} from './testing/catalogue-database';
 
 describe('backfillExternalIdentities', () => {
   let dir: string;
+  let custody: CatalogueFixtureCustody;
   let path: string;
 
   beforeEach(() => {
+    custody = { hasUnknownOwner: false };
     dir = mkdtempSync(join(tmpdir(), 'wbs-external-identity-'));
     path = join(dir, 'test.db');
-    runMigrations(path, FOLDER);
+    migrateEmptyCatalogueFixture({ path, directory: dir, reportedAt: 1 }, custody);
   });
 
   afterEach(() => {
+    // Proof: sqlite-pilot-v226-backfill omitted/restored: after real close returned
+    // then reported uncertainty, omission deleted this directory; restoration
+    // retained it. This did not inject a leaked native handle.
+    if (custody.hasUnknownOwner)
+      throw new Error('SQLite fixture has unknown native custody; retained ' + dir);
     rmSync(dir, { recursive: true, force: true });
   });
 
@@ -89,12 +97,14 @@ describe('backfillExternalIdentities', () => {
 
 describe('explicit Auth0 link', () => {
   let dir: string;
+  let custody: CatalogueFixtureCustody;
   let path: string;
 
   beforeEach(() => {
+    custody = { hasUnknownOwner: false };
     dir = mkdtempSync(join(tmpdir(), 'wbs-auth0-link-'));
     path = join(dir, 'test.db');
-    runMigrations(path, FOLDER);
+    migrateEmptyCatalogueFixture({ path, directory: dir, reportedAt: 1 }, custody);
     const db = openDatabase(path);
     db.run(
       "UPDATE organization_activation SET state = 'activated', activated_at = 1 WHERE singleton = 1",
@@ -105,6 +115,11 @@ describe('explicit Auth0 link', () => {
     db.close();
   });
   afterEach(() => {
+    // Proof: sqlite-pilot-v226-auth0 omitted/restored: after real close returned
+    // then reported uncertainty, omission deleted this directory; restoration
+    // retained it. This did not inject a leaked native handle.
+    if (custody.hasUnknownOwner)
+      throw new Error('SQLite fixture has unknown native custody; retained ' + dir);
     rmSync(dir, { recursive: true, force: true });
   });
 

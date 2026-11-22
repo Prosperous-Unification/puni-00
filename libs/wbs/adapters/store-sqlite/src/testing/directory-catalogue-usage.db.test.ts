@@ -140,6 +140,56 @@ const names = [
 const orderNames = (steps: readonly { id: string; name: string }[]) =>
   [...steps].sort((left, right) => left.id.localeCompare(right.id));
 
+test('current directory foreign reach accepts shared definitions in owned packages', async () => {
+  await withinFixture(async (fixture) => {
+    const { source, seed } = fixture;
+    const before = fixture.readEvidence().snapshot;
+    expect(
+      await source.stores.directory.foreignReferencesTo('people', PERSON, seed.organizationId),
+    ).toEqual([]);
+    expect(fixture.readEvidence().snapshot).toEqual(before);
+  });
+}, 15000);
+
+test('current directory foreign reach reports a foreign definition on an owned work item', async () => {
+  await withinFixture(async (fixture) => {
+    const { source, seed } = fixture;
+    source.db.run(
+      sql`UPDATE assignment SET step_id=${FOREIGN} WHERE work_item_id=${MAIN} AND person_id=${PERSON}`,
+    );
+    expect(source.db.all('PRAGMA foreign_key_check')).toEqual([]);
+    const before = fixture.readEvidence().snapshot;
+    expect(
+      await source.stores.directory.foreignReferencesTo('people', PERSON, seed.organizationId),
+    ).toEqual(['assignment:' + MAIN]);
+    expect(fixture.readEvidence().snapshot).toEqual(before);
+  });
+}, 15000);
+
+test('current directory foreign reach reports a foreign package with an owned definition', async () => {
+  await withinFixture(async (fixture) => {
+    const { source, seed } = fixture;
+    await source.stores.workItems.insert(
+      workItemRow({
+        id: 'directory-current-foreign-row',
+        workPackageId: seed.foreignWorkPackageId,
+        name: 'Foreign row',
+      }),
+      [],
+      seed.stamp,
+    );
+    source.db.run(
+      sql`INSERT INTO assignment(work_item_id,step_id,person_id) VALUES('directory-current-foreign-row',${SHARED},${PERSON})`,
+    );
+    expect(source.db.all('PRAGMA foreign_key_check')).toEqual([]);
+    const before = fixture.readEvidence().snapshot;
+    expect(
+      await source.stores.directory.foreignReferencesTo('people', PERSON, seed.organizationId),
+    ).toEqual(['assignment:directory-current-foreign-row']);
+    expect(fixture.readEvidence().snapshot).toEqual(before);
+  });
+}, 15000);
+
 test('current directory usage names shared catalogue steps once and preserves actual assignee effects', async () => {
   await withinFixture(async (fixture) => {
     const { source, seed } = fixture,

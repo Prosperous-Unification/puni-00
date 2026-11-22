@@ -1,5 +1,13 @@
 import { createHash } from 'node:crypto';
-import { closeSync, openSync, readdirSync, readFileSync, readlinkSync, realpathSync, statSync } from 'node:fs';
+import {
+  closeSync,
+  openSync,
+  readdirSync,
+  readFileSync,
+  readlinkSync,
+  realpathSync,
+  statSync,
+} from 'node:fs';
 import { mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -64,10 +72,17 @@ const LAB: LabRecord = {
 };
 
 // Pure renderer configuration; this record is not an authenticated installation observation.
-const RENDER_SELECTION = JSON.stringify({
-  schemaVersion: 1, installationDirectory: '/home/dev/puni-installations/reviewed',
-  archive: { path: 'authenticated-puni.tgz', sha256: 'a'.repeat(64) }, entrypoint: 'node_modules/puni/dist/puni.mjs',
-}, null, 2) + '\n';
+const RENDER_SELECTION =
+  JSON.stringify(
+    {
+      schemaVersion: 1,
+      installationDirectory: '/home/dev/puni-installations/reviewed',
+      archive: { path: 'authenticated-puni.tgz', sha256: 'a'.repeat(64) },
+      entrypoint: 'node_modules/puni/dist/puni.mjs',
+    },
+    null,
+    2,
+  ) + '\n';
 const RENDER_SELECTION_SHA = createHash('sha256').update(RENDER_SELECTION).digest('hex');
 const BINDING: EnvironmentBinding = {
   slug: 'alpha',
@@ -81,7 +96,13 @@ const BINDING: EnvironmentBinding = {
   recreateInputs: 'c'.repeat(64),
   ownerUid: 1000,
   ownerGid: 1000,
-  puni: { installationNodePath: '/srv/puni/puni-installations/reviewed', entrypoint: '/opt/puni-dev/node_modules/puni/dist/puni.mjs', selection: RENDER_SELECTION, sha256: RENDER_SELECTION_SHA, directoryIdentity: '2049:133' },
+  puni: {
+    installationNodePath: '/srv/puni/puni-installations/reviewed',
+    entrypoint: '/opt/puni-dev/node_modules/puni/dist/puni.mjs',
+    selection: RENDER_SELECTION,
+    sha256: RENDER_SELECTION_SHA,
+    directoryIdentity: '2049:133',
+  },
 };
 
 /** The committed overlay as `kubectl kustomize` renders it: its resources in its namespace. */
@@ -125,8 +146,10 @@ describe('parseDevEnvironmentRequest', () => {
         'wt',
         '--cluster',
         'puni-f9-platform',
-        '--puni-selection', join(process.cwd(), 'selection.json'),
-        '--puni-selection-sha256', 'd'.repeat(64),
+        '--puni-selection',
+        join(process.cwd(), 'selection.json'),
+        '--puni-selection-sha256',
+        'd'.repeat(64),
       ]),
     ).toEqual({
       action: 'up',
@@ -322,7 +345,10 @@ describe('bindEnvironment', () => {
         name: 'worktree',
         hostPath: { path: '/srv/puni/worktrees/alpha', type: 'Directory' },
       },
-      { name: 'puni-installation', hostPath: { path: BINDING.puni.installationNodePath, type: 'Directory' } },
+      {
+        name: 'puni-installation',
+        hostPath: { path: BINDING.puni.installationNodePath, type: 'Directory' },
+      },
     ]);
     expect(container.volumeMounts).toContainEqual({
       name: 'solver-runtime',
@@ -551,9 +577,20 @@ interface NxOwnedProcess {
   identity: NxIdentity | undefined;
   readonly native: {
     count: number;
-    terminal: { readonly code: number | null; readonly signal: unknown; readonly failure: unknown } | undefined;
+    terminal:
+      | {
+          readonly code: number | null;
+          readonly signal: unknown;
+          readonly failure: Bun.ErrorLike | undefined;
+        }
+      | undefined;
   };
-  readonly numeric: { settlement: { readonly ok: true; readonly code: number } | { readonly ok: false; readonly cause: unknown } | undefined };
+  readonly numeric: {
+    settlement:
+      | { readonly ok: true; readonly code: number }
+      | { readonly ok: false; readonly cause: unknown }
+      | undefined;
+  };
   readonly output: () => string;
   stopped?: Promise<void>;
 }
@@ -564,20 +601,35 @@ function readNxIdentity(pid: number): NxIdentity | undefined {
   try {
     source = readFileSync(`/proc/${String(pid)}/stat`, 'utf8');
   } catch (cause) {
-    if (cause instanceof Error && 'code' in cause && (cause.code === 'ENOENT' || cause.code === 'ESRCH'))
+    if (
+      cause instanceof Error &&
+      'code' in cause &&
+      (cause.code === 'ENOENT' || cause.code === 'ESRCH')
+    )
       return undefined;
     throw cause;
   }
   const end = source.lastIndexOf(')');
-  const fields = source.slice(end + 2).trim().split(/\s+/);
+  const fields = source
+    .slice(end + 2)
+    .trim()
+    .split(/\s+/);
   const state = fields.at(0);
   const parent = Number(fields.at(1));
   const group = Number(fields.at(2));
   const started = fields.at(19);
-  if (end < 0 || Number(source.slice(0, source.indexOf(' '))) !== pid ||
-      state === undefined || !/^[A-Za-z]$/.test(state) ||
-      !Number.isSafeInteger(parent) || parent < 0 || !Number.isSafeInteger(group) || group < 0 ||
-      started === undefined || !/^\d+$/.test(started))
+  if (
+    end < 0 ||
+    Number(source.slice(0, source.indexOf(' '))) !== pid ||
+    state === undefined ||
+    !/^[A-Za-z]$/.test(state) ||
+    !Number.isSafeInteger(parent) ||
+    parent < 0 ||
+    !Number.isSafeInteger(group) ||
+    group < 0 ||
+    started === undefined ||
+    !/^\d+$/.test(started)
+  )
     throw new Error(`Nx fixture cannot decode process identity ${String(pid)}`);
   return { pid, parent, group, started, state };
 }
@@ -596,6 +648,10 @@ function isNxLive(identity: NxIdentity): boolean {
   return identity.state !== 'Z' && identity.state !== 'X';
 }
 
+function readNxSettlement(owned: NxOwnedProcess) {
+  return { terminal: owned.native.terminal, numeric: owned.numeric.settlement };
+}
+
 /**
  * Nx run-commands owns a detached executor group. Snapshot descendants while the known
  * launcher lives, signal only those observed groups, and require both launcher joins plus
@@ -604,7 +660,8 @@ function isNxLive(identity: NxIdentity): boolean {
 async function stopNxIn(ownedProcess: NxOwnedProcess): Promise<void> {
   const deadline = Date.now() + 5000;
   const identity = ownedProcess.identity;
-  if (identity === undefined) throw new Error('Nx launcher identity was not acquired; scratch retained');
+  if (identity === undefined)
+    throw new Error('Nx launcher identity was not acquired; scratch retained');
   const snapshot = readNxProcesses();
   const leader = snapshot.find((observed) => observed.pid === identity.pid);
   if (leader === undefined)
@@ -629,10 +686,14 @@ async function stopNxIn(ownedProcess: NxOwnedProcess): Promise<void> {
   // Children first; killing only the launcher group would leave Nx's detached command alive.
   for (const group of [...groups].reverse()) {
     try {
-      const members = readNxProcesses().filter((observed) => observed.group === group && isNxLive(observed));
+      const members = readNxProcesses().filter(
+        (observed) => observed.group === group && isNxLive(observed),
+      );
       if (members.length === 0) continue;
       if (!members.some((observed) => owned.get(observed.pid)?.started === observed.started))
-        throw new Error(`Nx group ${String(group)} has no retained process identity; scratch retained`);
+        throw new Error(
+          `Nx group ${String(group)} has no retained process identity; scratch retained`,
+        );
       try {
         process.kill(-group, 'SIGKILL');
       } catch (cause) {
@@ -643,29 +704,45 @@ async function stopNxIn(ownedProcess: NxOwnedProcess): Promise<void> {
     }
   }
   try {
-    while (true) {
-      const live = readNxProcesses().filter((observed) => groups.has(observed.group) && isNxLive(observed));
-      if (live.length === 0 && ownedProcess.native.terminal !== undefined && ownedProcess.numeric.settlement !== undefined) break;
+    for (;;) {
+      const live = readNxProcesses().filter(
+        (observed) => groups.has(observed.group) && isNxLive(observed),
+      );
+      if (
+        live.length === 0 &&
+        ownedProcess.native.terminal !== undefined &&
+        ownedProcess.numeric.settlement !== undefined
+      )
+        break;
       if (Date.now() >= deadline)
-        throw new Error(`Nx cleanup did not confirm native/numeric/group terminal state: ${JSON.stringify(live)}`);
+        throw new Error(
+          `Nx cleanup did not confirm native/numeric/group terminal state: ${JSON.stringify(live)}`,
+        );
       await Bun.sleep(25);
     }
-    const terminal = ownedProcess.native.terminal;
-    const numeric = ownedProcess.numeric.settlement;
+    const { terminal, numeric } = readNxSettlement(ownedProcess);
     if (terminal === undefined || numeric === undefined || ownedProcess.native.count !== 1)
       throw new Error('Nx native/numeric observation is incomplete');
     if (!numeric.ok) throw numeric.cause;
     if (terminal.failure !== undefined) throw terminal.failure;
     if (terminal.signal === null) {
-      if (terminal.code === null || !Number.isSafeInteger(terminal.code) || terminal.code < 0 || terminal.code !== numeric.code)
+      if (
+        terminal.code === null ||
+        !Number.isSafeInteger(terminal.code) ||
+        terminal.code < 0 ||
+        terminal.code !== numeric.code
+      )
         throw new Error('Nx normal native and numeric exits differ');
     } else if (terminal.code !== null || terminal.signal !== 'SIGKILL' || numeric.code !== 137) {
-      throw new Error(`Nx native signal and numeric exit differ: ${JSON.stringify({ terminal, numeric })}`);
+      throw new Error(
+        `Nx native signal and numeric exit differ: ${JSON.stringify({ terminal, numeric })}`,
+      );
     }
   } catch (cause) {
     failures.push(cause);
   }
-  if (failures.length > 0) throw new AggregateError(failures, 'Nx cleanup is unconfirmed; scratch retained');
+  if (failures.length > 0)
+    throw new AggregateError(failures, 'Nx cleanup is unconfirmed; scratch retained');
 }
 
 /** Memoization prevents a later cleanup pass from signalling a reused PID or process group. */
@@ -675,7 +752,11 @@ function stopNx(ownedProcess: NxOwnedProcess): Promise<void> {
 }
 
 /** A final same-UID cwd census detects uncaptured fixture descendants without signalling them. */
-function requireNxRootIdle(root: string, uid: number, predecessors: ReadonlyMap<number, string>): void {
+function requireNxRootIdle(
+  root: string,
+  uid: number,
+  predecessors: ReadonlyMap<number, string>,
+): void {
   const live: NxIdentity[] = [];
   for (const observed of readNxProcesses()) {
     if (!isNxLive(observed)) continue;
@@ -688,18 +769,23 @@ function requireNxRootIdle(root: string, uid: number, predecessors: ReadonlyMap<
       const directory = readlinkSync(`/proc/${String(observed.pid)}/cwd`);
       if (directory === root || directory.startsWith(root + '/')) live.push(observed);
     } catch (cause) {
-      if (!(cause instanceof Error && 'code' in cause && (cause.code === 'ENOENT' || cause.code === 'ESRCH')))
+      if (!(
+        cause instanceof Error &&
+        'code' in cause &&
+        (cause.code === 'ENOENT' || cause.code === 'ESRCH')
+      ))
         throw cause;
     }
   }
   if (live.length > 0)
-    throw new Error(`Nx fixture still has live processes in its owned cwd; retained ${root}: ${JSON.stringify(live)}`);
+    throw new Error(
+      `Nx fixture still has live processes in its owned cwd; retained ${root}: ${JSON.stringify(live)}`,
+    );
 }
 
 function quoteNxArgument(value: string): string {
   return "'" + value.replaceAll("'", "'\\''") + "'";
 }
-
 
 /** Close the actual read-only Nx database even if its query throws, retaining both failures. */
 function readNxOwnership(path: string, custody: { isClosed: boolean }): unknown[] {
@@ -712,18 +798,23 @@ function readNxOwnership(path: string, custody: { isClosed: boolean }): unknown[
   } catch (cause) {
     primary = { cause };
   }
+  let releaseFailure: { readonly cause: unknown } | undefined;
   try {
     database.close();
     custody.isClosed = true;
-  } catch (cause) {
-    throw new AggregateError(primary === undefined ? [cause] : [primary.cause, cause],
-      'Nx ownership database close is unconfirmed');
+  } catch (cause: unknown) {
+    releaseFailure = { cause };
   }
+  if (releaseFailure !== undefined)
+    throw new AggregateError(
+      primary === undefined ? [releaseFailure.cause] : [primary.cause, releaseFailure.cause],
+      'Nx ownership database close is unconfirmed',
+      { cause: primary === undefined ? releaseFailure.cause : primary.cause },
+    );
   if (primary !== undefined) throw primary.cause;
   if (ownership === undefined) throw new Error('Nx ownership query did not produce rows');
   return ownership;
 }
-
 
 describe('forge Nx workspace state', () => {
   it('starts independently of poisoned worktree ownership without changing its database', async () => {
@@ -731,41 +822,49 @@ describe('forge Nx workspace state', () => {
     const uid = process.getuid?.();
     if (uid === undefined) throw new Error('Nx ownership fixture requires a POSIX uid');
     // This root must survive unknown child custody; scratchAsync deletes its roots on test-process exit.
-    const predecessors = new Map(readNxProcesses().map((identity) => [identity.pid, identity.started]));
+    const predecessors = new Map(
+      readNxProcesses().map((identity) => [identity.pid, identity.started]),
+    );
     const root = realpathSync.native(await mkdtemp(join(tmpdir(), 'forge-nx-ownership-')));
     const runtime = process.execPath;
     const children: NxOwnedProcess[] = [];
-    let hasUnknownAcquisition = false;
-    let hasUnknownDescriptor = false;
+    const custody = { hasUnknownAcquisition: false, hasUnknownDescriptor: false };
     const databaseCustody = { isClosed: true };
     let primary: { readonly cause: unknown } | undefined;
     try {
-    await symlink(join(ROOT, 'node_modules'), join(root, 'node_modules'), 'dir');
-    await writeFile(join(root, 'package.json'), JSON.stringify({ name: 'fixture', private: true }));
-    await writeFile(join(root, 'nx.json'), '{}');
-    await writeFile(
-      join(root, 'project.json'),
-      JSON.stringify({
-        name: 'fixture',
-        targets: {
-          serve: {
-            executor: 'nx:run-commands',
-            continuous: true,
-            cache: false,
-            options: { command: createLaunch(runtime, join(root, 'serve.cjs')).map(quoteNxArgument).join(' ') },
+      await symlink(join(ROOT, 'node_modules'), join(root, 'node_modules'), 'dir');
+      await writeFile(
+        join(root, 'package.json'),
+        JSON.stringify({ name: 'fixture', private: true }),
+      );
+      await writeFile(join(root, 'nx.json'), '{}');
+      await writeFile(
+        join(root, 'project.json'),
+        JSON.stringify({
+          name: 'fixture',
+          targets: {
+            serve: {
+              executor: 'nx:run-commands',
+              continuous: true,
+              cache: false,
+              options: {
+                command: createLaunch(runtime, join(root, 'serve.cjs'))
+                  .map(quoteNxArgument)
+                  .join(' '),
+              },
+            },
           },
-        },
-      }),
-    );
-    await writeFile(
-      join(root, 'serve.cjs'),
-      "require('node:fs').writeFileSync('started', String(process.pid)); setTimeout(() => process.exit(124), 55000);",
-    );
-    // A live colliding PID models ownership left by a previous container whose PID is reused.
-    // Nx's installed native service writes the real schema and performs its real liveness check.
-    await writeFile(
-      join(root, 'owner.cjs'),
-      `const nxRoot = require('node:path').dirname(require.resolve('nx/package.json'));
+        }),
+      );
+      await writeFile(
+        join(root, 'serve.cjs'),
+        "require('node:fs').writeFileSync('started', String(process.pid)); setTimeout(() => process.exit(124), 55000);",
+      );
+      // A live colliding PID models ownership left by a previous container whose PID is reused.
+      // Nx's installed native service writes the real schema and performs its real liveness check.
+      await writeFile(
+        join(root, 'owner.cjs'),
+        `const nxRoot = require('node:path').dirname(require.resolve('nx/package.json'));
 const { RunningTasksService } = require(nxRoot + '/dist/src/native');
 const { getLocalDbConnection } = require(nxRoot + '/dist/src/utils/db-connection');
 const ownership = new RunningTasksService(getLocalDbConnection());
@@ -773,65 +872,83 @@ module.exports = ownership;
 ownership.addRunningTask('fixture:serve');
 console.log('ownership ready');
 setTimeout(() => process.exit(124), 55000);`,
-    );
-    const environment = { ...process.env };
-    delete environment['NX_WORKSPACE_DATA_DIRECTORY'];
-    delete environment['NX_PROJECT_GRAPH_CACHE_DIRECTORY'];
-    Object.assign(environment, {
-      NX_DAEMON: 'false',
-      NX_TUI: 'false',
-      NX_INTERACTIVE: 'false',
-      NX_ISOLATE_PLUGINS: 'false',
-      NX_NATIVE_COMMAND_RUNNER: 'false',
-      NX_CACHE_DIRECTORY: join(root, '.nx/cache'),
-      HOME: root,
-    });
-    const startNx = (command: readonly string[], env = environment): NxOwnedProcess => {
-      const log = join(root, `process-${String(children.length)}.log`);
-      const descriptor = openSync(log, 'a');
-      const native: NxOwnedProcess['native'] = { count: 0, terminal: undefined };
-      const numeric: NxOwnedProcess['numeric'] = { settlement: undefined };
-      let launched: NxOwnedProcess | undefined;
-      let acquisitionFailure: { readonly cause: unknown } | undefined;
-      try {
-        hasUnknownAcquisition = true;
-        const child = Bun.spawn([...command], {
-          cwd: root,
-          env,
-          detached: true,
-          stdin: 'ignore',
-          stdout: descriptor,
-          stderr: descriptor,
-          onExit(_child, code, signal, failure) {
-            native.count += 1;
-            native.terminal = { code, signal, failure };
-          },
-        });
-        launched = { child, native, numeric, identity: undefined, output: () => readFileSync(log, 'utf8') };
-        children.push(launched);
-        hasUnknownAcquisition = false;
-        void child.exited.then(
-          (code) => { numeric.settlement = { ok: true, code }; },
-          (cause: unknown) => { numeric.settlement = { ok: false, cause }; },
-        );
-        launched.identity = readNxIdentity(child.pid);
-        if (launched.identity === undefined || launched.identity.group !== child.pid)
-          throw new Error('Nx fixture did not acquire its detached launcher identity');
-      } catch (cause) {
-        acquisitionFailure = { cause };
-      }
-      try {
-        closeSync(descriptor);
-      } catch (cause) {
-        hasUnknownDescriptor = true;
-        if (acquisitionFailure !== undefined)
-          throw new AggregateError([acquisitionFailure.cause, cause], 'Nx acquisition and log descriptor close failed');
-        throw cause;
-      }
-      if (acquisitionFailure !== undefined) throw acquisitionFailure.cause;
-      if (launched === undefined) throw new Error('Nx fixture has no acquired process');
-      return launched;
-    };
+      );
+      const environment = { ...process.env };
+      delete environment['NX_WORKSPACE_DATA_DIRECTORY'];
+      delete environment['NX_PROJECT_GRAPH_CACHE_DIRECTORY'];
+      Object.assign(environment, {
+        NX_DAEMON: 'false',
+        NX_TUI: 'false',
+        NX_INTERACTIVE: 'false',
+        NX_ISOLATE_PLUGINS: 'false',
+        NX_NATIVE_COMMAND_RUNNER: 'false',
+        NX_CACHE_DIRECTORY: join(root, '.nx/cache'),
+        HOME: root,
+      });
+      const startNx = (command: readonly string[], env = environment): NxOwnedProcess => {
+        const log = join(root, `process-${String(children.length)}.log`);
+        const descriptor = openSync(log, 'a');
+        const native: NxOwnedProcess['native'] = { count: 0, terminal: undefined };
+        const numeric: NxOwnedProcess['numeric'] = { settlement: undefined };
+        let launched: NxOwnedProcess | undefined;
+        let acquisitionFailure: { readonly cause: unknown } | undefined;
+        try {
+          custody.hasUnknownAcquisition = true;
+          const child = Bun.spawn([...command], {
+            cwd: root,
+            env,
+            detached: true,
+            stdin: 'ignore',
+            stdout: descriptor,
+            stderr: descriptor,
+            onExit(_child, code, signal, failure) {
+              native.count += 1;
+              native.terminal = { code, signal, failure };
+            },
+          });
+          launched = {
+            child,
+            native,
+            numeric,
+            identity: undefined,
+            output: () => readFileSync(log, 'utf8'),
+          };
+          children.push(launched);
+          custody.hasUnknownAcquisition = false;
+          void child.exited.then(
+            (code) => {
+              numeric.settlement = { ok: true, code };
+            },
+            (cause: unknown) => {
+              numeric.settlement = { ok: false, cause };
+            },
+          );
+          launched.identity = readNxIdentity(child.pid);
+          if (launched.identity?.group !== child.pid)
+            throw new Error('Nx fixture did not acquire its detached launcher identity');
+        } catch (cause) {
+          acquisitionFailure = { cause };
+        }
+        let releaseFailure: { readonly cause: unknown } | undefined;
+        try {
+          closeSync(descriptor);
+        } catch (cause: unknown) {
+          custody.hasUnknownDescriptor = true;
+          releaseFailure = { cause };
+        }
+        if (releaseFailure !== undefined) {
+          if (acquisitionFailure !== undefined)
+            throw new AggregateError(
+              [acquisitionFailure.cause, releaseFailure.cause],
+              'Nx acquisition and log descriptor close failed',
+              { cause: acquisitionFailure.cause },
+            );
+          throw releaseFailure.cause;
+        }
+        if (acquisitionFailure !== undefined) throw acquisitionFailure.cause;
+        if (launched === undefined) throw new Error('Nx fixture has no acquired process');
+        return launched;
+      };
       const owner = startNx(createLaunch(runtime, join(root, 'owner.cjs')));
       await waitForNx(() => owner.output().includes('ownership ready'), owner.output);
       const directory = join(root, '.nx/workspace-data');
@@ -840,7 +957,11 @@ setTimeout(() => process.exit(124), 55000);`,
       const databasePath = join(directory, databases[0]);
       const ownership = readNxOwnership(databasePath, databaseCustody);
       expect(ownership).toHaveLength(1);
-      const nx = [...createLaunch(runtime, join(ROOT, 'node_modules/nx/dist/bin/nx.js')), 'run', 'fixture:serve'];
+      const nx = [
+        ...createLaunch(runtime, join(ROOT, 'node_modules/nx/dist/bin/nx.js')),
+        'run',
+        'fixture:serve',
+      ];
       const shared = startNx(nx);
       await waitForNx(
         () => shared.output().includes('Waiting for fixture:serve in another nx process'),
@@ -881,7 +1002,7 @@ setTimeout(() => process.exit(124), 55000);`,
     for (const settlement of settlements) {
       if (settlement.status === 'rejected') cleanup.push(settlement.reason);
     }
-    if (hasUnknownAcquisition || hasUnknownDescriptor || !databaseCustody.isClosed)
+    if (custody.hasUnknownAcquisition || custody.hasUnknownDescriptor || !databaseCustody.isClosed)
       cleanup.push(new Error('Nx acquisition, descriptor or database ownership is unknown'));
     try {
       requireNxRootIdle(root, uid, predecessors);
@@ -896,8 +1017,10 @@ setTimeout(() => process.exit(124), 55000);`,
       }
     }
     if (cleanup.length > 0)
-      throw new AggregateError(primary === undefined ? cleanup : [primary.cause, ...cleanup],
-        `Nx fixture failed; scratch retained at ${root}`);
+      throw new AggregateError(
+        primary === undefined ? cleanup : [primary.cause, ...cleanup],
+        `Nx fixture failed; scratch retained at ${root}`,
+      );
     if (primary !== undefined) throw primary.cause;
   }, 60_000);
 });
@@ -905,34 +1028,93 @@ setTimeout(() => process.exit(124), 55000);`,
 it('Forge up parses an explicitly pinned installation selection while preserving down and status requests', () => {
   const shared = ['--slug', 'alpha', '--cluster', 'puni-f9-platform'];
   expect(parseDevEnvironmentRequest(['down', ...shared])).toEqual({
-    action: 'down', slug: 'alpha', cluster: 'puni-f9-platform',
+    action: 'down',
+    slug: 'alpha',
+    cluster: 'puni-f9-platform',
   });
   expect(parseDevEnvironmentRequest(['status', ...shared, '--worktree', 'wt'])).toEqual({
-    action: 'status', slug: 'alpha', cluster: 'puni-f9-platform', worktree: join(process.cwd(), 'wt'),
+    action: 'status',
+    slug: 'alpha',
+    cluster: 'puni-f9-platform',
+    worktree: join(process.cwd(), 'wt'),
   });
   const selection = join(process.cwd(), 'reviewed-puni-selection.json');
-  const expected: { action: 'up'; slug: string; cluster: string; worktree: string; puniSelection: { path: string; sha256: string } } = {
-    action: 'up', slug: 'alpha', cluster: 'puni-f9-platform', worktree: join(process.cwd(), 'wt'),
+  const expected: {
+    action: 'up';
+    slug: string;
+    cluster: string;
+    worktree: string;
+    puniSelection: { path: string; sha256: string };
+  } = {
+    action: 'up',
+    slug: 'alpha',
+    cluster: 'puni-f9-platform',
+    worktree: join(process.cwd(), 'wt'),
     puniSelection: { path: selection, sha256: 'd'.repeat(64) },
   };
-  expect(parseDevEnvironmentRequest([
-    'up', ...shared, '--worktree', 'wt',
-    '--puni-selection', selection, '--puni-selection-sha256', 'd'.repeat(64),
-  ])).toEqual(expected);
+  expect(
+    parseDevEnvironmentRequest([
+      'up',
+      ...shared,
+      '--worktree',
+      'wt',
+      '--puni-selection',
+      selection,
+      '--puni-selection-sha256',
+      'd'.repeat(64),
+    ]),
+  ).toEqual(expected);
 });
 
 it('keeps legacy lab schema closed and admits an explicit installation-mapped lab2', () => {
   expect(decodeLabRecord(JSON.stringify(LAB))).toEqual(LAB);
-  expect(() => decodeLabRecord(JSON.stringify({ ...LAB, puniInstallationRoot: '/home/dev/puni' }))).toThrow('malformed');
-  const current: LabRecord = { ...LAB, schemaVersion: 2, puniInstallationRoot: '/home/dev/puni', puniInstallationRootIdentity: '2049:132' };
+  expect(() =>
+    decodeLabRecord(JSON.stringify({ ...LAB, puniInstallationRoot: '/home/dev/puni' })),
+  ).toThrow('malformed');
+  const current: LabRecord = {
+    ...LAB,
+    schemaVersion: 2,
+    puniInstallationRoot: '/home/dev/puni',
+    puniInstallationRootIdentity: '2049:132',
+  };
   expect(decodeLabRecord(JSON.stringify(current))).toEqual(current);
-  expect(() => decodeLabRecord(JSON.stringify({ ...current, puniInstallationRootIdentity: undefined }))).toThrow('malformed');
+  expect(() =>
+    decodeLabRecord(JSON.stringify({ ...current, puniInstallationRootIdentity: undefined })),
+  ).toThrow('malformed');
 });
 
 it('refuses absent, relative, malformed or out-of-scope selection arguments', () => {
   const up = ['up', '--slug', 'alpha', '--cluster', 'puni-f9-platform', '--worktree', 'wt'];
   expect(() => parseDevEnvironmentRequest(up)).toThrow('--puni-selection');
-  expect(() => parseDevEnvironmentRequest([...up, '--puni-selection', 'relative', '--puni-selection-sha256', 'd'.repeat(64)])).toThrow('must be absolute');
-  expect(() => parseDevEnvironmentRequest([...up, '--puni-selection', '/selection.json', '--puni-selection-sha256', 'wrong'])).toThrow('64 lowercase');
-  expect(() => parseDevEnvironmentRequest(['down', '--slug', 'alpha', '--cluster', 'puni-f9-platform', '--puni-selection', '/selection.json', '--puni-selection-sha256', 'd'.repeat(64)])).toThrow('accepted only by');
+  expect(() =>
+    parseDevEnvironmentRequest([
+      ...up,
+      '--puni-selection',
+      'relative',
+      '--puni-selection-sha256',
+      'd'.repeat(64),
+    ]),
+  ).toThrow('must be absolute');
+  expect(() =>
+    parseDevEnvironmentRequest([
+      ...up,
+      '--puni-selection',
+      '/selection.json',
+      '--puni-selection-sha256',
+      'wrong',
+    ]),
+  ).toThrow('64 lowercase');
+  expect(() =>
+    parseDevEnvironmentRequest([
+      'down',
+      '--slug',
+      'alpha',
+      '--cluster',
+      'puni-f9-platform',
+      '--puni-selection',
+      '/selection.json',
+      '--puni-selection-sha256',
+      'd'.repeat(64),
+    ]),
+  ).toThrow('accepted only by');
 });

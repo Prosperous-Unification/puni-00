@@ -1,5 +1,3 @@
-import { CURRENT_SOURCE_IMAGE_PROBE } from './source-image-probe-current';
-import { runCurrentImageProbe } from '../fixtures/source-image-probe';
 import { rejects } from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { chmod, cp, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
@@ -10,6 +8,7 @@ import { afterEach, expect, test } from 'bun:test';
 
 import { controlDeadlineClock } from '../fixtures/controlled-deadline-clock';
 import { sourceFixture } from '../fixtures/source-dev';
+import { runCurrentImageProbe } from '../fixtures/source-image-probe';
 import { prepareImageProbe, runImageIdentity, runImageProbe } from '../fixtures/source-image-probe';
 import { artifact, roots } from '../fixtures/source-startup';
 import { type DependencyOwner, withDependencyOwner } from './edge-ownership';
@@ -20,6 +19,7 @@ import {
   observeSourceDevInputs,
   type SourceDevInputObservation,
 } from './source-dev-inputs';
+import { CURRENT_SOURCE_IMAGE_PROBE } from './source-image-probe-current';
 
 const digest = (contents: string) => createHash('sha256').update(contents).digest('hex');
 const controls = [
@@ -1130,39 +1130,65 @@ test('successful final image probe must be absent from complete inventory before
 });
 
 for (const home of ['absent', 'present'] as const)
-  for (const poison of ['healthy', 'home-config', 'source-config', 'source-dangling', 'home-unreadable', 'source-unreadable'] as const)
-    test('current Bun image probe owns ' + home + ' HOME and ' + poison + ' after healthy numeric-user premises', async () => {
-      const root = await mkdtemp('/tmp/source-image-');
-      roots.push(root);
-      await prepareImageProbe(root);
-      async function observeCurrentImage() {
-        const at = roots.indexOf(root);
-        if (at < 0) throw new Error('current image fixture cleanup ownership disappeared');
-        roots.splice(at, 1);
-        const observed = await runCurrentImageProbe(CURRENT_SOURCE_IMAGE_PROBE, root, home, AbortSignal.timeout(5000));
-        // Only the helper's complete normal native/numeric/pipe join permits fixture retirement.
+  for (const poison of [
+    'healthy',
+    'home-config',
+    'source-config',
+    'source-dangling',
+    'home-unreadable',
+    'source-unreadable',
+  ] as const)
+    test(
+      'current Bun image probe owns ' +
+        home +
+        ' HOME and ' +
+        poison +
+        ' after healthy numeric-user premises',
+      async () => {
+        const root = await mkdtemp('/tmp/source-image-');
         roots.push(root);
-        return observed;
-      }
-      const healthy = await observeCurrentImage();
-      expect(healthy).toEqual({ stdout: 'wbs-source-image-config-absent-v2\n', stderr: '', code: 0 });
-      if (poison === 'healthy') return;
-      const homePath = join(root, home === 'absent' ? 'passwd-home' : 'image-home');
-      if (poison === 'home-config') await writeFile(join(homePath, '.bunfig.toml'), 'CURRENT_IMAGE_PRIVATE_SENTINEL');
-      if (poison === 'source-config') await writeFile(join(root, 'src/bunfig.toml'), 'CURRENT_IMAGE_PRIVATE_SENTINEL');
-      if (poison === 'source-dangling') {
-        const { symlink } = await import('node:fs/promises');
-        await symlink('missing', join(root, 'src/bunfig.toml'));
-      }
-      if (poison === 'home-unreadable') await chmod(homePath, 0);
-      if (poison === 'source-unreadable') await chmod(join(root, 'src'), 0);
-      try {
-        const rejected = await observeCurrentImage();
-        expect(rejected.code).not.toBe(0);
-        expect(rejected.stdout).toBe('');
-        expect(rejected.stderr).not.toContain('CURRENT_IMAGE_PRIVATE_SENTINEL');
-      } finally {
-        if (poison === 'home-unreadable') await chmod(homePath, 0o700);
-        if (poison === 'source-unreadable') await chmod(join(root, 'src'), 0o700);
-      }
-    }, 15000);
+        await prepareImageProbe(root);
+        async function observeCurrentImage() {
+          const at = roots.indexOf(root);
+          if (at < 0) throw new Error('current image fixture cleanup ownership disappeared');
+          roots.splice(at, 1);
+          const observed = await runCurrentImageProbe(
+            CURRENT_SOURCE_IMAGE_PROBE,
+            root,
+            home,
+            AbortSignal.timeout(5000),
+          );
+          // Only the helper's complete normal native/numeric/pipe join permits fixture retirement.
+          roots.push(root);
+          return observed;
+        }
+        const healthy = await observeCurrentImage();
+        expect(healthy).toEqual({
+          stdout: 'wbs-source-image-config-absent-v2\n',
+          stderr: '',
+          code: 0,
+        });
+        if (poison === 'healthy') return;
+        const homePath = join(root, home === 'absent' ? 'passwd-home' : 'image-home');
+        if (poison === 'home-config')
+          await writeFile(join(homePath, '.bunfig.toml'), 'CURRENT_IMAGE_PRIVATE_SENTINEL');
+        if (poison === 'source-config')
+          await writeFile(join(root, 'src/bunfig.toml'), 'CURRENT_IMAGE_PRIVATE_SENTINEL');
+        if (poison === 'source-dangling') {
+          const { symlink } = await import('node:fs/promises');
+          await symlink('missing', join(root, 'src/bunfig.toml'));
+        }
+        if (poison === 'home-unreadable') await chmod(homePath, 0);
+        if (poison === 'source-unreadable') await chmod(join(root, 'src'), 0);
+        try {
+          const rejected = await observeCurrentImage();
+          expect(rejected.code).not.toBe(0);
+          expect(rejected.stdout).toBe('');
+          expect(rejected.stderr).not.toContain('CURRENT_IMAGE_PRIVATE_SENTINEL');
+        } finally {
+          if (poison === 'home-unreadable') await chmod(homePath, 0o700);
+          if (poison === 'source-unreadable') await chmod(join(root, 'src'), 0o700);
+        }
+      },
+      15000,
+    );

@@ -30,11 +30,7 @@ const templatePaths = ['observation.service.tmpl', 'observation.timer.tmpl'];
  * This is a package build transform, not runtime filesystem or release authentication.
  * Only captured paths, modes and bytes are consumed; source-kind admission belongs to its producer.
  */
-export function embedDashAssets(
-  source: SourceFiles,
-  path: string,
-  bytes: Uint8Array,
-): Uint8Array {
+export function embedDashAssets(source: SourceFiles, path: string, bytes: Uint8Array): Uint8Array {
   // Proof: c28-assets-fixed-module; injected fault failed `leaves other modules untouched without reading the captured asset roster`; restoration passed.
   if (path !== format && path !== renderer) return bytes;
   // Proof: c28-assets-module-utf8; Invalid UTF8 is inside an otherwise valid source comment; injected fault failed `refuses malformed UTF8 module bytes before source parsing`; restoration passed.

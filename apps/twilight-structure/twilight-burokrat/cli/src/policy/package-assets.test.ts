@@ -61,7 +61,9 @@ it('delivers the coordinated package programs beside their strict current manife
     sourceRevision: revision,
     sourceSelection: captured.source.readSnapshot().selection,
     toolkitIdentity: built.toolkit.digest,
-    testLevelIdentity: new Bun.CryptoHasher('sha256').update(readFileSync(join(dist,'test-level-assets.json'))).digest('hex'),
+    testLevelIdentity: new Bun.CryptoHasher('sha256')
+      .update(readFileSync(join(dist, 'test-level-assets.json')))
+      .digest('hex'),
   });
   for (const [program, marker] of [
     ['puni.mjs', 'captured-root'],
@@ -76,12 +78,18 @@ it('delivers the coordinated package programs beside their strict current manife
     expect(child.stdout.toString()).toBe(marker + '\n');
   }
   expect(JSON.parse(readFileSync(join(dist, 'runtime-asset-loads.json'), 'utf8'))).toEqual({
-    format: 'puni-runtime-asset-loads', version: 1, sourceRevision: revision, loaders: [],
+    format: 'puni-runtime-asset-loads',
+    version: 1,
+    sourceRevision: revision,
+    loaders: [],
   });
   const core = readFileSync(join(dist, 'forge-supervisor.mjs'));
   expect(JSON.parse(readFileSync(join(dist, 'forge-supervisor.json'), 'utf8'))).toEqual({
-    format: 'puni-forge-runtime', version: 1, entrypoint: 'forge-supervisor.mjs',
-    sha256: new Bun.CryptoHasher('sha256').update(core).digest('hex'), sourceRevision: revision,
+    format: 'puni-forge-runtime',
+    version: 1,
+    entrypoint: 'forge-supervisor.mjs',
+    sha256: new Bun.CryptoHasher('sha256').update(core).digest('hex'),
+    sourceRevision: revision,
   });
   expect(existsSync(join(built.toolkit.directory, 'licenses/typescript-preparation/NOTICE'))).toBe(
     false,
@@ -161,7 +169,17 @@ async function createPackageFixture() {
   if (capture.kind !== 'captured') throw new Error('package fixture capture cancelled');
   return { ...fixture, source: capture.source };
 }
-for (const file of ['puni.mjs', 'observation-service.mjs', 'forge-supervisor.mjs', 'forge-supervisor.json', 'runtime-asset-loads.json', 'performance-judge.mjs', 'test-level-source.json', 'test-level-assets.json', 'package-manifest.json'])
+for (const file of [
+  'puni.mjs',
+  'observation-service.mjs',
+  'forge-supervisor.mjs',
+  'forge-supervisor.json',
+  'runtime-asset-loads.json',
+  'performance-judge.mjs',
+  'test-level-source.json',
+  'test-level-assets.json',
+  'package-manifest.json',
+])
   for (const fault of ['changed', 'omitted']) {
     it(
       'refuses ' + fault + ' delivered package ' + file + ' before a built package',

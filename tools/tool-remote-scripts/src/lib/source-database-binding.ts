@@ -1,4 +1,3 @@
-import { selectSourceStartup, type CurrentSourceStartupRequest, type SourceStartupPins } from './source-startup-profile';
 import { createHash } from 'node:crypto';
 import { type BigIntStats, constants } from 'node:fs';
 import { type FileHandle, lstat, open, realpath } from 'node:fs/promises';
@@ -30,9 +29,12 @@ import {
   observeSourceDevInputs,
   type SourceDevInputObservation,
 } from './source-dev-inputs';
+import { assertSourceDeadline } from './source-startup-manifest';
 import {
-  assertSourceDeadline,
-} from './source-startup-manifest';
+  type CurrentSourceStartupRequest,
+  selectSourceStartup,
+  type SourceStartupPins,
+} from './source-startup-profile';
 
 /** Fresh read-only identities under constituent scopes. No field grants activation authority. */
 export interface SourceDatabaseBindings {
@@ -283,7 +285,8 @@ export async function observeSourceDatabaseBindings(
     assertSourceDevExclusionDeadline(owner, source, deadline);
     layouts = structuredClone(layouts);
     const profile = selectSourceStartup(suppliedPins, manifestContents, startup);
-    const pins = profile.pins, manifest = profile.manifest;
+    const pins = profile.pins,
+      manifest = profile.manifest;
     if (layouts.prod.env !== 'prod' || layouts.dev.env !== 'dev') refuse();
     await assertDependencyOwner(owner, layouts.prod, pins.sourceSha);
     await assertDependencyOwner(owner, layouts.dev, pins.sourceSha);

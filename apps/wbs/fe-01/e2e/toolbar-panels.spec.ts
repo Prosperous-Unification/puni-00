@@ -83,7 +83,9 @@ test.describe('the toolbar popovers', () => {
     await expect
       .poll(() =>
         page.evaluate(() =>
-          [...document.querySelectorAll('details[open] > summary')].map((node) => node.textContent),
+          [...document.querySelectorAll('details[data-dismissible][open] > summary')].map(
+            (node) => node.textContent,
+          ),
         ),
       )
       .toEqual(['Views']);

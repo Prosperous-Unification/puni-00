@@ -7,23 +7,31 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { type Drizzle, openDrizzle } from './db';
 import { DrizzleEventLogStore } from './event-log';
 import { OPEN } from './gate';
-import { runMigrations } from './migrate';
-
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+import {
+  type CatalogueFixtureCustody,
+  migrateEmptyCatalogueFixture,
+} from './testing/catalogue-database';
 
 let dir: string;
+let custody: CatalogueFixtureCustody;
 let db: Drizzle;
 let repo: DrizzleEventLogStore;
 
 beforeEach(() => {
+  custody = { hasUnknownOwner: false };
   dir = mkdtempSync(join(tmpdir(), 'wbs-event-log-'));
   const path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
+  migrateEmptyCatalogueFixture({ path, directory: dir, reportedAt: 1 }, custody);
   db = openDrizzle(path);
   repo = new DrizzleEventLogStore(db, OPEN);
 });
 
 afterEach(() => {
+  // Proof: sqlite-cohort2-v244-event injected a throw after real close
+  // returned. Omission deleted this directory; restoration retained it.
+  // No leaked native handle was injected.
+  if (custody.hasUnknownOwner)
+    throw new Error('SQLite fixture has unknown native custody; retained ' + dir);
   rmSync(dir, { recursive: true, force: true });
 });
 
@@ -97,8 +105,12 @@ describe('DrizzleEventLogStore.recordEvent', () => {
   });
 
   it('uses the transaction it was handed rather than opening one on the repository handle', async () => {
-    const callerPath = join(dir, 'caller.db');
-    runMigrations(callerPath, FOLDER);
+    const callerDirectory = mkdtempSync(join(dir, 'caller-'));
+    const callerPath = join(callerDirectory, 'caller.db');
+    migrateEmptyCatalogueFixture(
+      { path: callerPath, directory: callerDirectory, reportedAt: 1 },
+      custody,
+    );
     const callerDb = openDrizzle(callerPath);
     const callerRepo = new DrizzleEventLogStore(callerDb, OPEN);
 

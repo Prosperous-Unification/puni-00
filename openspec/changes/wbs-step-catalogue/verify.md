@@ -1912,3 +1912,58 @@ last Dash error-accounting change also passes with no diagnostics
 
 The exact-commit host gate, formal review and merge remain open. No live migration or
 completion of the earlier broad entities/CLI goal is claimed by this delivery slice.
+
+## Current integration compatibility checkpoint, 2026-11-22
+
+The published head `97cdee9927e928ca0a661f2f6ef11c0edad0cf43` was tested by CI as
+synthetic merge `473ee7f3e0a68b578daa01d93d08c54f62bb7d63`, whose verified parents
+are main `5f52c9eb2047563dccb9b637ac3fd51f634aee9a` and that published head.
+Its required gates failed. The following local controls qualify repairs, not that
+CI candidate or a completed catalogue release.
+
+- Eighteen SQLite test owners passed 245 cases across bounded runs. Current empty
+  stores use the explicit catalogue fixture owner; genuine organization-activation
+  history stays on 111. All original behavioral assertions remain. Eighteen
+  consumer controls used a genuine native close that returned before injected
+  uncertainty:15 omission controls observed namespace deletion, while3 proved
+  the required custody diagnostic despite incidental retention. Exact restoration
+  passed every control. This does not simulate an actual leaked descriptor.
+- The three mixed-adapter owners passed 120 cases with 0 failures and 1 existing
+  Memory skip. Fixtures explicitly author catalogue definitions/bindings and
+  resource ownership. Safe unbinding retains the definition and explicit package
+  values; original stale-undo and no-restoration assertions pass. Removing each
+  consumer custody check failed the same positive namespace-retention assertion;
+  exact restoration passed. Scoped lint, production/test types and format passed.
+- Current directory usage passed 14 cases, including shared definitions and foreign
+  work-package/definition reach. Removing either ownership predicate returned no
+  conflict and failed its regression. Exact source restoration passed.
+- Independent dormant inspection passed 77 cases and the selected
+  restart coordinator. Actual current119 and genuine116 stores pass; predecessor
+  project tables, views and malformed triggers refuse. Each trigger-action check
+  omission failed 8 controls spanning exact 111/117 spellings; restoration passed.
+- Current boot retains both dependency admissions and ordinary idempotent migration,
+  with 0 predecessor backfill calls. The current planner/helper/writer-barrier owners
+  passed 187 cases; explicitly supplied historical backfill failures still prevent
+  commit. The planner's original obsolete dispatch failed the refusing capability
+  control before the one-line removal.
+- The installed SDK fixture's 11 unchanged mutation cases pass from its actual Nx
+  directory. Missing and duplicate exact SDK contributions fail after genuine
+  compilation; no package/profile identity was rebaselined.
+- Focused browser controls passed for directory operations, responsive readiness,
+  reference-sheet round trips, control borders, popup dismissal and menu bounds.
+  Local-mode fallback tests now run in the existing local profile: all 5 local cases
+  pass. Use an unset parent `NODE_ENV`, as CI does; forcing production on the local
+  gateway correctly refuses local authentication. Browser profiles must run
+  sequentially because their Vite builds share an output directory.
+
+Representative commands are `bun test <owned files>`, scoped ESLint/noEmit/Prettier,
+and `bunx --no-install playwright test --config apps/wbs/fe-01/playwright.local.config.ts`.
+Private command receipts and exact pins are retained under
+`/tmp/puni-combined-proposal-v1/control`; aggregate SQLite and mixed-owner reports are
+`/tmp/puni-sqlite-all-owned-final-v248.json` and
+`/tmp/puni-mixed-occupancy-final-v260.json`. The retained frontend HTTP owner also
+passes 76 cases using real Node/Vite and its original provenance refusals.
+
+Full SQLite/backend/CLI closure, remaining CI compatibility repairs, the exact final
+commit host gate, formal Astra review and merge remain open. No live migration or
+deployment was performed.

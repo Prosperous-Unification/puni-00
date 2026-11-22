@@ -300,9 +300,11 @@ test.describe('step blockage on the production preview path', () => {
       await route.fulfill({ response, json: tree });
     });
     await page.reload();
-    await expect(page.getByText('Something went wrong!', { exact: true })).toBeVisible();
-    await page.getByRole('button', { name: 'Show Error' }).click();
-    await expect(page.getByText(/Missing node reading for/)).toBeVisible();
+    await expect(page.getByRole('alert')).toContainText('The app stopped: Something went wrong.');
+    await expect(page.getByRole('alert')).toContainText(/Reference AE_[0-9A-Z]+/);
+    await expect(page.getByRole('alert')).not.toContainText(/Missing node reading for/);
+    await expect(page.getByRole('button', { name: 'Reload', exact: true })).toBeVisible();
+    await expect(page.locator('[data-grid], [data-card]')).toHaveCount(0);
   });
   test('malformed supported cause metadata reaches the application Error Boundary', async ({
     page,
@@ -319,11 +321,11 @@ test.describe('step blockage on the production preview path', () => {
       await route.fulfill({ response, json: tree });
     });
     await page.reload();
-    await expect(page.getByText('Something went wrong!', { exact: true })).toBeVisible();
-    await page.getByRole('button', { name: 'Show Error' }).click();
-    await expect(
-      page.getByText('Unknown blockage cause missing-root', { exact: true }),
-    ).toBeVisible();
+    await expect(page.getByRole('alert')).toContainText('The app stopped: Something went wrong.');
+    await expect(page.getByRole('alert')).toContainText(/Reference AE_[0-9A-Z]+/);
+    await expect(page.getByRole('alert')).not.toContainText('Unknown blockage cause missing-root');
+    await expect(page.getByRole('button', { name: 'Reload', exact: true })).toBeVisible();
+    await expect(page.locator('[data-grid], [data-card]')).toHaveCount(0);
   });
   test('an inactive writer reports its 409 without changing the direct fact', async ({ page }) => {
     const { workPackageId, source, dev } = await seedBlockages(page);

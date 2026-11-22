@@ -16,15 +16,15 @@ import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { canonicalScheduleInput } from '@wbs/domain/canonical-schedule-input';
 import { openMemorySourceFixture } from '@wbs/store-memory/source';
 import { describe, expect, it } from 'bun:test';
+import { sql } from 'drizzle-orm';
 
 import { openDatabase } from './db';
-import { runMigrations } from './migrate';
 import { openSqliteSource } from './source';
+import { migrateEmptyCatalogueFixture } from './testing/catalogue-database';
 import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
 import { seedLegacyPackageParent as seedSqlitePackageParent } from './testing/legacy-package-parent';
 import { activateTestStepBlockages } from './testing/step-blockage-activation';
 
-const MIGRATIONS = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const F = 'account-f';
 const G = 'account-g';
 const RAM = 'resource-ram';
@@ -37,8 +37,9 @@ const STORES: readonly {
   readonly name: string;
   readonly open: () => {
     source: Source<TransactionalStores>;
-    isMemory: boolean;
     seedParent: () => void;
+    ownDirectory: (personIds: readonly string[], resourceIds: readonly string[]) => void;
+    packageValues: () => readonly unknown[];
     dispose: () => void;
   };
 }[] = [
@@ -48,7 +49,12 @@ const STORES: readonly {
       const fixture = openMemorySourceFixture();
       return {
         source: fixture.source,
-        isMemory: true,
+        ownDirectory: (personIds, resourceIds) => {
+          for (const id of personIds)
+            fixture.ownPersonInOrganization(id, 'fixture-legacy-org', [F, G]);
+          for (const id of resourceIds) fixture.ownResourceInOrganization(id, 'fixture-legacy-org');
+        },
+        packageValues: () => fixture.stepCatalogueEvidence().packageValues,
         seedParent: () => {
           seedMemoryPackageParent(fixture, {
             organizationId: 'fixture-legacy-org',
@@ -66,16 +72,32 @@ const STORES: readonly {
     open: () => {
       const folder = mkdtempSync(join(tmpdir(), 'resource-occupancy-'));
       const dbPath = join(folder, 'plan.db');
-      runMigrations(dbPath, MIGRATIONS);
+      const custody = { hasUnknownOwner: false };
+      try {
+        migrateEmptyCatalogueFixture({ path: dbPath, directory: folder, reportedAt: 1 }, custody);
+      } catch (cause: unknown) {
+        // Proof: omitting this guard deleted the owned namespace after native close
+        // returned then threw; the unchanged retention assertion failed in
+        // mixed-occupancy-close-root-v258, then exact restoration passed.
+        if (custody.hasUnknownOwner)
+          throw new Error('resource-occupancy fixture custody is unknown; retained ' + folder, {
+            cause,
+          });
+        rmSync(folder, { recursive: true, force: true });
+        throw cause;
+      }
       // A delete journals its blockage facts, which a migrated database
       // refuses until the authority is enabled; the memory store has none.
       activateTestStepBlockages(dbPath);
+      const source = openSqliteSource({
+        dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+        dbPath,
+      });
       return {
-        source: openSqliteSource({
-          dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
-          dbPath,
-        }),
-        isMemory: false,
+        source,
+        ownDirectory: () => undefined,
+        packageValues: () =>
+          source.db.all(sql`SELECT * FROM work_package_step ORDER BY work_package_id,step_id`),
         seedParent: () => {
           seedSqlitePackageParent(dbPath, 'fixture-legacy-org', 'fixture-project');
           const sqlite = openDatabase(dbPath);
@@ -103,7 +125,7 @@ const STORES: readonly {
  * states a capacity for. Capacities and demands are each case's own.
  */
 async function seeded(store: (typeof STORES)[number]) {
-  const { source, isMemory, seedParent, dispose } = store.open();
+  const { source, seedParent, ownDirectory, packageValues, dispose } = store.open();
   const options = {
     admission: LEGACY_EDIT_ADMISSION,
     clock: testClock,
@@ -119,23 +141,33 @@ async function seeded(store: (typeof STORES)[number]) {
     );
   }
   seedParent();
+  for (const [id, code, name, position] of [
+    ['fixture-dev', 'dev', 'Dev', 10],
+    ['fixture-qa', 'qa', 'QA', 20],
+  ] as const) {
+    const defined = await source.stores.stepCatalogue.defineAndBindStep(
+      'fixture-legacy-org',
+      {
+        id,
+        code,
+        name,
+        position,
+        defaultAllowancePercent: 0,
+        defaultEstimateUnit: 'workdays',
+      },
+      {
+        bindingId: id + ':binding',
+        scopeKind: 'project',
+        scopeId: 'fixture-project',
+        workItemTypeId: null,
+        position,
+      },
+      { at: 1, by: F },
+    );
+    if (!defined.ok) throw new Error('fixture definition refused: ' + defined.reason);
+  }
   const created = expectCreated(await graph.workPackages.create('Occupancy', 'fixture-project', F));
   const workPackageId = created.workPackage.id;
-  if (isMemory) {
-    // The memory source keeps a work package's steps apart from the step table its progress reads.
-    for (const step of created.steps) {
-      await source.stores.steps.add(
-        {
-          id: step.id,
-          workPackageId,
-          name: step.name,
-          allowancePercent: 0,
-          estimateUnit: 'workdays',
-        },
-        { at: 1, by: F },
-      );
-    }
-  }
   const [dev, review] = created.steps.map(({ id }) => id);
   const agents = [...Array.from({ length: LEAVES }, (_, index) => `a${String(index)}`), 'g0'];
   for (const id of agents) {
@@ -158,6 +190,7 @@ async function seeded(store: (typeof STORES)[number]) {
     const added = await source.stores.directory.addResource(resource, { at: 1, by: F });
     if (!added.ok) throw new Error(`resource ${resource.id} was refused`);
   }
+  ownDirectory(agents, [RAM, WORKTREE, DISK]);
   const runner = createPlanCommandRunner({
     commandAccess: localCommandAccess,
     uow: source.uow,
@@ -216,6 +249,7 @@ async function seeded(store: (typeof STORES)[number]) {
   };
   return {
     source,
+    packageValues,
     broadcast: options.broadcast,
     graph,
     runner,
@@ -1405,13 +1439,32 @@ for (const store of STORES) {
       }
     });
 
-    it('refuses an undo of a delete once a step its claims and progress name was removed', async () => {
-      const { source, graph, runner, workPackageId, run, claim, leaf, dev, close } =
+    it('refuses undo of deleted claims after safe unbind while retaining definition and package values', async () => {
+      const { source, packageValues, runner, workPackageId, run, claim, leaf, dev, close } =
         await seeded(store);
       try {
         await run([claim(0, 'a0')]);
         await run([{ kind: 'deleteWorkItem', workItemId: leaf(0) }]);
-        expect(await graph.steps.remove(workPackageId, dev, F, true)).toMatchObject({ ok: true });
+        const catalogue = await source.stores.stepCatalogue.readCatalogue('fixture-legacy-org');
+        if (catalogue === null) throw new Error('fixture catalogue is absent');
+        const definition = catalogue.definitions.find(({ id }) => id === dev);
+        expect(definition).toBeDefined();
+        const values = packageValues();
+        expect(values).toHaveLength(2);
+        expect(
+          await source.stores.stepCatalogue.unbindStep(
+            'fixture-legacy-org',
+            dev + ':binding',
+            { dryRun: false },
+            { at: 9, by: F },
+          ),
+        ).toMatchObject({ kind: 'unbound' });
+        expect(
+          (await source.stores.stepCatalogue.readCatalogue('fixture-legacy-org'))?.definitions.find(
+            ({ id }) => id === dev,
+          ),
+        ).toEqual(definition);
+        expect(packageValues()).toEqual(values);
         const undone = await runner.undo(workPackageId, F);
         expect(undone).toMatchObject({ ok: false, reason: 'stale_undo' });
         expect(undone.ok || !('detail' in undone) ? null : undone.detail).toBe(

@@ -743,7 +743,7 @@ try {
   child = owner.spawn(request.argv, request.cwd, request.environment, { stdout: stdout.fd, stderr: stderr.fd });
   writeFileSync(request.dispatch, JSON.stringify({ pid: child.pid, argv: request.argv, dispatchedAt: new Date().toISOString() }) + '\n', { flag: 'wx' });
   const observed = child.exited.then(exitCode => { original = { exitCode, signalCode: child?.signalCode, observedAt: new Date().toISOString() }; });
-  await Promise.race([observed, new Promise<never>((_, reject) => { deadline = setTimeout(() => reject(new Error('Ordinary worker probe exceeded 10000ms')), 10000); })]);
+  await Promise.race([observed, new Promise<never>((_, reject) => { deadline = setTimeout(() => reject(new Error('Ordinary worker probe exceeded 20000ms')), 20000); })]);
 } catch (failure) { primaryOccurred = true; primary = failure; }
 finally {
   if (deadline !== undefined) clearTimeout(deadline);
@@ -935,9 +935,10 @@ test('ordinary worker effects', async () => { writeFileSync(${JSON.stringify(bod
 }
 
 describe('ordinary worker state before actual effects', () => {
-  // The native driver owns a 10-second run and a 25-second outer deadline.
-  // Let that owner settle: a correct private-state refusal took 6.5 seconds
-  // under full-suite contention, beyond Vitest's default five seconds.
+  // The native driver owns a 20-second run inside the unchanged 25-second outer deadline.
+  // A finite 8-second CLI startup delay made the old 10-second driver time out before
+  // actual private-state refusal; the 20-second control joined exit1 at 11.1 seconds with
+  // neither effect. Keep room for cold worker imports under concurrent CI tasks.
   for (const fault of ['missing', 'stale', 'malformed', 'private'] as const)
     it(
       'refuses ' + fault + ' context before worker beforeAll and body effects',
@@ -1224,7 +1225,7 @@ describe('the dedicated local quiet-load profile', () => {
       "process.env['DB_PATH']",
       "process.env['MIGRATE_ON_STARTUP']",
     ]);
-    expect(environmentSelections[0].right.getText(parsed)).toBe("join(directory, 'test.db')");
+    expect(environmentSelections[0].right.getText(parsed)).toBe('path');
     expect(environmentSelections[1].right.getText(parsed)).toBe("'true'");
     expect(allocations[0].pos).toBeLessThan(environmentSelections[0].pos);
     expect(environmentSelections[1].end).toBeLessThan(imports[0].pos);

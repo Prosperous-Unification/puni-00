@@ -56,7 +56,7 @@ export function HeaderAccount({
       <summary
         ref={summary}
         aria-label="Account and organization"
-        className="border-input bg-background text-foreground hover:bg-accent focus-visible:ring-ring flex size-11 cursor-pointer list-none items-center justify-center rounded-md border outline-none focus-visible:ring-2 md:hidden [&::-webkit-details-marker]:hidden"
+        className="border-control-edge bg-background text-foreground hover:bg-accent focus-visible:ring-ring flex size-11 cursor-pointer list-none items-center justify-center rounded-md border outline-none focus-visible:ring-2 md:hidden [&::-webkit-details-marker]:hidden"
       >
         <svg
           aria-hidden="true"

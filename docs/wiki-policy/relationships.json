@@ -34,7 +34,13 @@
           "{workspaceRoot}/apps/twilight-structure/twilight-dash/cli/src/agents/**/*",
           "{workspaceRoot}/apps/twilight-structure/twilight-dash/cli/src/clock.ts",
           "{workspaceRoot}/apps/twilight-structure/twilight-burokrat/cli/src/contracts/**/*",
-          "mcpAgentRuntime"
+          "mcpAgentRuntime",
+          "{workspaceRoot}/openspec/changes/wbs-work-packages/fixtures/legacy-shared-people-save1.json",
+          "{workspaceRoot}/openspec/changes/wbs-work-packages/fixtures/shared-people-save2.json",
+          "{workspaceRoot}/openspec/changes/wbs-work-packages/fixtures",
+          "{workspaceRoot}/openspec/changes/wbs-work-packages/fixtures/**/*",
+          "{workspaceRoot}/apps/twilight-structure/twilight-burokrat/cli/**/*",
+          "{workspaceRoot}/libs/shared/**/*"
         ],
         "options": {
           "command": "bun test --coverage --coverage-reporter=lcov --timeout=10000",
@@ -57,7 +63,13 @@
       "target": "test",
       "expectedConfiguration": {
         "cache": true,
-        "inputs": ["default", "^production"],
+        "inputs": [
+          "default",
+          "^production",
+          "{workspaceRoot}/openspec/changes/wbs-work-packages/fixtures",
+          "{workspaceRoot}/openspec/changes/wbs-work-packages/fixtures/**/*",
+          "{workspaceRoot}/apps/twilight-structure/twilight-navigator/cli/src/fixtures/**/*"
+        ],
         "executor": "nx:run-commands",
         "options": {
           "command": "bun test src --coverage --coverage-reporter=lcov --timeout=10000",
@@ -88,7 +100,9 @@
           "{workspaceRoot}/openspec/changes/wbs-permissions/design.md",
           "{workspaceRoot}/docs/adr/*.md",
           "{workspaceRoot}/apps/wbs/fe-01/src/styles.css",
-          "{workspaceRoot}/libs/shared/adapters/ui-saas-01/src/theme.css"
+          "{workspaceRoot}/libs/shared/adapters/ui-saas-01/src/theme.css",
+          "{workspaceRoot}/openspec/changes/wbs-work-packages/fixtures",
+          "{workspaceRoot}/openspec/changes/wbs-work-packages/fixtures/**/*"
         ],
         "options": {
           "command": "bun test --coverage --coverage-reporter=lcov --timeout=10000",

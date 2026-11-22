@@ -11,11 +11,9 @@ import type * as ProducerModule from '../fixtures/source-frontend-producer';
 import {
   consumeSourceFrontendCapture,
   requireSourceFrontendProducerSuccess,
-  withSourceFrontendProducer,
 } from '../fixtures/source-frontend-producer';
 import { SOURCE_FRONTEND_PRODUCER_PROGRAM } from '../fixtures/source-frontend-producer-program';
 import type * as MaterializerModule from '../fixtures/source-frontend-profile';
-import { prepareSourceFrontendProfile } from '../fixtures/source-frontend-profile';
 import { prepareRetainedSourceFrontendProfile } from '../fixtures/source-frontend-retained-inputs';
 import { artifact, configuration, git, modes, roots } from '../fixtures/source-startup';
 import { readFields } from './managed-cohort';
@@ -418,124 +416,141 @@ for (const owner of ['materializer', 'producer'] as const)
     );
 
 test('actual pinned Vite producer reaches the complete frontend document and entry inspectors', async () => {
-  await withSourceFrontendProducer(async (observations, directory) => {
-    const evidence = process.env['SOURCE_FRONTEND_PRODUCER_EVIDENCE'];
-    if (evidence !== undefined) {
-      await mkdir(evidence, { recursive: true });
-      await cp(directory, `${evidence}/capture`, { recursive: true, verbatimSymlinks: true });
-    }
-    console.error(
-      'actual Vite producer: two observations captured; original Node child/pipes, requests, server and watcher joined',
-    );
-    const packet: unknown = JSON.parse(
-      await readFile(join(directory, 'source-manifest.json'), 'utf8'),
-    );
-    const fields = readFields(packet);
-    const selectedInputs = readFields(fields['selectedInputs']);
-    const sourceFiles = readFields(fields['files']);
-    expect(fields['epoch']).toBe('registry-s3-20261108');
-    expect(Object.keys(selectedInputs).sort()).toEqual(Object.keys(CAPTURED_INPUTS).sort());
-    const captured = new Map<string, Buffer>();
-    for (const [path, expected] of Object.entries(CAPTURED_INPUTS)) {
-      const bytes = await readFile(join(directory, 'snapshot', path));
-      const observed = {
-        bytes: bytes.byteLength,
-        sha256: createHash('sha256').update(bytes).digest('hex'),
-      };
-      expect(observed).toEqual(expected);
-      expect(selectedInputs[path]).toEqual(observed);
-      if (!path.startsWith('node_modules/')) {
-        const file = readFields(sourceFiles[path]);
-        expect({ bytes: file['bytes'], sha256: file['sha256'] }).toEqual(observed);
-        expect(file['gitBlob']).toMatch(/^[a-f0-9]{40}$/);
-      }
-      captured.set(path, bytes);
-    }
-    const prepared = await artifact();
-    const registration = roots.indexOf(prepared.root);
-    if (registration < 0) throw new Error('canonical fixture root unregistered');
-    try {
-      for (const [path, bytes] of captured) {
-        const selected = path.replace('node_modules/vite/', 'node_modules/.frontend-profile/vite/');
-        await mkdir(dirname(join(prepared.root, selected)), { recursive: true });
-        await writeFile(join(prepared.root, selected), bytes);
-      }
-      await symlink('.frontend-profile/vite', join(prepared.root, 'node_modules/vite'));
-      await modes(prepared.root);
-      await git(prepared.root, 'add', '.');
-      await git(
-        prepared.root,
-        '-c',
-        'user.name=Fixture',
-        '-c',
-        'user.email=fixture@example.invalid',
-        'commit',
-        '-qm',
-        'actual captured frontend inputs',
-      );
-      await modes(prepared.root);
-      const sourceSha = await git(prepared.root, 'rev-parse', 'HEAD');
-      expect(sourceSha).not.toBe(fields['head']);
-      const generated = await createSourceStartupManifest(prepared.root, sourceSha, configuration);
-      const manifest = decodeSourceStartupManifest(generated.contents, {
-        ...prepared.pins,
-        sourceSha,
-        manifestSha256: generated.sha256,
-      });
-      for (const [path, bytes] of captured) {
-        expect(Uint8Array.from(await readFile(join(prepared.root, path)))).toEqual(
-          Uint8Array.from(bytes),
-        );
-        const selected = path.replace('node_modules/vite/', 'node_modules/.frontend-profile/vite/');
-        const entry = manifest.entries.find(
-          (entry) =>
-            (entry.root === 'dependencies' ? `node_modules/${entry.path}` : entry.path) ===
-            selected,
-        );
-        if (entry?.kind !== 'file') throw new Error('captured canonical input absent');
-        expect({ bytes: entry.size, sha256: entry.sha256 }).toEqual(
-          CAPTURED_INPUTS[path as keyof typeof CAPTURED_INPUTS],
-        );
-      }
-      expect(selectSourceFrontendProfile(manifest)).toBe('wbs-source-frontend-wire-v1');
-      expect(observations.document.body).toBe(
-        new TextDecoder('utf-8', { fatal: true }).decode(
-          await readFile(join(directory, 'index.response.html')),
-        ),
-      );
-      expect(observations.entry.body).toBe(
-        new TextDecoder('utf-8', { fatal: true }).decode(
-          await readFile(join(directory, 'main.response.js')),
-        ),
-      );
+  const retained = await prepareOwnedProducer(false);
+  let settled = false;
+  try {
+    await retained.producer.withSourceFrontendProducer(async (observations, directory) => {
+      const evidence = process.env['SOURCE_FRONTEND_PRODUCER_EVIDENCE'];
       if (evidence !== undefined) {
-        await writeFile(join(evidence, 'canonical-manifest.json'), generated.contents);
-        await writeFile(
-          join(evidence, 'canonical-pins.json'),
-          JSON.stringify(
-            {
-              ...prepared.pins,
-              sourceSha,
-              manifestSha256: generated.sha256,
-              producerSha: fields['head'],
-            },
-            null,
-            2,
+        await mkdir(evidence, { recursive: true });
+        await cp(directory, `${evidence}/capture`, { recursive: true, verbatimSymlinks: true });
+      }
+      console.error(
+        'actual Vite producer: two observations captured; original Node child/pipes, requests, server and watcher joined',
+      );
+      const packet: unknown = JSON.parse(
+        await readFile(join(directory, 'source-manifest.json'), 'utf8'),
+      );
+      const fields = readFields(packet);
+      const selectedInputs = readFields(fields['selectedInputs']);
+      const sourceFiles = readFields(fields['files']);
+      expect(fields['epoch']).toBe('registry-s3-20261108');
+      expect(Object.keys(selectedInputs).sort()).toEqual(Object.keys(CAPTURED_INPUTS).sort());
+      const captured = new Map<string, Buffer>();
+      for (const [path, expected] of Object.entries(CAPTURED_INPUTS)) {
+        const bytes = await readFile(join(directory, 'snapshot', path));
+        const observed = {
+          bytes: bytes.byteLength,
+          sha256: createHash('sha256').update(bytes).digest('hex'),
+        };
+        expect(observed).toEqual(expected);
+        expect(selectedInputs[path]).toEqual(observed);
+        if (!path.startsWith('node_modules/')) {
+          const file = readFields(sourceFiles[path]);
+          expect({ bytes: file['bytes'], sha256: file['sha256'] }).toEqual(observed);
+          expect(file['gitBlob']).toMatch(/^[a-f0-9]{40}$/);
+        }
+        captured.set(path, bytes);
+      }
+      const prepared = await artifact();
+      const registration = roots.indexOf(prepared.root);
+      if (registration < 0) throw new Error('canonical fixture root unregistered');
+      try {
+        for (const [path, bytes] of captured) {
+          const selected = path.replace(
+            'node_modules/vite/',
+            'node_modules/.frontend-profile/vite/',
+          );
+          await mkdir(dirname(join(prepared.root, selected)), { recursive: true });
+          await writeFile(join(prepared.root, selected), bytes);
+        }
+        await symlink('.frontend-profile/vite', join(prepared.root, 'node_modules/vite'));
+        await modes(prepared.root);
+        await git(prepared.root, 'add', '.');
+        await git(
+          prepared.root,
+          '-c',
+          'user.name=Fixture',
+          '-c',
+          'user.email=fixture@example.invalid',
+          'commit',
+          '-qm',
+          'actual captured frontend inputs',
+        );
+        await modes(prepared.root);
+        const sourceSha = await git(prepared.root, 'rev-parse', 'HEAD');
+        expect(sourceSha).not.toBe(fields['head']);
+        const generated = await createSourceStartupManifest(
+          prepared.root,
+          sourceSha,
+          configuration,
+        );
+        const manifest = decodeSourceStartupManifest(generated.contents, {
+          ...prepared.pins,
+          sourceSha,
+          manifestSha256: generated.sha256,
+        });
+        for (const [path, bytes] of captured) {
+          expect(Uint8Array.from(await readFile(join(prepared.root, path)))).toEqual(
+            Uint8Array.from(bytes),
+          );
+          const selected = path.replace(
+            'node_modules/vite/',
+            'node_modules/.frontend-profile/vite/',
+          );
+          const entry = manifest.entries.find(
+            (entry) =>
+              (entry.root === 'dependencies' ? `node_modules/${entry.path}` : entry.path) ===
+              selected,
+          );
+          if (entry?.kind !== 'file') throw new Error('captured canonical input absent');
+          expect({ bytes: entry.size, sha256: entry.sha256 }).toEqual(
+            CAPTURED_INPUTS[path as keyof typeof CAPTURED_INPUTS],
+          );
+        }
+        expect(selectSourceFrontendProfile(manifest)).toBe('wbs-source-frontend-wire-v1');
+        expect(observations.document.body).toBe(
+          new TextDecoder('utf-8', { fatal: true }).decode(
+            await readFile(join(directory, 'index.response.html')),
           ),
         );
+        expect(observations.entry.body).toBe(
+          new TextDecoder('utf-8', { fatal: true }).decode(
+            await readFile(join(directory, 'main.response.js')),
+          ),
+        );
+        if (evidence !== undefined) {
+          await writeFile(join(evidence, 'canonical-manifest.json'), generated.contents);
+          await writeFile(
+            join(evidence, 'canonical-pins.json'),
+            JSON.stringify(
+              {
+                ...prepared.pins,
+                sourceSha,
+                manifestSha256: generated.sha256,
+                producerSha: fields['head'],
+              },
+              null,
+              2,
+            ),
+          );
+        }
+      } finally {
+        await rm(prepared.root, { recursive: true });
+        roots.splice(registration, 1);
       }
-    } finally {
-      await rm(prepared.root, { recursive: true });
-      roots.splice(registration, 1);
-    }
-    const inspectors = await import('./source-frontend-http');
-    expect(inspectors.inspectSourceFrontendDocument(observations.document).sha256).toBe(
-      '09ab3b528f1a147d34addea248fa08925801d66ee9f384bb634112b9abc30e2f',
-    );
-    expect(inspectors.inspectSourceFrontendEntry(observations.entry).sha256).toBe(
-      'e990c7ae6b545d4177b27560878bd41d34843b32109a21af190794d73e45ee08',
-    );
-  });
+      const inspectors = await import('./source-frontend-http');
+      expect(inspectors.inspectSourceFrontendDocument(observations.document).sha256).toBe(
+        '09ab3b528f1a147d34addea248fa08925801d66ee9f384bb634112b9abc30e2f',
+      );
+      expect(inspectors.inspectSourceFrontendEntry(observations.entry).sha256).toBe(
+        'e990c7ae6b545d4177b27560878bd41d34843b32109a21af190794d73e45ee08',
+      );
+    });
+    settled = true;
+  } finally {
+    if (settled) await removeFrontendRoots(retained.root, undefined, removeProvenanceRoot);
+  }
 }, 130000);
 
 const DOCUMENT_SHA256 = '09ab3b528f1a147d34addea248fa08925801d66ee9f384bb634112b9abc30e2f';
@@ -1379,7 +1394,7 @@ test.each([
   async (epoch, path) => {
     const root = await mkdtemp(join(tmpdir(), 'frontend-producer-boundary-'));
     try {
-      await prepareSourceFrontendProfile(root);
+      await prepareRetainedSourceFrontendProfile(root);
       const bytes = await readFile(join(root, path));
       const historical =
         epoch === 'fourth'
@@ -1604,6 +1619,12 @@ async function prepareOwnedProducer(
   expect(extracted.success).toBe(true);
   expect(extracted.signalCode).toBeUndefined();
   expect(extracted.stderr.byteLength).toBe(0);
+  // The archive provides committed source closure; the existing materializer authenticates
+  // this modeled retained selection before its actual owned Git provenance is recorded.
+  await prepareRetainedSourceFrontendProfile(root);
+  // Only the newly owned partial dependency projection is removed. Real Vite below uses
+  // the existing complete installed packages through the unchanged symlink population.
+  await rm(join(root, 'node_modules'), { recursive: true });
   const current = new Map<FrontendConfigurationPath | 'package.json' | 'bun.lock', Buffer>();
   const historical = new Map<FrontendConfigurationPath | 'package.json' | 'bun.lock', Buffer>();
   const changedPaths =
@@ -2012,9 +2033,12 @@ function reconstructFourthInput(
   return reconstructed;
 }
 
+// Each reversal authenticates these retained originals with its unchanged complete input pin.
 for (const path of ['package.json', 'bun.lock'] as const) {
   test(`registry S3 reconstruction reaches exact fourth ${path}`, async () => {
-    const bytes = await readFile(resolve(import.meta.dir, '../../../..', path));
+    const bytes = await readFile(
+      resolve(import.meta.dir, '../fixtures/source-frontend-retained-inputs', `${path}.txt`),
+    );
     const reconstructed = reconstructFourthInput(path, bytes);
     const expected = FOURTH_PAIR;
     expect({
@@ -2023,7 +2047,9 @@ for (const path of ['package.json', 'bun.lock'] as const) {
     }).toEqual(expected[path]);
   });
   test(`registry S3 reconstruction refuses repairable unreviewed full ${path}`, async () => {
-    const bytes = await readFile(resolve(import.meta.dir, '../../../..', path));
+    const bytes = await readFile(
+      resolve(import.meta.dir, '../fixtures/source-frontend-retained-inputs', `${path}.txt`),
+    );
     const extra = 'UNREVIEWED_REGISTRY_INPUT\n';
     expect(() =>
       reconstructFourthInput(path, Buffer.concat([bytes, Buffer.from(extra)]), [
@@ -2034,7 +2060,9 @@ for (const path of ['package.json', 'bun.lock'] as const) {
   });
   for (const fault of ['absent', 'duplicate', 'empty'] as const)
     test(`registry S3 reconstruction refuses ${fault} hunk in ${path}`, async () => {
-      const bytes = await readFile(resolve(import.meta.dir, '../../../..', path));
+      const bytes = await readFile(
+        resolve(import.meta.dir, '../fixtures/source-frontend-retained-inputs', `${path}.txt`),
+      );
       const first = REGISTRY_REMOVALS[path].at(0);
       if (first === undefined) throw new Error('literal registry hunk absent');
       const extra =
@@ -2045,7 +2073,9 @@ for (const path of ['package.json', 'bun.lock'] as const) {
     });
   for (const fault of ['missing', 'changed'] as const)
     test(`registry S3 reconstruction refuses ${fault} fourth intermediate in ${path}`, async () => {
-      const bytes = await readFile(resolve(import.meta.dir, '../../../..', path));
+      const bytes = await readFile(
+        resolve(import.meta.dir, '../fixtures/source-frontend-retained-inputs', `${path}.txt`),
+      );
       const hunks = REGISTRY_REMOVALS[path];
       const changed =
         fault === 'missing'

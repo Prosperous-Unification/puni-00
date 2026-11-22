@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { lstat, readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+
 import { type Fingerprint, needsRestart, RESTART_PATHS } from '../restart-inputs';
 const ABSENT = 'absent';
 /** The termination-message prefix dev-env status reports as INSTALL REQUIRED. */
@@ -51,7 +52,6 @@ export async function fingerprintWorktree(
 /** The supervisor's own sources: a change to them needs a new process, not a tier restart. */
 export const SUPERVISOR_PATHS: readonly string[] = ['tools/tool-devsync/src'];
 
-
 /** Historical directory-only diagnostic retained for existing pure callers. Actual supervision requires the producer-owned execution inspection; this hash is not loaded-closure evidence. */
 export async function fingerprintSupervisor(root: string): Promise<string> {
   const directory = join(root, 'tools/tool-devsync/src');
@@ -100,4 +100,3 @@ export function installDependencies(
   report(`${INSTALL_REQUIRED} bun install --frozen-lockfile exited ${String(exitCode)}`);
   return false;
 }
-

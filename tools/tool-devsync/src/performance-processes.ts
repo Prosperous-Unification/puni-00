@@ -1,1 +1,4 @@
-export {createPerformanceProcessOwner,type PerformanceProcessOwner} from '@puni/dash/performance-processes';
+export {
+  createPerformanceProcessOwner,
+  type PerformanceProcessOwner,
+} from '@puni/dash/performance-processes';

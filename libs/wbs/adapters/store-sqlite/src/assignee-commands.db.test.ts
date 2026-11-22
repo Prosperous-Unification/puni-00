@@ -17,12 +17,11 @@ import { openMemorySourceFixture } from '@wbs/store-memory/source';
 import { describe, expect, it } from 'bun:test';
 
 import { openDatabase } from './db';
-import { runMigrations } from './migrate';
 import { openSqliteSource } from './source';
+import { migrateEmptyCatalogueFixture } from './testing/catalogue-database';
 import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
 import { seedLegacyPackageParent as seedSqlitePackageParent } from './testing/legacy-package-parent';
 
-const MIGRATIONS = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const F = 'account-f';
 const G = 'account-g';
 
@@ -31,7 +30,6 @@ const STORES: readonly {
   readonly name: string;
   readonly open: () => {
     source: Source<TransactionalStores>;
-    isMemory: boolean;
     seedParent: () => void;
     dispose: () => void;
   };
@@ -42,7 +40,6 @@ const STORES: readonly {
       const fixture = openMemorySourceFixture();
       return {
         source: fixture.source,
-        isMemory: true,
         seedParent: () => {
           seedMemoryPackageParent(fixture, {
             organizationId: 'fixture-legacy-org',
@@ -60,13 +57,25 @@ const STORES: readonly {
     open: () => {
       const folder = mkdtempSync(join(tmpdir(), 'assignee-commands-'));
       const dbPath = join(folder, 'plan.db');
-      runMigrations(dbPath, MIGRATIONS);
+      const custody = { hasUnknownOwner: false };
+      try {
+        migrateEmptyCatalogueFixture({ path: dbPath, directory: folder, reportedAt: 1 }, custody);
+      } catch (cause: unknown) {
+        // Proof: omitting this guard deleted the owned namespace after native close
+        // returned then threw; the unchanged retention assertion failed in
+        // mixed-occupancy-close-root-v258, then exact restoration passed.
+        if (custody.hasUnknownOwner)
+          throw new Error('assignee-commands fixture custody is unknown; retained ' + folder, {
+            cause,
+          });
+        rmSync(folder, { recursive: true, force: true });
+        throw cause;
+      }
       return {
         source: openSqliteSource({
           dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
           dbPath,
         }),
-        isMemory: false,
         seedParent: () => {
           seedSqlitePackageParent(dbPath, 'fixture-legacy-org', 'fixture-project');
           const sqlite = openDatabase(dbPath);
@@ -95,7 +104,7 @@ const STORES: readonly {
  * and `B`'s Review, unassigned, is claimed by `claire`.
  */
 async function seeded(store: (typeof STORES)[number]) {
-  const { source, isMemory, seedParent, dispose } = store.open();
+  const { source, seedParent, dispose } = store.open();
   const options = {
     admission: LEGACY_EDIT_ADMISSION,
     clock: testClock,
@@ -111,23 +120,33 @@ async function seeded(store: (typeof STORES)[number]) {
     );
   }
   seedParent();
+  for (const [id, code, name, position] of [
+    ['fixture-dev', 'dev', 'Dev', 10],
+    ['fixture-qa', 'qa', 'QA', 20],
+  ] as const) {
+    const defined = await source.stores.stepCatalogue.defineAndBindStep(
+      'fixture-legacy-org',
+      {
+        id,
+        code,
+        name,
+        position,
+        defaultAllowancePercent: 0,
+        defaultEstimateUnit: 'workdays',
+      },
+      {
+        bindingId: id + ':binding',
+        scopeKind: 'project',
+        scopeId: 'fixture-project',
+        workItemTypeId: null,
+        position,
+      },
+      { at: 1, by: F },
+    );
+    if (!defined.ok) throw new Error('fixture definition refused: ' + defined.reason);
+  }
   const created = expectCreated(await graph.workPackages.create('Assignees', 'fixture-project', F));
   const workPackageId = created.workPackage.id;
-  if (isMemory) {
-    // The memory source keeps a work package's steps apart from the step table its progress reads.
-    for (const step of created.steps) {
-      await source.stores.steps.add(
-        {
-          id: step.id,
-          workPackageId,
-          name: step.name,
-          allowancePercent: 0,
-          estimateUnit: 'workdays',
-        },
-        { at: 1, by: F },
-      );
-    }
-  }
   const [dev, review] = created.steps.map(({ id }) => id);
   for (const id of ['kat', 'ada', 'bob', 'claire']) {
     await source.stores.directory.addPerson({ id, name: id, kind: 'person' }, [], { at: 1, by: F });

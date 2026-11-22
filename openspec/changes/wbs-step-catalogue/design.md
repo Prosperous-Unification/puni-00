@@ -379,6 +379,15 @@ Current creation replies capture the package header and its inherited any-type c
   and applied only when the operator confirms it in `uncoded` (replaces E21's refusal). Names
   stay unique per catalogue (`name_clash`, E21's rule carried forward).
 
+  Current catalogue startup and newly generated backend swap plans do not run the
+  predecessor NULL-code backfill: confirmed codes already belong to this guarded
+  report/apply boundary. The existing writer fences, complete migration capture,
+  backups, runtime admission, health and vocabulary checks keep their own contracts;
+  omitting the obsolete mutator introduces no substitute profile certification.
+  The explicit historical backfill CLI and direct executor step retain their original
+  mutation, refusal and manual-completion behavior; generated current plans never
+  infer permission to use them from an older phase marker or an empty catalogue.
+
   Genuine predecessor probes on 2026-11-20 found that accepting a live parent progress
   statement left current catalogue readers unable to read the package. Report, rule
   preflight and guarded apply therefore refuse concrete parent points after tree
@@ -474,7 +483,7 @@ read translation only. Lease/revocation/delegation state lives on `claim`;
 
 ## Retained identity retirement (SC25)
 
-Accepted implementation assumption under the standing authorization to resolve this change's remaining details; it closes the conflict between SC5's definition deletion and SC11/SC13/SC21's retained identity and package values. See [Step retirement preserves identity](../../../docs/adr/0085-step-retirement-preserves-identity.md).
+Accepted implementation assumption under the standing authorization to resolve this change's remaining details; it closes the conflict between SC5's definition deletion and SC11/SC13/SC21's retained identity and package values. See [Step retirement preserves identity](../../../docs/adr/0086-step-retirement-preserves-identity.md).
 
 `DELETE /api/organization/steps/:id` retires an active definition. It requires `organization.manage_settings`, conceals foreign/absent/already-retired definitions as `404 not_found`, and refuses `409 step_bound` while any binding names the definition. An unbound definition retires successfully whether it has no references, unused package values, a legacy merge alias, or immutable history. It never deletes the definition or those references. The HTTP result is 204; `GET /api/organization/steps` lists active definitions and active bindings only. Retirement is not unbinding, clearing facts, renaming, or permission to rewrite a stored plan.
 

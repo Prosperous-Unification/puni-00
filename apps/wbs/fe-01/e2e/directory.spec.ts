@@ -1,5 +1,6 @@
 import { createWorkPackage } from './create-work-package';
 import { measureInk } from './measure-ink';
+import { assertOrdinaryAccount } from './ordinary-context';
 import { expect, type Page, test } from './ordinary-test';
 
 /**
@@ -26,7 +27,7 @@ const PHONE = { width: 390, height: 844 };
 /** Registers a throwaway account. Nothing in the deployment's directory yet. */
 async function signIn(page: Page, _account: string): Promise<void> {
   await page.goto('/');
-  await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
+  await assertOrdinaryAccount(page);
   await expect(page.getByRole('link', { name: 'Directory' })).toBeVisible();
 }
 

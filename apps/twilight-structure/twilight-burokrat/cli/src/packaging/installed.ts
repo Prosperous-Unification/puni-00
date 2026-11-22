@@ -5,10 +5,10 @@ import { parseOrThrow, parseSecretsOrThrow } from '@shared/validation';
 
 import { readJson, readOperatorFile } from '../policy/preparation-inputs';
 import {
-  type BunToolkit,
   type BunExecutionToolkit,
-  readSelectedBunToolkit,
+  type BunToolkit,
   readBunToolkit,
+  readSelectedBunToolkit,
   readToolkit,
   type Toolkit,
   type VerifiedToolkit,
@@ -143,10 +143,20 @@ export function readInstalledPuniToolkit(
   // Proof: c28-profile-native-package; injected fault failed `preserves native symlink-parent selection of a different valid PUNI installation`; restoration passed.
   const manifest = readPuniPackageManifest(realpathSync.native(distDirectory));
   // Proof: c28-profile-native-toolkit; injected fault failed `preserves native symlink-parent selection of a different valid PUNI installation`; restoration passed.
-  const selected=manifest.packageVersion==='0.4.0'
-    ?{kind:'selected' as const,toolkit:readSelectedBunToolkit(realpathSync.native(toolkitDirectory),manifest.sourceSelection)}
-    :{kind:'historical' as const,toolkit:readBunToolkit(realpathSync.native(toolkitDirectory))};
-  const toolkit=selected.toolkit;
+  const selected =
+    manifest.packageVersion === '0.4.0'
+      ? {
+          kind: 'selected' as const,
+          toolkit: readSelectedBunToolkit(
+            realpathSync.native(toolkitDirectory),
+            manifest.sourceSelection,
+          ),
+        }
+      : {
+          kind: 'historical' as const,
+          toolkit: readBunToolkit(realpathSync.native(toolkitDirectory)),
+        };
+  const toolkit = selected.toolkit;
   // Proof: c28-profile-digest; injected fault failed `refuses a self-consistent toolkit whose descriptor differs from the selected package identity`; restoration passed.
   if (toolkit.digest !== manifest.toolkitIdentity)
     throw new Error('installed toolkit differs from PUNI package manifest');
@@ -156,7 +166,6 @@ export function readInstalledPuniToolkit(
   // Proof: c28-profile-tag; injected fault failed `refuses package-bound toolkit with a different release tag`; restoration passed.
   if (toolkit.tag !== 'puni-v' + manifest.packageVersion)
     throw new Error('installed toolkit release differs from PUNI package version');
-  if (selected.kind === 'selected')
-    readRequiredTestLevelAssets(distDirectory, selected.toolkit);
+  if (selected.kind === 'selected') readRequiredTestLevelAssets(distDirectory, selected.toolkit);
   return toolkit;
 }

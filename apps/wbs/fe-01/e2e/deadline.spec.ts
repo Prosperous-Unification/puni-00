@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 
 import { createWorkPackage } from './create-work-package';
+import { assertOrdinaryAccount } from './ordinary-context';
 import {
   type Download,
   expect,
@@ -27,7 +28,7 @@ test.use({ viewport: { width: 390, height: 844 } });
 /** Makes one dated work item through the same controls this suite exercises. */
 async function seedDatedWorkItem(page: Page): Promise<void> {
   await page.goto('/');
-  await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
+  await assertOrdinaryAccount(page);
   await createWorkPackage(page, 'Deadline browser evidence');
   await page.getByRole('button', { name: 'Plan actions' }).click();
   const actions = page.getByRole('dialog', { name: 'Plan actions' });

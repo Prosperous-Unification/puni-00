@@ -1,3 +1,4 @@
+import { assertOrdinaryAccount } from './ordinary-context';
 import { expect, type Page, test } from './ordinary-test';
 import { openSeededPlan, type SeededPlan, seedPlan } from './plan-fixture';
 import { expectAnchoredColumn } from './signed-out-column';
@@ -70,7 +71,7 @@ test.describe('the session gate when the server is down (F-079)', () => {
     await page.unroute('**/api/**');
     await page.getByRole('button', { name: 'Try again' }).click();
 
-    await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
+    await assertOrdinaryAccount(page);
     await expect(page.getByRole('heading', { name: 'Server unavailable' })).toHaveCount(0);
   });
 });
@@ -101,7 +102,7 @@ test.describe('the session gate when a proxy refuses the read (F-095)', () => {
 
     await page.unroute('**/api/auth/me');
     await page.getByRole('button', { name: 'Try again' }).click();
-    await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
+    await assertOrdinaryAccount(page);
   });
 });
 

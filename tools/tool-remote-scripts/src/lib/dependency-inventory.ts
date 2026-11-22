@@ -9,15 +9,16 @@ export interface DormantDependencyStore {
 }
 
 /** Coordinator-owned, self-contained authority inspection, independent of image application code.
- * Historical stores without both authority migrations refuse; missing authority is never DISABLED.
+ * Current work-package authority requires exact renamed111 or recreated117 admission triggers.
+ * Predecessor project tables require an explicit compatibility adapter; missing authority is never DISABLED.
  * Ledger hashes are identities only: migration capture still compares them to artifact bytes.
  */
 export function inspectDormantDependencies(db: Database): DormantDependencyStore {
   const schemas = {
-    cross_project_dependency_activation:
-      "CREATE TABLE cross_project_dependency_activation (\n id INTEGER PRIMARY KEY NOT NULL CONSTRAINT \"external dependencies precede activation authority\" CHECK (id = 1),\n state TEXT NOT NULL CHECK (state IN ('DISABLED','ENABLED'))\n)",
-    cross_project_dependency_activation_receipt:
-      'CREATE TABLE cross_project_dependency_activation_receipt (\n id INTEGER PRIMARY KEY NOT NULL CHECK (id = 1),\n receipt TEXT NOT NULL CHECK (json_valid(receipt))\n)',
+    cross_work_package_dependency_activation:
+      'CREATE TABLE "cross_work_package_dependency_activation" (\n id INTEGER PRIMARY KEY NOT NULL CONSTRAINT "external dependencies precede activation authority" CHECK (id = 1),\n state TEXT NOT NULL CHECK (state IN (\'DISABLED\',\'ENABLED\'))\n)',
+    cross_work_package_dependency_activation_receipt:
+      'CREATE TABLE "cross_work_package_dependency_activation_receipt" (\n id INTEGER PRIMARY KEY NOT NULL CHECK (id = 1),\n receipt TEXT NOT NULL CHECK (json_valid(receipt))\n)',
   };
   // Proof: removing the real-table guard admitted ledger-view through the generated command (2026-10-22).
   for (const name of ['__drizzle_migrations', 'external_dependency', ...Object.keys(schemas)]) {
@@ -65,10 +66,10 @@ export function inspectDormantDependencies(db: Database): DormantDependencyStore
   for (const action of ['insert', 'update', 'delete']) {
     const expected = `CREATE TRIGGER external_dependency_admit_${action}
 BEFORE ${action.toUpperCase()} ON external_dependency
-WHEN (SELECT count(*) FROM cross_project_dependency_activation) <> 1
- OR NOT EXISTS (SELECT 1 FROM cross_project_dependency_activation WHERE id = 1 AND state = 'ENABLED')
- OR (SELECT count(*) FROM cross_project_dependency_activation_receipt) <> 1
- OR NOT EXISTS (SELECT 1 FROM cross_project_dependency_activation_receipt WHERE id = 1 AND json_valid(receipt) AND json_extract(receipt,'$.protocol') = 'wbs-dependency-activation' AND json_type(receipt,'$.version') IN ('integer','real') AND json_extract(receipt,'$.version') = 1)
+WHEN (SELECT count(*) FROM "cross_work_package_dependency_activation") <> 1
+ OR NOT EXISTS (SELECT 1 FROM "cross_work_package_dependency_activation" WHERE id = 1 AND state = 'ENABLED')
+ OR (SELECT count(*) FROM "cross_work_package_dependency_activation_receipt") <> 1
+ OR NOT EXISTS (SELECT 1 FROM "cross_work_package_dependency_activation_receipt" WHERE id = 1 AND json_valid(receipt) AND json_extract(receipt,'$.protocol') = 'wbs-dependency-activation' AND json_type(receipt,'$.version') IN ('integer','real') AND json_extract(receipt,'$.version') = 1)
 BEGIN
  SELECT RAISE(ABORT, 'external_dependencies_inactive');
 END`;
@@ -78,12 +79,28 @@ END`;
       )
       .get(`external_dependency_admit_${action}`);
     // Proof: skipping each action independently admitted its missing/altered/numeric-version trigger faults.
-    if (typeof trigger?.sql !== 'string' || trigger.sql.trim().replace(/;$/, '') !== expected)
+    const catalogueExpected = expected
+      .replaceAll(
+        '"cross_work_package_dependency_activation"',
+        'cross_work_package_dependency_activation',
+      )
+      .replaceAll(
+        '"cross_work_package_dependency_activation_receipt"',
+        'cross_work_package_dependency_activation_receipt',
+      );
+    // Proof: v231 independently skipped each action's inspection; both actual111 rename
+    // and117 recreation fixtures then admitted missing/altered/numeric/mixed-spelling guards.
+    // Each omission failed8 expected-refusal assertions; exact restoration passed8.
+    if (
+      typeof trigger?.sql !== 'string' ||
+      (trigger.sql.trim().replace(/;$/, '') !== expected &&
+        trigger.sql.trim().replace(/;$/, '') !== catalogueExpected)
+    )
       throw new Error(`invalid dependency admission trigger ${action}`);
   }
   const markers = db
     .query<{ id: unknown; state: unknown }, []>(
-      'SELECT id,state FROM cross_project_dependency_activation',
+      'SELECT id,state FROM cross_work_package_dependency_activation',
     )
     .all();
   // Proof: removing this guard admitted enabled-empty, absent marker, wrong-id and unknown-state fixtures.
@@ -92,7 +109,9 @@ END`;
       'dependency preservation requires exact DISABLED authority; ENABLED requires compatible attended recovery',
     );
   // Proof: removing receipt absence admitted disabled authority retaining a receipt.
-  if (db.query('SELECT id FROM cross_project_dependency_activation_receipt').all().length !== 0)
+  if (
+    db.query('SELECT id FROM cross_work_package_dependency_activation_receipt').all().length !== 0
+  )
     throw new Error('disabled dependency authority retains activation receipt');
   // Proof: removing edge absence admitted retained relationships with all exact admission triggers restored.
   if (db.query('SELECT id FROM external_dependency LIMIT 1').get() !== null)

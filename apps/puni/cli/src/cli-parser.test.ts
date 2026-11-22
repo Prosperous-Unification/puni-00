@@ -436,10 +436,37 @@ it('keeps local PUNI installation in composed PUNI help without advertising it i
 });
 
 for (const namespace of ['dash', 'd'])
-  it(namespace + ' selects the closed installed Forge supervision purpose after an existing namespace premise', () => {
-    expect(parseArguments([namespace, 'bootstrap-authority', '/owned repository']).invocation.kind).toBe('command');
-    expect<unknown>(parseArguments([namespace, 'dev-env', 'supervise', '--repository', '/owned repository', '--termination-log', '/owned termination.log'])).toEqual({
-      invocation: { kind: 'command', command: { tool: 'dash', request: { command: 'dev-env', action: 'supervise', repository: '/owned repository', terminationLog: '/owned termination.log' } } },
-      output: '',
-    });
-  });
+  it(
+    namespace +
+      ' selects the closed installed Forge supervision purpose after an existing namespace premise',
+    () => {
+      expect(
+        parseArguments([namespace, 'bootstrap-authority', '/owned repository']).invocation.kind,
+      ).toBe('command');
+      expect(
+        parseArguments([
+          namespace,
+          'dev-env',
+          'supervise',
+          '--repository',
+          '/owned repository',
+          '--termination-log',
+          '/owned termination.log',
+        ]),
+      ).toEqual({
+        invocation: {
+          kind: 'command',
+          command: {
+            tool: 'dash',
+            request: {
+              command: 'dev-env',
+              action: 'supervise',
+              repository: '/owned repository',
+              terminationLog: '/owned termination.log',
+            },
+          },
+        },
+        output: '',
+      });
+    },
+  );

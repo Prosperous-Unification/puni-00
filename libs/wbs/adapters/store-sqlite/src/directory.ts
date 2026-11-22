@@ -910,14 +910,14 @@ export class DirectoryRepository implements DirectoryStore {
         WHERE w.${sql.raw(column)} = ${id} AND ${foreignWorkPackage('w.work_package_id')} IS NOT ${o}`;
     const arms: Record<NamedCatalog, SQL[]> = {
       people: [
-        // The step's work package too: an assignment on another organization's step
-        // is reached from there even when the work item is this one's.
-        // Proof: dropping the step clause made the same test answer 200,
-        // deleting A's assignment on B's step; watched 2026-09-27.
+        // Definitions can span packages in one organization; foreign definition ownership
+        // still makes an assignment foreign even when its work item belongs here.
+        // Proof: omitting either owner predicate made its current-directory foreign-reach
+        // regression return [] instead of the assignment (delivery-directory-foreign-*-omission-v236).
         sql`SELECT 'assignment:' || l.work_item_id AS ref FROM assignment AS l
-          JOIN work_item AS w ON w.id = l.work_item_id JOIN step AS st ON st.id = l.step_id
+          JOIN work_item AS w ON w.id = l.work_item_id
           WHERE l.person_id = ${id} AND (${foreignWorkPackage('w.work_package_id')} IS NOT ${o}
-            OR ${foreignWorkPackage('st.work_package_id')} IS NOT ${o})`,
+            OR (SELECT organization_id FROM step_definition WHERE id = l.step_id) IS NOT ${o})`,
         sql`SELECT 'person_team:' || m.service_team_id AS ref FROM person_team AS m
           WHERE m.person_id = ${id} AND ${foreignOwner('service_team_organization', 'm.service_team_id')} IS NOT ${o}`,
       ],

@@ -223,7 +223,9 @@ images to the self-hosted registry, `release.json`), remote scripts install, the
 release, an unbuilt executor bundle, incomplete env files, local auth or a failed MCP preflight.
 The swap starts the idle colour, health-gates it, repoints Caddy, drains WebSockets, stops the
 old colour, runs smoke. Backend: all writers stopped and proven stopped, `VACUUM INTO` backup,
-the applied-migration set captured before migrate, step-code backfill before exposure; recovery
+the applied-migration set captured before migrate and post-stop vocabulary admission before
+exposure. Current catalogue codes belong to explicit report/apply; the predecessor code
+backfill remains an explicit historical tool. Recovery
 after exposure is attended. [runbook-prod-deploy.md](runbook-prod-deploy.md). Never build on
 h1claw.
 

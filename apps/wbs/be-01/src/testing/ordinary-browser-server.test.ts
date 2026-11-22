@@ -182,6 +182,19 @@ it('boots ordinary current authority, restarts its owned store and creates a pro
     const organizationCookie = selection.split(';').at(0);
     if (organizationCookie === undefined) throw new Error('Selection cookie is empty');
     const cookies = `__Host-wbs_access=${session.token}; ${organizationCookie}`;
+    const vocabulary = await fetch(`${origin}/api/external-systems`, {
+      headers: { cookie: cookies, 'X-WBS-Expected-Organization': 'ordinary-organization' },
+    });
+    expect(vocabulary.status).toBe(200);
+    expect(await vocabulary.json()).toEqual({
+      externalSystems: [
+        { id: 'sys-confluence-page', name: 'confluence-page' },
+        { id: 'sys-github-issue', name: 'github-issue' },
+        { id: 'sys-github-pr', name: 'github-pr' },
+        { id: 'sys-jira-issue', name: 'jira-issue' },
+        { id: 'sys-slack-message', name: 'slack-message' },
+      ],
+    });
     const created = await fetch(`${origin}/api/projects`, {
       method: 'POST',
       headers: {

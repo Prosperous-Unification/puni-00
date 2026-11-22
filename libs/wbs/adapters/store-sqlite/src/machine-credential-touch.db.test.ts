@@ -7,22 +7,30 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { openDrizzle } from './db';
 import { OPEN } from './gate';
 import { MachineCredentialRepository } from './machine-credential';
-import { runMigrations } from './migrate';
-
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+import {
+  type CatalogueFixtureCustody,
+  migrateEmptyCatalogueFixture,
+} from './testing/catalogue-database';
 
 /** {@link MachineCredentialRepository.touchLastUsed} over a migrated, empty store. */
 describe('recording a machine credential’s last use', () => {
   let dir: string;
+  let custody: CatalogueFixtureCustody;
   let path: string;
 
   beforeEach(() => {
+    custody = { hasUnknownOwner: false };
     dir = mkdtempSync(join(tmpdir(), 'wbs-machine-touch-'));
     path = join(dir, 'test.db');
-    runMigrations(path, FOLDER);
+    migrateEmptyCatalogueFixture({ path, directory: dir, reportedAt: 1 }, custody);
   });
 
   afterEach(() => {
+    // Proof: sqlite-cohort1-v233-machine-credential-touch injected a throw after
+    // real close returned. Omission deleted this directory; restoration retained
+    // it. This did not inject a leaked native handle.
+    if (custody.hasUnknownOwner)
+      throw new Error('SQLite fixture has unknown native custody; retained ' + dir);
     rmSync(dir, { recursive: true, force: true });
   });
 

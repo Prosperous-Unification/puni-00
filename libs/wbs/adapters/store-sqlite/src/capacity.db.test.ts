@@ -11,12 +11,13 @@ import { CapacityRepository } from './capacity';
 import { openDatabase, openDrizzle } from './db';
 import { DirectoryRepository } from './directory';
 import { OPEN } from './gate';
-import { runMigrations } from './migrate';
+import {
+  type CatalogueFixtureCustody,
+  migrateEmptyCatalogueFixture,
+} from './testing/catalogue-database';
 import { seedLegacyPackageParent } from './testing/legacy-package-parent';
 import { UserRepository } from './user';
 import { WorkPackageRepository } from './work-package';
-
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 
 /** The stamp every write here carries; `owner` is the account the setup creates first. */
 const wrote: WriteStamp = { at: 1, by: 'owner' };
@@ -34,6 +35,7 @@ const wrote: WriteStamp = { at: 1, by: 'owner' };
  */
 describe('a work package’s capacity for a team', () => {
   let dir: string;
+  let custody: CatalogueFixtureCustody;
   /** The raw handle, for the two claims that are about rows rather than about the store. */
   let sqlite: Database;
   let capacity: CapacityRepository;
@@ -46,9 +48,10 @@ describe('a work package’s capacity for a team', () => {
     });
 
   beforeEach(async () => {
+    custody = { hasUnknownOwner: false };
     dir = mkdtempSync(join(tmpdir(), 'wbs-capacity-'));
     const path = join(dir, 'test.db');
-    runMigrations(path, FOLDER);
+    migrateEmptyCatalogueFixture({ path, directory: dir, reportedAt: 1 }, custody);
     seedLegacyPackageParent(path, 'fixture-legacy-org', 'fixture-project');
     const db = openDrizzle(path);
     sqlite = openDatabase(path);
@@ -70,6 +73,12 @@ describe('a work package’s capacity for a team', () => {
   });
 
   afterEach(() => {
+    // Proof: sqlite-cohort3-v247-capacity injected a throw after real close
+    // returned. Omission masked this diagnostic with an unacquired SQLite
+    // connection TypeError; restoration reported retained custody. The directory
+    // remained retained even when the guard was omitted.
+    if (custody.hasUnknownOwner)
+      throw new Error('SQLite fixture has unknown native custody; retained ' + dir);
     sqlite.close();
     rmSync(dir, { recursive: true, force: true });
   });

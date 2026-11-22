@@ -85,8 +85,18 @@ be reinstalled after this change or `assertBundleInstalled` will (correctly) ref
 `--version`, `--since` and `--skip-build` are **refused** — they were parsed and ignored
 until 2026-08-04, so `--version=v1.2.3` read as a rollback and deployed HEAD instead.
 
-**Step-code backfill.** A `be` swap ends with `backfill-step-codes`, after `stop-blue` and before alias/routing exposure and `commit`. It runs `bun run src/backfill-step-codes-cli.ts` in the new colour, which codes every
-step an older release inserted without a code. If it fails, candidate boot has already established possible exposure: the executor retains the candidate and current writes, keeps the outgoing backend stopped, preserves interruption markers, and does not commit. The error names the manual command,
+**Predecessor step-code backfill.** Current catalogue boot and newly generated `be` swap
+plans omit this historical effect. Formerly uncoded steps require explicit SC23
+confirmation during guarded catalogue report/apply; current definitions have required
+codes. Writer fencing, migration capture/backups, runtime admission and post-stop
+vocabulary checks retain their existing responsibilities.
+
+An explicit historical `backfill-step-codes` executor step still runs
+`bun run src/backfill-step-codes-cli.ts` in the incoming colour, coding every step an
+older release inserted without a code. It requires the predecessor store layout;
+it is not a current catalogue inspection or an automatic fallback. If it fails,
+the executor retains the candidate and current writes, keeps the outgoing backend
+stopped, preserves interruption markers, and does not commit. The error names the manual command,
 `docker exec be-01-<colour> bun run src/backfill-step-codes-cli.ts`. That command is idempotent:
 run it until it prints `step codes backfilled: <n>`, then follow the backend interruption recovery procedure before another deploy
 (`backfillStepCodes` in `libs/wbs/adapters/store-sqlite/src/step-code-backfill.ts`).
@@ -1134,7 +1144,7 @@ Missing/unreadable or ambiguous mount metadata, special/symlink aliases, malform
 
 The exclusive private interruption files under `/home/puni1/wbs/state` are `be-writer-stop.json`, `be-writer-maintenance.json`, `be-writer-migration.json` and `be-writer-exposure.json`. Preflight freezes two mode0600, hash-pinned Compose snapshots from one validated resolved application configuration and immutable image. Both retain the exact environment, working directory, database/solver mounts and init prerequisite. Stop intent records both snapshot identities and exact outgoing/idle IDs before either writer stops. Stopped identities and the complete inventory are revalidated, then independent read-only fact/replay one-offs admit the digest against the stopped SQLite family.
 
-**Maintenance precedes application startup.** The maintenance snapshot explicitly replaces entrypoint with `bun -e 'setInterval(() => {}, 60000)'`, clears command, disables healthcheck and sets restart=no. It starts with forced recreation, no dependencies and pull=never. The executor records its exact ID, image ID and snapshot hashes, and inspects running/unpaused/not-restarting identity plus inert entrypoint/command/health/restart, environment, mounts and working directory before database CLI execution. Backup, migration-set capture and forward migration target that exact ID, never the reusable colour name. Capture bytes are published, read back and digested; durable migration intent precedes the forward CLI. After successful migration the exact maintenance ID stops and is independently proved stopped. Only then is application exposure durably recorded and the original application snapshot force-recreated. Actual app boot retains `migrateOnStartup=false` and the StepBlockage admission check; an authentic predecessor cannot boot until its admission migration has run. Health, compatibility readback, backfill and alias/Caddy routing follow. Only recorded commit clears interruption files.
+**Maintenance precedes application startup.** The maintenance snapshot explicitly replaces entrypoint with `bun -e 'setInterval(() => {}, 60000)'`, clears command, disables healthcheck and sets restart=no. It starts with forced recreation, no dependencies and pull=never. The executor records its exact ID, image ID and snapshot hashes, and inspects running/unpaused/not-restarting identity plus inert entrypoint/command/health/restart, environment, mounts and working directory before database CLI execution. Backup, migration-set capture and forward migration target that exact ID, never the reusable colour name. Capture bytes are published, read back and digested; durable migration intent precedes the forward CLI. After successful migration the exact maintenance ID stops and is independently proved stopped. Only then is application exposure durably recorded and the original application snapshot force-recreated. Actual app boot retains `migrateOnStartup=false` and the StepBlockage admission check; an authentic predecessor cannot boot until its admission migration has run. Health, compatibility readback and alias/Caddy routing follow. Only recorded commit clears interruption files.
 
 Each stored read-only probe copies the quiescent main file and retained WAL/journal into private writable scratch; source SHM is excluded and SQLite creates scratch SHM. Absence of optional sidecars is explicit; unreadability refuses. Source files must remain quiescent. Phase writes never replace interruption evidence, and ordinary retry refuses every retained, malformed or unreadable marker.
 

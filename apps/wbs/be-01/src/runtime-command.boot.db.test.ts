@@ -1,6 +1,6 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
 import { RetentionTimer } from '@wbs/core/module/bounded-replay-sweep/retention-timer';
 import { ClaimLeaseSweep } from '@wbs/core/module/plan-commands/claim-lease-sweep';
@@ -18,6 +18,7 @@ import * as migrationModule from './repository/migrate';
 import { runMigrations } from './repository/migrate';
 import { UserRepository } from './repository/user';
 import * as dependencyRuntime from './runtime/dependency-capability';
+import { migrateOrganizationCatalogueFixture } from './testing/organization-catalogue-fixture';
 import { TEST_ORGANIZATION_DEFAULT_LIMITS } from './testing/organization-limits-fixture';
 
 /** Binds this fixture's owned loopback socket while preserving in-process listener injection. */
@@ -376,9 +377,18 @@ async function expectBootFailure(booting: Promise<RunningBe>): Promise<void> {
   expect(failure).toBeInstanceOf(Error);
 }
 
-test('prepares schema, dependency admission and identity once before the coherent runtime ledger barrier', async () => {
+test('prepares schema and identity once with preflight and post-migration dependency admission before the coherent runtime ledger barrier', async () => {
   const configured = { ...createOptions(), organizationDnsResolvers: undefined };
+  const directory = dirname(configured.dbPath);
+  // Register cleanup only after the actual catalogue owner returns; acquisition failure retains it.
+  // Proof: v252 omitted only deregistration; actual afterEach deleted the close-uncertain root/DB.
+  // Restoration retained both and the exact cause after native close returned then threw.
+  // This proves conservative namespace retention, not an actual leaked descriptor.
+  expect(directories.pop()).toBe(directory);
+  migrateOrganizationCatalogueFixture(configured.dbPath);
+  directories.push(directory);
   const stages: string[] = [];
+  let hasMigrated = false;
   const migrate = migrationModule.runMigrations;
   const backfill = stepCodes.backfillStepCodes;
   const admit = dependencyRuntime.assertDependencyRuntime;
@@ -388,6 +398,7 @@ test('prepares schema, dependency admission and identity once before the coheren
   const migrations = spyOn(migrationModule, 'runMigrations').mockImplementation((...args) => {
     stages.push('migration');
     migrate(...args);
+    hasMigrated = true;
   });
   const backfills = spyOn(stepCodes, 'backfillStepCodes').mockImplementation((...args) => {
     stages.push('backfill');
@@ -395,7 +406,7 @@ test('prepares schema, dependency admission and identity once before the coheren
   });
   const dependencies = spyOn(dependencyRuntime, 'assertDependencyRuntime').mockImplementation(
     (...args) => {
-      stages.push('dependency admission');
+      stages.push(hasMigrated ? 'post-migration admission' : 'preflight admission');
       admit(...args);
     },
   );
@@ -442,15 +453,16 @@ test('prepares schema, dependency admission and identity once before the coheren
       },
     );
     expect(stages).toEqual([
+      'preflight admission',
       'migration',
-      'dependency admission',
-      'backfill',
+      'post-migration admission',
       'identity',
       'ledger',
       'listener',
     ]);
+    expect(dependencies).toHaveBeenCalledTimes(2);
     expect(migrations).toHaveBeenCalledTimes(1);
-    expect(backfills).toHaveBeenCalledTimes(1);
+    expect(backfills).toHaveBeenCalledTimes(0);
     expect(identity).toHaveBeenCalledTimes(1);
   } finally {
     await running?.stop();

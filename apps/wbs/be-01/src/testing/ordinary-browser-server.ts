@@ -420,6 +420,10 @@ try {
       insertOrganization(sqlite, organizationId);
       insertMembership(sqlite, organizationId, accountId, 'super_admin');
       sqlite.run(
+        'INSERT INTO external_system_organization(resource_id,organization_id,name) SELECT id,?,name FROM external_system',
+        [organizationId],
+      );
+      sqlite.run(
         "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES(?,?,'organization',?,'user',?,'org-super-admin','route',?)",
         [grantId, organizationId, organizationId, accountId, Date.now()],
       );

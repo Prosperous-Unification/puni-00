@@ -1,6 +1,3 @@
-import { CURRENT_SOURCE_IMAGE_PROBE } from './source-image-probe-current';
-import { selectSourceStartup, type CurrentSourceStartupRequest, type SourceStartupPins } from './source-startup-profile';
-import { selectCurrentSourceFrontendProfile, type CurrentSourceFrontendProfile } from './source-frontend-profile-current';
 import { createHash } from 'node:crypto';
 import { posix } from 'node:path';
 
@@ -20,10 +17,18 @@ import {
   type SourceDevExclusion,
 } from './source-dev-exclusion';
 import { selectSourceFrontendProfile, type SourceFrontendProfile } from './source-frontend-profile';
-import type { SourceRestorationConfiguration } from './source-restoration-configuration';
 import {
-  assertSourceDeadline,
-} from './source-startup-manifest';
+  type CurrentSourceFrontendProfile,
+  selectCurrentSourceFrontendProfile,
+} from './source-frontend-profile-current';
+import { CURRENT_SOURCE_IMAGE_PROBE } from './source-image-probe-current';
+import type { SourceRestorationConfiguration } from './source-restoration-configuration';
+import { assertSourceDeadline } from './source-startup-manifest';
+import {
+  type CurrentSourceStartupRequest,
+  selectSourceStartup,
+  type SourceStartupPins,
+} from './source-startup-profile';
 
 interface SourceCapability {
   readonly role: DependencyCapabilityRole;
@@ -316,22 +321,29 @@ export async function observeSourceDevInputs(
       for (const context of contexts) {
         const output = await readSourceDocker(
           profile.kind === 'current'
-            ? [...context, '/usr/local/bin/bun', '--no-env-file', '--config=/dev/null', '--eval', CURRENT_SOURCE_IMAGE_PROBE]
+            ? [
+                ...context,
+                '/usr/local/bin/bun',
+                '--no-env-file',
+                '--config=/dev/null',
+                '--eval',
+                CURRENT_SOURCE_IMAGE_PROBE,
+              ]
             : [...context, '/bin/sh', '-c', IMAGE_CONFIG_PROBE],
           docker,
           deadline,
         );
-        const expected = profile.kind === 'current' ? 'wbs-source-image-config-absent-v2\n' : 'wbs-source-image-config-absent-v1\n';
+        const expected =
+          profile.kind === 'current'
+            ? 'wbs-source-image-config-absent-v2\n'
+            : 'wbs-source-image-config-absent-v1\n';
         if (output !== expected) refuse();
       }
       // Proof: post-probe inventory omission admitted a successful final probe still present in complete inventory.
       await inspectCurrentInventory();
     }
     await inspectRuntime();
-    const recheckTree = await profile.captureTree(
-      `${layouts.dev.root}/src`,
-      deadline,
-    );
+    const recheckTree = await profile.captureTree(`${layouts.dev.root}/src`, deadline);
     const capabilities: SourceCapability[] = [];
     for (const { role, purpose, tier } of ROLES) {
       assertSourceDeadline(deadline);
@@ -339,7 +351,12 @@ export async function observeSourceDevInputs(
       // Proof: source-token binding omitted admitted a copied token; copied source token test failed.
       await inspectSourceDevExclusion(owner, source, deadline);
       const output = await readSourceDocker(
-        createRoleCommand(pins.runtimeImageId, `${layouts.dev.root}/src`, tier, profile.kind === 'current'),
+        createRoleCommand(
+          pins.runtimeImageId,
+          `${layouts.dev.root}/src`,
+          tier,
+          profile.kind === 'current',
+        ),
         docker,
         deadline,
       );
@@ -377,7 +394,10 @@ export async function observeSourceDevInputs(
       if (!/^[^\s@]+@sha256:[a-f0-9]{64}$/.test(runtimeReference)) refuse();
       await recheck();
       // Proof: replacing original-manifest selection with the supported literal admitted changed inputs; the original capture negative failed, then passed after restoration.
-      const frontend = profile.kind === 'current' ? selectCurrentSourceFrontendProfile(profile.manifest) : selectSourceFrontendProfile(profile.manifest);
+      const frontend =
+        profile.kind === 'current'
+          ? selectCurrentSourceFrontendProfile(profile.manifest)
+          : selectSourceFrontendProfile(profile.manifest);
       const assignments = member.config['Env'];
       if (!Array.isArray(assignments)) refuse();
       const inherited: string[] = [];
@@ -390,7 +410,12 @@ export async function observeSourceDevInputs(
         inherited,
         deadline,
       );
-      const command = createRoleCommand(pins.runtimeImageId, `${layouts.dev.root}/src`, 'be-01', profile.kind === 'current');
+      const command = createRoleCommand(
+        pins.runtimeImageId,
+        `${layouts.dev.root}/src`,
+        'be-01',
+        profile.kind === 'current',
+      );
       command[command.indexOf('--workdir') + 1] = '/src';
       command[command.length - 1] = 'apps/wbs/be-01/src/openapi/emit-openapi-cli.ts';
       const generated = await readSourceDocker(command, docker, deadline);
@@ -401,11 +426,7 @@ export async function observeSourceDevInputs(
       readFields(document['info']);
       readFields(document['paths']);
       const openapiSha256 = createHash('sha256').update(generated).digest('hex');
-      const tree = await profile.captureRestart(
-        `${layouts.dev.root}/src`,
-        deadline,
-        openapiSha256,
-      );
+      const tree = await profile.captureRestart(`${layouts.dev.root}/src`, deadline, openapiSha256);
       await recheck();
       async function inspectRestartRuntime(): Promise<void> {
         await assertDependencyOwner(owner, layouts.prod, pins.sourceSha);
@@ -455,11 +476,7 @@ export async function observeSourceDevInputs(
           else await tree.inspectRunning();
           assertSame(
             configuration,
-            await profile.captureConfiguration(
-              `${layouts.dev.root}/src`,
-              inherited,
-              deadline,
-            ),
+            await profile.captureConfiguration(`${layouts.dev.root}/src`, inherited, deadline),
             'source retained role configuration',
           );
           await inspectRestartRuntime();

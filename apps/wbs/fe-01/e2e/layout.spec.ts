@@ -1466,7 +1466,7 @@ test.describe('the table, measured by a browser', () => {
     for (const panel of ['Filters', 'Views', 'Columns', 'Export'] as const) {
       const summary = page.getByText(new RegExp(`^${panel}`), { exact: false }).first();
       await summary.click();
-      const open = page.locator('details[open]');
+      const open = page.locator('details[data-dismissible][open]');
       await expect(open, `${panel} did not open`).toHaveCount(1);
 
       // On the table, which is where a reader's next click actually goes, and
@@ -1480,7 +1480,10 @@ test.describe('the table, measured by a browser', () => {
       // Export mounted after that read and this failed on `Export stayed open ·
       // Expected: 0 · Received: 1`. Watched on the full Chromium production
       // path, 2026-09-09.
-      await expect(page.locator('details[open]'), `${panel} stayed open`).toHaveCount(0);
+      await expect(
+        page.locator('details[data-dismissible][open]'),
+        `${panel} stayed open`,
+      ).toHaveCount(0);
     }
   });
 

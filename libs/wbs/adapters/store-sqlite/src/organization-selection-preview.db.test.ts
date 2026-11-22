@@ -6,20 +6,23 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { sql } from 'drizzle-orm';
 
 import { openDatabase, openReadOnlyConnection } from './db';
-import { runMigrations } from './migrate';
 import { previewOrganizationSelection } from './organization-selection-preview';
-
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+import {
+  type CatalogueFixtureCustody,
+  migrateEmptyCatalogueFixture,
+} from './testing/catalogue-database';
 
 /** The read-only dry run of task 2.4's organization selection. */
 describe('previewOrganizationSelection', () => {
   let dir: string;
+  let custody: CatalogueFixtureCustody;
   let path: string;
 
   beforeEach(() => {
+    custody = { hasUnknownOwner: false };
     dir = mkdtempSync(join(tmpdir(), 'wbs-selection-preview-'));
     path = join(dir, 'test.db');
-    runMigrations(path, FOLDER);
+    migrateEmptyCatalogueFixture({ path, directory: dir, reportedAt: 1 }, custody);
     const db = openDatabase(path);
     try {
       for (const id of ['u-none', 'u-one', 'u-two']) {
@@ -49,6 +52,11 @@ describe('previewOrganizationSelection', () => {
   });
 
   afterEach(() => {
+    // Proof: sqlite-cohort1-v233-organization-selection-preview injected a throw after
+    // real close returned. Omission deleted this directory; restoration retained
+    // it. This did not inject a leaked native handle.
+    if (custody.hasUnknownOwner)
+      throw new Error('SQLite fixture has unknown native custody; retained ' + dir);
     rmSync(dir, { recursive: true, force: true });
   });
 

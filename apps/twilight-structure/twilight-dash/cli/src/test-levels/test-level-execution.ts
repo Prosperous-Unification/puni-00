@@ -20,18 +20,22 @@ class TestLevelCancellation extends Error {}
  */
 export class TestLevelExecution {
   private readonly native = createPerformanceProcessOwner();
-  private readonly observations: Promise<{ok: true} | {ok: false; cause: unknown}>[] = [];
+  private readonly observations: Promise<{ ok: true } | { ok: false; cause: unknown }>[] = [];
   private readonly judgeDirectories = new Set<string>();
   private stopping: Promise<void> | undefined;
   private isClosing = false;
   private hasUnobservedLaunch = false;
-  private cancellationCleanup: Promise<{ok: true} | {ok: false; cause: unknown}> | undefined;
+  private cancellationCleanup: Promise<{ ok: true } | { ok: false; cause: unknown }> | undefined;
   private readonly observationFailures: unknown[] = [];
-  private cancellation: {signal:'SIGINT'|'SIGTERM';cause:TestLevelCancellation}|undefined;
-  private operationFailure: {cause:unknown}|undefined;
+  private cancellation: { signal: 'SIGINT' | 'SIGTERM'; cause: TestLevelCancellation } | undefined;
+  private operationFailure: { cause: unknown } | undefined;
   private readonly children = new WeakSet<Bun.Subprocess>();
-  private readonly onInterrupt = (): void => { this.cancel('SIGINT'); };
-  private readonly onTermination = (): void => { this.cancel('SIGTERM'); };
+  private readonly onInterrupt = (): void => {
+    this.cancel('SIGINT');
+  };
+  private readonly onTermination = (): void => {
+    this.cancel('SIGTERM');
+  };
 
   constructor() {
     process.on('SIGINT', this.onInterrupt);
@@ -40,23 +44,27 @@ export class TestLevelExecution {
 
   /** Return the same channel promise while retaining its exact success/failure for final cleanup. */
   capture<Value>(pending: Promise<Value>): Promise<Value> {
-    this.observations.push(pending.then(
-      (): {ok: true} => ({ok: true}),
-      (cause: unknown): {ok: false; cause: unknown} => ({ok: false, cause}),
-    ));
+    this.observations.push(
+      pending.then(
+        (): { ok: true } => ({ ok: true }),
+        (cause: unknown): { ok: false; cause: unknown } => ({ ok: false, cause }),
+      ),
+    );
     return pending;
   }
 
   /** The actual native owner registers the child before returning; a failed admission stays unknown. */
   spawn(
-    argv: string[], cwd: string, environment: Record<string, string>,
-    output?: {stdout: number | 'pipe'; stderr: number | 'pipe'},
+    argv: string[],
+    cwd: string,
+    environment: Record<string, string>,
+    output?: { stdout: number | 'pipe'; stderr: number | 'pipe' },
   ): Bun.Subprocess {
     this.assertOpen();
     try {
       const child = this.native.spawn(argv, cwd, environment, output);
       this.children.add(child);
-      this.capture(child.exited);
+      void this.capture(child.exited);
       return child;
     } catch (cause) {
       this.hasUnobservedLaunch = true;
@@ -73,37 +81,49 @@ export class TestLevelExecution {
   }
 
   /** Retain an actual observation-setup failure so cleanup cannot turn missing channels into known custody. */
-  retainFailure(cause: unknown): void { this.observationFailures.push(cause); }
+  retainFailure(cause: unknown): void {
+    this.observationFailures.push(cause);
+  }
 
   /** Expected cancellation is only this owner's actual signal token, never an arbitrary later error. */
-  isCancellation(cause:unknown):boolean {
-    return this.cancellation!==undefined&&Object.is(cause,this.cancellation.cause);
+  isCancellation(cause: unknown): boolean {
+    return this.cancellation !== undefined && Object.is(cause, this.cancellation.cause);
   }
 
   /** Record an unexpected operation failure when first observed, before resource cleanup can receive a later signal. */
-  observeOperationFailure(cause:unknown):void {
-    if(!this.isCancellation(cause))this.operationFailure??={cause};
+  observeOperationFailure(cause: unknown): void {
+    if (!this.isCancellation(cause)) this.operationFailure ??= { cause };
   }
 
   /** Observe an action before its enclosing lock/resource owner starts release. */
-  observeOperation<Value>(pending:Promise<Value>):Promise<Value> {
-    return pending.catch((cause:unknown)=>{this.observeOperationFailure(cause);throw cause;});
+  observeOperation<Value>(pending: Promise<Value>): Promise<Value> {
+    return pending.catch((cause: unknown) => {
+      this.observeOperationFailure(cause);
+      throw cause;
+    });
   }
 
   /** A successful callback cannot erase a previously observed unexpected failure. */
-  assertOperationSucceeded():void {
-    if(this.operationFailure!==undefined)throw this.operationFailure.cause;
+  assertOperationSucceeded(): void {
+    if (this.operationFailure !== undefined) throw this.operationFailure.cause;
   }
 
   /** Convert only an actual owned child killed by TERM/KILL after recorded cancellation, before payload decoding. */
-  assertChildResult(child:Bun.Subprocess,exitCode:number):void {
-    if(!this.children.has(child))throw new Error('test-level response is not from this execution');
-    if(this.cancellation!==undefined&&exitCode!==0&&(child.signalCode==='SIGTERM'||child.signalCode==='SIGKILL'))
+  assertChildResult(child: Bun.Subprocess, exitCode: number): void {
+    if (!this.children.has(child))
+      throw new Error('test-level response is not from this execution');
+    if (
+      this.cancellation !== undefined &&
+      exitCode !== 0 &&
+      (child.signalCode === 'SIGTERM' || child.signalCode === 'SIGKILL')
+    )
       throw this.cancellation.cause;
   }
 
   /** Memoize even a failed cleanup; no native pidfd close or uncertain resource release is retried. */
-  stop(): Promise<void> { return (this.stopping ??= this.finish()); }
+  stop(): Promise<void> {
+    return (this.stopping ??= this.finish());
+  }
 
   /**
    * Release only after the enclosing operation has awaited stop and finished its own artifact cleanup.
@@ -113,14 +133,20 @@ export class TestLevelExecution {
     try {
       await this.stop();
       if (this.observationFailures.length !== 0)
-        throw new TestLevelCleanupFailure([...this.observationFailures], 'Test-level release failed after native cleanup');
+        throw new TestLevelCleanupFailure(
+          [...this.observationFailures],
+          'Test-level release failed after native cleanup',
+        );
       if (this.cancellation !== undefined) {
         const cleanup = this.cancellationCleanup;
-        if (cleanup === undefined) throw new Error('test-level cancellation lacks its owned cleanup observation');
+        if (cleanup === undefined)
+          throw new Error('test-level cancellation lacks its owned cleanup observation');
         const settlement = await cleanup;
         if (!settlement.ok) throw settlement.cause;
       }
-    } finally { this.detach(); }
+    } finally {
+      this.detach();
+    }
     if (this.cancellation !== undefined && this.operationFailure === undefined)
       process.kill(process.pid, this.cancellation.signal);
   }
@@ -130,9 +156,9 @@ export class TestLevelExecution {
     if (this.cancellation !== undefined) throw this.cancellation.cause;
   }
 
-  private assertOpen():void {
-    if(this.cancellation!==undefined)throw this.cancellation.cause;
-    if(this.isClosing)throw new Error('test-level execution is closing');
+  private assertOpen(): void {
+    if (this.cancellation !== undefined) throw this.cancellation.cause;
+    if (this.isClosing) throw new Error('test-level execution is closing');
   }
 
   private detach(): void {
@@ -142,45 +168,69 @@ export class TestLevelExecution {
 
   private cancel(signal: 'SIGINT' | 'SIGTERM'): void {
     if (this.cancellation !== undefined) return;
-    this.cancellation = {signal,cause:new TestLevelCancellation('test-level execution was cancelled by '+signal)};
+    this.cancellation = {
+      signal,
+      cause: new TestLevelCancellation('test-level execution was cancelled by ' + signal),
+    };
     // The enclosing operation awaits this exact retained stop promise. No competing handler
     // terminates the caller before its artifact cleanup and the shared child tree have settled.
     this.cancellationCleanup = this.stop().then(
-      (): {ok: true} => ({ok: true}),
-      (cause: unknown): {ok: false; cause: unknown} => ({ok: false, cause}),
+      (): { ok: true } => ({ ok: true }),
+      (cause: unknown): { ok: false; cause: unknown } => ({ ok: false, cause }),
     );
   }
 
   private async finish(): Promise<void> {
     this.isClosing = true;
     const failures: unknown[] = [];
+    const hasFailures = (): boolean => failures.length !== 0;
     const remember = (cause: unknown): void => {
-      if (!failures.some(previous => Object.is(previous, cause))) failures.push(cause);
+      if (!failures.some((previous) => Object.is(previous, cause))) failures.push(cause);
     };
-    try { await this.native.stop(); } catch (cause) { remember(cause); }
+    try {
+      await this.native.stop();
+    } catch (cause) {
+      remember(cause);
+    }
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
       const settled = await Promise.race([
         Promise.all(this.observations),
         new Promise<never>((_accept, reject) => {
-          timer = setTimeout(() => reject(new Error('test-level numeric exit or output EOF did not settle')), 8_000);
+          timer = setTimeout(() => {
+            reject(new Error('test-level numeric exit or output EOF did not settle'));
+          }, 8_000);
         }),
       ]);
       for (const observation of settled) if (!observation.ok) remember(observation.cause);
-    } catch (cause) { remember(cause); }
-    finally { if (timer !== undefined) clearTimeout(timer); }
-    for (const cause of this.observationFailures) remember(cause);
-    if (this.hasUnobservedLaunch) remember(new Error('test-level launch observation is incomplete'));
-    if (failures.length !== 0)
-      throw new TestLevelCustodyFailure(failures,
-        'Test-level custody unconfirmed; retained judge directories: ' + [...this.judgeDirectories].join(', '));
-    for (const directory of this.judgeDirectories) {
-      try { await rm(directory, {recursive: true}); this.judgeDirectories.delete(directory); }
-      catch (cause) { remember(cause); }
+    } catch (cause) {
+      remember(cause);
+    } finally {
+      if (timer !== undefined) clearTimeout(timer);
     }
-    if (failures.length !== 0)
-      throw new TestLevelCustodyFailure(failures,
-        'Test-level judge directory release failed; retained: ' + [...this.judgeDirectories].join(', '));
+    for (const cause of this.observationFailures) remember(cause);
+    if (this.hasUnobservedLaunch)
+      remember(new Error('test-level launch observation is incomplete'));
+    if (hasFailures())
+      throw new TestLevelCustodyFailure(
+        failures,
+        'Test-level custody unconfirmed; retained judge directories: ' +
+          [...this.judgeDirectories].join(', '),
+      );
+    for (const directory of this.judgeDirectories) {
+      try {
+        await rm(directory, { recursive: true });
+        this.judgeDirectories.delete(directory);
+      } catch (cause) {
+        remember(cause);
+      }
+    }
+    if (hasFailures())
+      throw new TestLevelCustodyFailure(
+        failures,
+        'Test-level judge directory release failed; retained: ' +
+          [...this.judgeDirectories].join(', '),
+      );
   }
 }
 
@@ -190,23 +240,35 @@ export async function runTestLevelExecution<Value>(
 ): Promise<Value> {
   const execution = new TestLevelExecution();
   const completed = await (async () => await execute(execution))().then(
-    (value) => ({ok: true as const, value}),
-    (cause: unknown) => ({ok: false as const, cause}),
+    (value) => ({ ok: true as const, value }),
+    (cause: unknown) => ({ ok: false as const, cause }),
   );
   if (!completed.ok) {
     execution.observeOperationFailure(completed.cause);
-    if (completed.cause instanceof TestLevelCleanupFailure) execution.retainFailure(completed.cause);
+    if (completed.cause instanceof TestLevelCleanupFailure)
+      execution.retainFailure(completed.cause);
   }
   const cleanup: unknown[] = [];
   const remember = (cause: unknown): void => {
-    if (!cleanup.some(previous => Object.is(previous, cause))) cleanup.push(cause);
+    if (!cleanup.some((previous) => Object.is(previous, cause))) cleanup.push(cause);
   };
-  try { await execution.stop(); } catch (cause) { remember(cause); }
-  try { await execution.dispose(); } catch (cause) { remember(cause); }
+  try {
+    await execution.stop();
+  } catch (cause) {
+    remember(cause);
+  }
+  try {
+    await execution.dispose();
+  } catch (cause) {
+    remember(cause);
+  }
   if (cleanup.length !== 0)
-    throw new AggregateError(completed.ok ? cleanup : [completed.cause, ...cleanup],
-      'Test-level execution cleanup failed: ' + cleanup.map(String).join('; ') +
-      (completed.ok ? '' : '; operation failed: ' + String(completed.cause)));
+    throw new AggregateError(
+      completed.ok ? cleanup : [completed.cause, ...cleanup],
+      'Test-level execution cleanup failed: ' +
+        cleanup.map(String).join('; ') +
+        (completed.ok ? '' : '; operation failed: ' + String(completed.cause)),
+    );
   if (!completed.ok) throw completed.cause;
   execution.assertOperationSucceeded();
   return completed.value;

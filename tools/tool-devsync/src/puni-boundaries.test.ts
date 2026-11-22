@@ -51,6 +51,7 @@ describe('source test-level compatibility client boundary', () => {
       'tools/tool-devsync/src/performance-level.ts',
       ['@puni/dash/performance-level', '@puni/dash/test-level-evidence'],
     ],
+    ['tools/tool-devsync/src/performance-processes.ts', ['@puni/dash/performance-processes']],
     ['tools/tool-devsync/src/source-test-level-context.ts', ['@puni/dash/performance-level']],
   ] as const;
   for (const [client, aliases] of clients) {
@@ -110,6 +111,15 @@ describe('source test-level compatibility client boundary', () => {
       30000,
     );
   }
+  it('refuses unrelated public facades from tools/tool-devsync/src/performance-processes.ts', async () => {
+    for (const alias of ['@puni/dash/browser-level', '@puni/dash/performance-level'])
+      expect(
+        await findBoundaryFailures(
+          'tools/tool-devsync/src/performance-processes.ts',
+          'await import(' + JSON.stringify(alias) + ');',
+        ),
+      ).toHaveLength(1);
+  }, 30000);
 });
 
 function isRecord(value: unknown): value is Record<string, unknown> {

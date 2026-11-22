@@ -1,5 +1,3 @@
-import { decodeSourceStartupRequest, selectSourceStartup, type SourceStartupPins } from './source-startup-profile';
-import { decodeCurrentSourceDevPins } from './source-startup-current';
 import { createHash } from 'node:crypto';
 import {
   type BigIntStats,
@@ -58,7 +56,13 @@ import {
   SOLVER_SUPERVISOR_CONFIG,
   SOLVER_SUPERVISOR_UNIT,
 } from './solver-supervisor-install-contract';
+import { decodeCurrentSourceDevPins } from './source-startup-current';
 import { decodeSourceDevPins } from './source-startup-manifest';
+import {
+  decodeSourceStartupRequest,
+  selectSourceStartup,
+  type SourceStartupPins,
+} from './source-startup-profile';
 
 type Fields = Record<string, unknown>;
 interface Reference {
@@ -1786,12 +1790,17 @@ function validateGraph(context: GraphContext, policy: ActiveEdgePolicy, deadline
   );
   const rawSource = readFields(admissionFields['source']);
   const hasCurrentSource = Object.hasOwn(rawSource, 'expectedProfile');
-  const sourceFields = readClosed(rawSource, hasCurrentSource
-    ? ['expectedProfile', 'pins', 'runtimeReference', 'manifest', 'puniSelectionContents']
-    : ['pins', 'runtimeReference', 'manifest']);
-  if (hasCurrentSource && sourceFields['expectedProfile'] !== 'wbs-source-cold-v2') refuseGraph('initial source expected profile differs');
+  const sourceFields = readClosed(
+    rawSource,
+    hasCurrentSource
+      ? ['expectedProfile', 'pins', 'runtimeReference', 'manifest', 'puniSelectionContents']
+      : ['pins', 'runtimeReference', 'manifest'],
+  );
+  if (hasCurrentSource && sourceFields['expectedProfile'] !== 'wbs-source-cold-v2')
+    refuseGraph('initial source expected profile differs');
   const sourcePins: SourceStartupPins = hasCurrentSource
-    ? decodeCurrentSourceDevPins(sourceFields['pins']) : decodeSourceDevPins(sourceFields['pins']);
+    ? decodeCurrentSourceDevPins(sourceFields['pins'])
+    : decodeSourceDevPins(sourceFields['pins']);
   const writerRef = decodeReference(admissionFields['writerManifest'], 'handoff-writers');
   const sourceRef = decodeReference(sourceFields['manifest'], 'handoff-source-manifest');
   files.retainEdge(writerRef, admissionRef.name);
@@ -1812,10 +1821,21 @@ function validateGraph(context: GraphContext, policy: ActiveEdgePolicy, deadline
   if (sourceFile.sha256 !== sourceRef.sha256 || sourceFile.sha256 !== sourcePins.manifestSha256)
     refuseGraph('source manifest independent hash differs');
   const sourceRequest = decodeSourceStartupRequest({
-    ...(hasCurrentSource ? { expectedProfile: sourceFields['expectedProfile'], puniSelectionContents: sourceFields['puniSelectionContents'] } : {}),
-    pins: sourcePins, manifestContents: sourceFile.contents, runtimeReference: sourceFields['runtimeReference'],
+    ...(hasCurrentSource
+      ? {
+          expectedProfile: sourceFields['expectedProfile'],
+          puniSelectionContents: sourceFields['puniSelectionContents'],
+        }
+      : {}),
+    pins: sourcePins,
+    manifestContents: sourceFile.contents,
+    runtimeReference: sourceFields['runtimeReference'],
   });
-  selectSourceStartup(sourceRequest.pins, sourceRequest.manifestContents, 'expectedProfile' in sourceRequest ? sourceRequest : undefined);
+  selectSourceStartup(
+    sourceRequest.pins,
+    sourceRequest.manifestContents,
+    'expectedProfile' in sourceRequest ? sourceRequest : undefined,
+  );
   const admission = decodeCompleteDependencyActivationRequest(
     {
       format: 'complete-dependency-activation',

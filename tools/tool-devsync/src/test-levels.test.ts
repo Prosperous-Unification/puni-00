@@ -358,6 +358,17 @@ describe('the adopted projects', () => {
     await verifyTargetInventory('apps/wbs/fe-01', await readManifest('apps/wbs/fe-01'));
   });
 
+  it('classifies the local quiet-load Browser target through the production CLI', async () => {
+    const manifest = await readManifest('apps/wbs/fe-01');
+    expect(manifest.targets['e2e-local']).toBeDefined();
+    const audited = auditManifest('apps/wbs/fe-01', manifest);
+    expect(audited.stderr).toBe('');
+    expect(audited.exitCode).toBe(0);
+    expect(UNDECLARED_TEST_TARGETS['wbs-fe-01:e2e-local']).toBe(
+      'Local quiet-load Browser Playwright target without this slice’s report binding.',
+    );
+  });
+
   it('classifies the cross-project real-backend Browser target outside the report-bound levels', async () => {
     const audited = auditManifest('apps/wbs/fe-01', await readManifest('apps/wbs/fe-01'));
     expect(audited.stderr).toBe('');

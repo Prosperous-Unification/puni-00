@@ -94,4 +94,4 @@ export function planBunToolkit(request: BunToolkitRequest): BunToolkitPlan {
 }
 
 /** Shared claimed metadata boundary; the historical serializer body and bytes stay unchanged. */
-export {Metadata as BunToolkitMetadata};
+export { Metadata as BunToolkitMetadata };

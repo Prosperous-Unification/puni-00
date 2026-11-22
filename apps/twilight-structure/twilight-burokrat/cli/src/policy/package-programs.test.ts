@@ -65,13 +65,19 @@ it('builds root five toolkit roles and observation once from captured programs a
       target,
       'import metadata from ' +
         JSON.stringify(
-          path === rootPath ? './metadata.cjs' : path === forge ? '../../../../apps/puni/cli/src/metadata.cjs' : '../../../../../puni/cli/src/metadata.cjs',
+          path === rootPath
+            ? './metadata.cjs'
+            : path === forge
+              ? '../../../../apps/puni/cli/src/metadata.cjs'
+              : '../../../../../puni/cli/src/metadata.cjs',
         ) +
         ';import{MIGRATIONS}from ' +
         JSON.stringify(
           path === rootPath
             ? '../../../twilight-structure/twilight-dash/cli/src/runs/sqlite/format'
-            : path === forge ? '../../../../apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/format' : '../runs/sqlite/format',
+            : path === forge
+              ? '../../../../apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/format'
+              : '../runs/sqlite/format',
         ) +
         ';console.log(JSON.stringify({kind:' +
         JSON.stringify(kind) +

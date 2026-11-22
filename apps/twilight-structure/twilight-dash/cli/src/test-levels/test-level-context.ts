@@ -15,18 +15,33 @@ export interface TestLevelJudgment {
 
 /** Actual shared execution port supplied by the command owner, including retained process channels and fresh judge scratch. */
 export interface TestLevelJudgeExecution {
-  spawn(argv: string[], cwd: string, environment: Record<string, string>, output: {stdout: 'pipe'; stderr: 'pipe'}): Bun.Subprocess;
+  spawn(
+    argv: string[],
+    cwd: string,
+    environment: Record<string, string>,
+    output: { stdout: 'pipe'; stderr: 'pipe' },
+  ): Bun.Subprocess;
   capture<Value>(pending: Promise<Value>): Promise<Value>;
   retainFailure(cause: unknown): void;
-  isCancellation(cause:unknown):boolean;
-  assertChildResult(child:Bun.Subprocess,exitCode:number):void;
+  isCancellation(cause: unknown): boolean;
+  assertChildResult(child: Bun.Subprocess, exitCode: number): void;
   createJudgeDirectory(temporaryDirectory: string): string;
 }
 
 /** Protected asynchronous Burokrat child capability; the actual shared command owner supplies execution. */
 export interface TestLevelJudge {
-  identity(execution: TestLevelJudgeExecution, repository: string, revision: string): Promise<TestLevelJudgment>;
-  performance(execution: TestLevelJudgeExecution, repository: string, revision: string, rulePolicy: string, evidence?: string): Promise<TestLevelJudgment>;
+  identity(
+    execution: TestLevelJudgeExecution,
+    repository: string,
+    revision: string,
+  ): Promise<TestLevelJudgment>;
+  performance(
+    execution: TestLevelJudgeExecution,
+    repository: string,
+    revision: string,
+    rulePolicy: string,
+    evidence?: string,
+  ): Promise<TestLevelJudgment>;
 }
 
 /** The executable captures this selection before provider import or operation awaits. */

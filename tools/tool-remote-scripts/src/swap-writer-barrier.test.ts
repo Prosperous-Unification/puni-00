@@ -653,10 +653,8 @@ test('complete backend plan commits only after health, vocabulary recheck, and p
           return 'migrated';
         });
       }
-      if (args.includes('src/backfill-step-codes-cli.ts')) {
-        order.push('backfill');
-        return Promise.resolve('step codes backfilled: 0');
-      }
+      if (args.includes('src/backfill-step-codes-cli.ts'))
+        throw new Error('current backend plan dispatched the predecessor backfill');
       if (args[0] === 'exec') {
         storedReads += 1;
         return Promise.resolve('[]');
@@ -672,7 +670,7 @@ test('complete backend plan commits only after health, vocabulary recheck, and p
     phase: 'committed',
   });
   await execute(plan, image, 'deadbeef', io);
-  expect(order).toEqual(['migrate', 'health', 'backfill', 'alias', 'alias', 'reload', 'commit']);
+  expect(order).toEqual(['migrate', 'health', 'alias', 'alias', 'reload', 'commit']);
   expect(storedReads).toBe(32);
   await assertNoWriterBarrier(attempt.root);
 });

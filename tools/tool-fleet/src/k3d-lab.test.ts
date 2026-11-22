@@ -335,10 +335,21 @@ describe('decodeK3dLabRecord', () => {
   });
 
   it('keeps lab1 closed while an explicit lab2 records its installation mount identity', () => {
-    expect(() => decodeK3dLabRecord(JSON.stringify({ ...record, puniInstallationRoot: '/home/dev/puni' }))).toThrow('malformed');
-    const current = { ...record, schemaVersion: 2, puniInstallationRoot: '/home/dev/puni', puniInstallationRootIdentity: '2049:132' };
-    expect(JSON.stringify(decodeK3dLabRecord(JSON.stringify(current)))).toBe(JSON.stringify(current));
-    expect(() => decodeK3dLabRecord(JSON.stringify({ ...current, puniInstallationRootIdentity: undefined }))).toThrow('malformed');
+    expect(() =>
+      decodeK3dLabRecord(JSON.stringify({ ...record, puniInstallationRoot: '/home/dev/puni' })),
+    ).toThrow('malformed');
+    const current = {
+      ...record,
+      schemaVersion: 2,
+      puniInstallationRoot: '/home/dev/puni',
+      puniInstallationRootIdentity: '2049:132',
+    };
+    expect(JSON.stringify(decodeK3dLabRecord(JSON.stringify(current)))).toBe(
+      JSON.stringify(current),
+    );
+    expect(() =>
+      decodeK3dLabRecord(JSON.stringify({ ...current, puniInstallationRootIdentity: undefined })),
+    ).toThrow('malformed');
   });
 });
 
@@ -431,26 +442,52 @@ it('Flux bootstrap authenticates vendor before applying shared overlay and waits
 it('a PUNI lab explicitly parses its external installation root without changing legacy status', () => {
   const status = parseK3dLabRequest(['status', '--id', 'f9', '--profile', 'app']);
   expect(status).toEqual({ action: 'status', labId: 'f9', profile: 'app' });
-  const expected: { action: 'up'; labId: string; profile: 'app'; worktreeRoot: string; puniInstallationRoot: string } = {
-    action: 'up', labId: 'f9', profile: 'app', worktreeRoot: join(process.cwd(), 'wt'),
+  const expected: {
+    action: 'up';
+    labId: string;
+    profile: 'app';
+    worktreeRoot: string;
+    puniInstallationRoot: string;
+  } = {
+    action: 'up',
+    labId: 'f9',
+    profile: 'app',
+    worktreeRoot: join(process.cwd(), 'wt'),
     puniInstallationRoot: '/home/dev/puni-installations',
   };
-  expect(parseK3dLabRequest([
-    'up', '--id', 'f9', '--profile', 'app', '--worktree-root', 'wt',
-    '--puni-installation-root', '/home/dev/puni-installations',
-  ])).toEqual(expected);
+  expect(
+    parseK3dLabRequest([
+      'up',
+      '--id',
+      'f9',
+      '--profile',
+      'app',
+      '--worktree-root',
+      'wt',
+      '--puni-installation-root',
+      '/home/dev/puni-installations',
+    ]),
+  ).toEqual(expected);
 });
 
 it('renders the explicit PUNI lab installation mount read-only beside the original node bindings', async () => {
   const template = await readFile(join(ROOT, 'infra/local/platform-puni.k3d.yaml'), 'utf8');
-  const rendered = renderK3dConfig(template, { ...VALUES, PUNI_INSTALLATION_ROOT: '/home/dev/puni-installations' });
+  const rendered = renderK3dConfig(template, {
+    ...VALUES,
+    PUNI_INSTALLATION_ROOT: '/home/dev/puni-installations',
+  });
   const configuration: unknown = Bun.YAML.parse(rendered);
   if (typeof configuration !== 'object' || configuration === null || !('volumes' in configuration))
     throw new Error('rendered current platform lacks its volume list');
   expect(configuration.volumes).toEqual([
     { volume: '/home/dev/worktrees:/srv/puni/worktrees', nodeFilters: ['server:*'] },
     { volume: '/home/dev/solver:/run/puni/solver', nodeFilters: ['server:*'] },
-    { volume: '/home/dev/puni-installations:/srv/puni/puni-installations:ro', nodeFilters: ['server:*'] },
+    {
+      volume: '/home/dev/puni-installations:/srv/puni/puni-installations:ro',
+      nodeFilters: ['server:*'],
+    },
   ]);
-  expect(() => parseK3dLabRequest(['down', '--profile', 'app', '--puni-installation-root', '/home/dev/puni'])).toThrow('does not accept mount flags');
+  expect(() =>
+    parseK3dLabRequest(['down', '--profile', 'app', '--puni-installation-root', '/home/dev/puni']),
+  ).toThrow('does not accept mount flags');
 });

@@ -1,5 +1,3 @@
-import { decodeSourceStartupRequest, type CurrentSourceStartupRequest } from './source-startup-profile';
-import { decodeSourcePuniSelection } from './source-puni-installation';
 import { identifyInventory, orderMounts } from './docker-inventory';
 import { type EnvLayout, sourceDevContract } from './env';
 import {
@@ -13,6 +11,11 @@ import {
   readNonempty,
   readString,
 } from './managed-cohort';
+import { decodeSourcePuniSelection } from './source-puni-installation';
+import {
+  type CurrentSourceStartupRequest,
+  decodeSourceStartupRequest,
+} from './source-startup-profile';
 
 /** Bound source participant, including exact effective configuration and namespace membership. */
 export interface SourceDevMember {
@@ -34,7 +37,9 @@ export interface SourceDevMember {
 export function orderSourceMounts(raw: unknown, startup?: CurrentSourceStartupRequest): unknown[] {
   const mounts = orderMounts(raw);
   assertSame(
-    startup === undefined ? ['/data', '/run/wbs-solver', '/src'] : ['/data', '/opt/puni-dev', '/run/wbs-solver', '/src'],
+    startup === undefined
+      ? ['/data', '/run/wbs-solver', '/src']
+      : ['/data', '/opt/puni-dev', '/run/wbs-solver', '/src'],
     mounts.map((mount) => readString(mount['Destination'])),
     'source dev mount targets',
   );
@@ -46,18 +51,44 @@ export function orderSourceMounts(raw: unknown, startup?: CurrentSourceStartupRe
  * namespace extinction supplies exclusion. Omission remains absent in the captured host;
  * changing its presence or value is identity drift. Managed namespace scanners still require init:true.
  */
-export function decodeSourceDev(raw: unknown, layout: EnvLayout, suppliedStartup?: CurrentSourceStartupRequest): SourceDevMember {
-  const retained = suppliedStartup === undefined ? undefined : decodeSourceStartupRequest(suppliedStartup);
-  if (retained !== undefined && !('expectedProfile' in retained)) throw new Error('current source container lost its explicit expected profile');
+export function decodeSourceDev(
+  raw: unknown,
+  layout: EnvLayout,
+  suppliedStartup?: CurrentSourceStartupRequest,
+): SourceDevMember {
+  const retained =
+    suppliedStartup === undefined ? undefined : decodeSourceStartupRequest(suppliedStartup);
+  if (retained !== undefined && !('expectedProfile' in retained))
+    throw new Error('current source container lost its explicit expected profile');
   const startup = retained;
   const container = readFields(raw);
   const historical = sourceDevContract(layout);
-  const selected = startup === undefined ? undefined : decodeSourcePuniSelection({ contents: startup.puniSelectionContents, sha256: startup.pins.puniSelectionSha256 });
+  const selected =
+    startup === undefined
+      ? undefined
+      : decodeSourcePuniSelection({
+          contents: startup.puniSelectionContents,
+          sha256: startup.pins.puniSelectionSha256,
+        });
   const contract = {
     ...historical,
-    mounts: [...historical.mounts, ...(selected === undefined ? [] : [{ source: selected.record.installationDirectory, target: '/opt/puni-dev', writable: false }])],
+    mounts: [
+      ...historical.mounts,
+      ...(selected === undefined
+        ? []
+        : [
+            {
+              source: selected.record.installationDirectory,
+              target: '/opt/puni-dev',
+              writable: false,
+            },
+          ]),
+    ],
   };
-  const command = startup === undefined ? ['bun', 'run', 'dev'] : ['bun', '--no-env-file', '--config=/dev/null', 'run', '--shell=bun', 'dev'];
+  const command =
+    startup === undefined
+      ? ['bun', 'run', 'dev']
+      : ['bun', '--no-env-file', '--config=/dev/null', 'run', '--shell=bun', 'dev'];
   if (container['Name'] !== `/${contract.name}`) throw new Error('source dev name differs');
   const config = readFields(container['Config']);
   const labels = readFields(config['Labels']);
@@ -74,7 +105,13 @@ export function decodeSourceDev(raw: unknown, layout: EnvLayout, suppliedStartup
     const assignments = config['Env'];
     if (!Array.isArray(assignments)) throw new Error('current source environment is absent');
     const expected = 'PUNI_EXECUTABLE=/opt/puni-dev/' + selected.record.entrypoint;
-    if (assignments.filter((assignment: unknown) => typeof assignment === 'string' && assignment.startsWith('PUNI_EXECUTABLE=')).length !== 1 || !assignments.includes(expected))
+    if (
+      assignments.filter(
+        (assignment: unknown) =>
+          typeof assignment === 'string' && assignment.startsWith('PUNI_EXECUTABLE='),
+      ).length !== 1 ||
+      !assignments.includes(expected)
+    )
       throw new Error('current source selected mapped entrypoint differs');
   }
   const entrypoint = config['Entrypoint'];

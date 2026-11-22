@@ -46,10 +46,8 @@ import {
 } from '@wbs/store-sqlite';
 import { canonicalOidcEmail } from '@wbs/store-sqlite/canonical-oidc-email';
 import { openReadOnlyConnection } from '@wbs/store-sqlite/db';
-import { DrizzleEventLogStore } from '@wbs/store-sqlite/event-log';
 import type { SqliteProjectReadOptions } from '@wbs/store-sqlite/project-read';
 import { readStepBlockageActivation } from '@wbs/store-sqlite/step-blockage-activation';
-import { backfillStepCodes } from '@wbs/store-sqlite/step-code-backfill';
 import { StepParallelRepository } from '@wbs/store-sqlite/step-parallel';
 import { WorkPackageAddressSearchRepository } from '@wbs/store-sqlite/work-package-address-search';
 import { DiBag } from 'di-bag';
@@ -542,14 +540,6 @@ export async function bootBe01(
             throw new Error(
               `be-01 refuses an activated store without ${missing.join(', ')}; see docs/runbook-organization-activation.md`,
             );
-          if (opts.migrateOnStartup === true) {
-            const coded = backfillStepCodes(
-              source.db,
-              new DrizzleEventLogStore(source.db, OPEN),
-              Date.now(),
-            );
-            opts.logger.info({ coded: coded.length }, 'step codes backfilled');
-          }
           if (opts.localIdentity !== undefined)
             new UserRepository(source.db, OPEN).ensureLocalIdentity(opts.localIdentity, {
               at: Date.now(),

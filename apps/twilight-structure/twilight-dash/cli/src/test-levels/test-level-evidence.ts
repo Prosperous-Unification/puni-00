@@ -10,7 +10,6 @@ function parseJson(source: string, label: string): unknown {
   }
 }
 
-
 /** Strict non-certifying Burokrat identity transport used before runner execution. */
 export function decodeCandidateIdentity(invocation: TestLevelJudgment, revision: string): string {
   // Proof: disabling the identity process-status check made the decoder accept an
@@ -54,7 +53,6 @@ export function decodeCandidateIdentity(invocation: TestLevelJudgment, revision:
   return candidate;
 }
 
-
 export function xmlText(value: string): string {
   for (const character of value) {
     // String iteration yields one nonempty Unicode scalar or one lone surrogate.
@@ -86,7 +84,6 @@ export function xmlText(value: string): string {
       .replaceAll('\r', '&#13;')
   );
 }
-
 
 interface PerformanceFinding {
   ruleId: 'PERF-THRESHOLD';
@@ -228,7 +225,6 @@ export function readVerdict(
   return { candidate, findings: selectedFindings, unevaluated: selectedUnevaluated, allowed };
 }
 
-
 /** Exact case-level reconciliation between measured failures and Burokrat findings. */
 export function assertPerformanceFindings(
   findings: readonly PerformanceFinding[],
@@ -252,4 +248,3 @@ export function assertPerformanceFindings(
     throw new Error('Burokrat Performance findings differ from measured failures');
   }
 }
-

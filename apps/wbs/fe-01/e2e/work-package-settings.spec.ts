@@ -1,6 +1,6 @@
 import type { PlanOptimizationView, PlanRead } from '../src/lib/wbs-api';
 import { createWorkPackage } from './create-work-package';
-import { selectOrdinaryProject } from './ordinary-context';
+import { assertOrdinaryAccount, selectOrdinaryProject } from './ordinary-context';
 import { expect, type Page, test } from './ordinary-test';
 import { countToolbarControls } from './toolbar-controls';
 
@@ -82,7 +82,7 @@ const CONTROLS_AT_1280 = 17;
 /** Registers a throwaway account and opens an empty work package. */
 async function freshWorkPackage(page: Page): Promise<void> {
   await page.goto('/');
-  await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
+  await assertOrdinaryAccount(page);
   await createWorkPackage(page);
   await expect(page.getByRole('button', { name: 'Add work item' })).toBeVisible();
 }
@@ -461,7 +461,7 @@ test.describe('a toast over Work package settings', () => {
 
     test('a toast’s ✕ keeps both Plan actions and Work package settings open', async ({ page }) => {
       await page.goto('/');
-      await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
+      await assertOrdinaryAccount(page);
       await createWorkPackage(page);
       await selectOrdinaryProject(page);
       await page.getByRole('button', { name: 'Plan actions' }).click();

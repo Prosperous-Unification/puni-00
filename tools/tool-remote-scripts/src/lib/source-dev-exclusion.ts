@@ -1,4 +1,3 @@
-import { decodeSourceStartupRequest, type CurrentSourceStartupRequest } from './source-startup-profile';
 import { createHash, randomUUID } from 'node:crypto';
 
 import { type RunDocker, runDockerBefore } from './docker-deadline';
@@ -13,6 +12,10 @@ import {
   sourceDevIdentity,
   type SourceDevMember,
 } from './source-dev-cohort';
+import {
+  type CurrentSourceStartupRequest,
+  decodeSourceStartupRequest,
+} from './source-startup-profile';
 
 const identity: unique symbol = Symbol('source-dev-exclusion');
 /** Live callback-scoped whole-private-namespace evidence; serialized records cannot recreate it. */
@@ -226,7 +229,11 @@ async function observeMember(
   scope: SourceScope,
   inventory: readonly unknown[],
 ): Promise<SourceDevMember> {
-  const member = decodeSourceDev(findSource(inventory, scope.layouts.dev), scope.layouts.dev, scope.startup);
+  const member = decodeSourceDev(
+    findSource(inventory, scope.layouts.dev),
+    scope.layouts.dev,
+    scope.startup,
+  );
   const resolved = (
     await scope.readDocker(
       ['image', 'inspect', '--format', '{{.Id}}', sourceDevContract(scope.layouts.dev).image],
@@ -274,8 +281,10 @@ export async function withSourceDevExcluded<T>(
   action: (exclusion: SourceDevExclusion) => Promise<T>,
   suppliedStartup?: CurrentSourceStartupRequest,
 ): Promise<T> {
-  const retainedStartup = suppliedStartup === undefined ? undefined : decodeSourceStartupRequest(suppliedStartup);
-  if (retainedStartup !== undefined && !('expectedProfile' in retainedStartup)) throw new Error('current source exclusion expected profile differs');
+  const retainedStartup =
+    suppliedStartup === undefined ? undefined : decodeSourceStartupRequest(suppliedStartup);
+  if (retainedStartup !== undefined && !('expectedProfile' in retainedStartup))
+    throw new Error('current source exclusion expected profile differs');
   layouts = structuredClone(layouts);
   if (layouts.prod.env !== 'prod' || layouts.dev.env !== 'dev' || !/^[a-f0-9]{40}$/.test(sha))
     throw new Error('source dev requires exact prod/dev layouts and full SHA');

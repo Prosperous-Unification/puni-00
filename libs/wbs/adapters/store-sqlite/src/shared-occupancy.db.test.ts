@@ -15,8 +15,7 @@ import { servicesOver } from '@wbs/core/compose';
 import { ClaimLeaseSweep } from '@wbs/core/module/plan-commands/claim-lease-sweep';
 import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
 import type { ScopedUndoOutcome } from '@wbs/core/module/plan-commands/plan-commands.feature';
-import type { Clock } from '@wbs/core/ports/clock';
-import type { WorkPackageWithSteps } from '@wbs/core/ports/work-package-read';
+import { prepareWorkPackageBirth } from '@wbs/core/module/work-package/work-package-birth';
 import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
 import { expectCreated } from '@wbs/core/testing/expect-created';
@@ -27,10 +26,10 @@ import { openMemorySourceFixture } from '@wbs/store-memory/source';
 import { describe, expect, it } from 'bun:test';
 
 import { openDatabase } from './db';
-import { runMigrations } from './migrate';
 import { openSqliteSource } from './source';
+import { migrateEmptyCatalogueFixture } from './testing/catalogue-database';
 import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
-import { seedOrganizationPackage, seedPackageParent } from './testing/legacy-package-parent';
+import { seedPackageParent } from './testing/legacy-package-parent';
 import { activateTestStepBlockages } from './testing/step-blockage-activation';
 
 /**
@@ -38,7 +37,6 @@ import { activateTestStepBlockages } from './testing/step-blockage-activation';
  * organization share a resource's directory capacity, through the command
  * runner and its journal (tasks 3.1, 3.4).
  */
-const MIGRATIONS = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const F = 'account-f';
 const ORG = 'org-shared';
 const RAM = 'resource-host-ram';
@@ -54,9 +52,7 @@ function staleDetail(outcome: ScopedUndoOutcome): string | null {
 
 interface Opened {
   readonly source: Source<TransactionalStores>;
-  readonly isMemory: boolean;
   readonly seedParent: () => void;
-  readonly createPackage: (name: string, clock: Clock) => Promise<WorkPackageWithSteps>;
   readonly removePackageOrganization: (id: string) => void;
   /** Owns resources beside the work packages already created in {@link ORG}. */
   readonly own: (workPackageIds: readonly string[], resourceIds: readonly string[]) => void;
@@ -76,7 +72,6 @@ const STORES: readonly { readonly name: string; readonly open: () => Opened }[] 
       const fixture = openMemorySourceFixture();
       return {
         source: fixture.source,
-        isMemory: true,
         seedParent: () => {
           fixture.addOrganization(ORG, { legacy: false });
           fixture.setPackageCreationMembers(ORG, [F]);
@@ -92,15 +87,6 @@ const STORES: readonly { readonly name: string; readonly open: () => Opened }[] 
             updatedAt: null,
           });
         },
-        createPackage: (name, clock) =>
-          seedOrganizationPackage(
-            fixture.source.stores.workPackages,
-            clock,
-            ORG,
-            'fixture-project',
-            F,
-            name,
-          ),
         removePackageOrganization: (id) => {
           fixture.removeWorkPackageOrganization(id);
         },
@@ -116,7 +102,20 @@ const STORES: readonly { readonly name: string; readonly open: () => Opened }[] 
     open: () => {
       const folder = mkdtempSync(join(tmpdir(), 'shared-occupancy-'));
       const dbPath = join(folder, 'plan.db');
-      runMigrations(dbPath, MIGRATIONS);
+      const custody = { hasUnknownOwner: false };
+      try {
+        migrateEmptyCatalogueFixture({ path: dbPath, directory: folder, reportedAt: 1 }, custody);
+      } catch (cause: unknown) {
+        // Proof: omitting this guard deleted the owned namespace after native close
+        // returned then threw; the unchanged retention assertion failed in
+        // mixed-occupancy-close-root-v258, then exact restoration passed.
+        if (custody.hasUnknownOwner)
+          throw new Error('shared-occupancy fixture custody is unknown; retained ' + folder, {
+            cause,
+          });
+        rmSync(folder, { recursive: true, force: true });
+        throw cause;
+      }
       activateTestStepBlockages(dbPath);
       const source = openSqliteSource({
         dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
@@ -130,7 +129,6 @@ const STORES: readonly { readonly name: string; readonly open: () => Opened }[] 
       return {
         // Caps far above the fixture: a scoped claim counts them, never reaches them.
         source,
-        isMemory: false,
         seedParent: () => {
           const sqlite = openDatabase(dbPath);
           try {
@@ -144,15 +142,6 @@ const STORES: readonly { readonly name: string; readonly open: () => Opened }[] 
           }
           seedPackageParent(dbPath, ORG, 'fixture-project');
         },
-        createPackage: (name, clock) =>
-          seedOrganizationPackage(
-            source.stores.workPackages,
-            clock,
-            ORG,
-            'fixture-project',
-            F,
-            name,
-          ),
         removePackageOrganization: (id) => {
           const sqlite = openDatabase(dbPath);
           try {
@@ -246,7 +235,7 @@ const STORES: readonly { readonly name: string; readonly open: () => Opened }[] 
  */
 async function seeded(store: (typeof STORES)[number]) {
   const opened = store.open();
-  const { source, isMemory } = opened;
+  const { source } = opened;
   let now = T;
   let minted = 0;
   const clock = clockOf({
@@ -269,26 +258,58 @@ async function seeded(store: (typeof STORES)[number]) {
     { at: 1, by: F },
   );
   opened.seedParent();
+  for (const [id, code, name, position] of [
+    ['fixture-dev', 'dev', 'Dev', 10],
+    ['fixture-qa', 'qa', 'QA', 20],
+  ] as const) {
+    const defined = await source.stores.stepCatalogue.defineAndBindStep(
+      ORG,
+      {
+        id,
+        code,
+        name,
+        position,
+        defaultAllowancePercent: 0,
+        defaultEstimateUnit: 'workdays',
+      },
+      {
+        bindingId: id + ':binding',
+        scopeKind: 'project',
+        scopeId: 'fixture-project',
+        workItemTypeId: null,
+        position,
+      },
+      { at: 1, by: F },
+    );
+    if (!defined.ok) throw new Error('fixture definition refused: ' + defined.reason);
+  }
+  const createPackage = async (name: string) => {
+    const stamp = clock.stampFor(F);
+    const { workPackage } = prepareWorkPackageBirth(name, 'fixture-project', stamp, () =>
+      clock.newId(),
+    );
+    const creatorGrant = { id: clock.newId(), auditId: clock.newId() };
+    return await source.uow.run(async ({ stores }) => {
+      const created = await stores.workPackages.createInOrganization(
+        workPackage,
+        [],
+        stamp,
+        ORG,
+        creatorGrant,
+      );
+      if (typeof created === 'string') throw new Error('fixture package birth refused: ' + created);
+      const steps = await stores.workPackages.stepsOf(created.id);
+      return { commit: true, value: { workPackage: created, steps } };
+    });
+  };
   const workPackages: string[] = [];
   const firstStepByWorkPackage = new Map<string, string>();
   for (const name of ['A', 'B']) {
-    const created = expectCreated(await opened.createPackage(name, clock));
+    const created = expectCreated(await createPackage(name));
     workPackages.push(created.workPackage.id);
     const firstStep = created.steps.at(0);
     if (firstStep === undefined) throw new Error(`work package ${name} has no first workflow step`);
     firstStepByWorkPackage.set(created.workPackage.id, firstStep.id);
-    if (isMemory)
-      for (const step of created.steps)
-        await source.stores.steps.add(
-          {
-            id: step.id,
-            workPackageId: created.workPackage.id,
-            name: step.name,
-            allowancePercent: 0,
-            estimateUnit: 'workdays',
-          },
-          { at: 1, by: F },
-        );
   }
   const people = ['a', 'b'].flatMap((prefix) =>
     Array.from({ length: LEAVES }, (_, index) => `${prefix}${String(index)}`),
@@ -414,6 +435,7 @@ async function seeded(store: (typeof STORES)[number]) {
   return {
     source,
     graph,
+    createPackage,
     opened,
     clock,
     people,
@@ -565,23 +587,12 @@ for (const store of STORES) {
     // Review S3-8: after activation every work package has its organization row,
     // so an owned resource held in a work package of none is corrupt, not skipped.
     it('throws on a holder in a work package of no organization', async () => {
-      const { source, opened, clock, runner, state, close } = await seeded(store);
+      const { source, opened, createPackage, runner, state, close } = await seeded(store);
       try {
         await state(RAM, 16);
-        const { workPackage, steps } = expectCreated(await opened.createPackage('Orphan', clock));
+        const { workPackage, steps } = expectCreated(await createPackage('Orphan'));
         const step = steps.at(0);
         if (step === undefined) throw new Error('the orphan work package has no step');
-        if (store.name === 'memory')
-          await source.stores.steps.add(
-            {
-              id: step.id,
-              workPackageId: workPackage.id,
-              name: step.name,
-              allowancePercent: 0,
-              estimateUnit: 'workdays',
-            },
-            { at: 1, by: F },
-          );
         const created = await runner.run(workPackage.id, F, [
           { kind: 'createWorkItem', name: 'Leaf', parentId: null, afterId: null },
         ]);

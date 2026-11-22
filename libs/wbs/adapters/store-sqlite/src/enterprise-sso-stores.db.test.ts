@@ -3,18 +3,21 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { AuditedAct, OrganizationAuditDetail } from '@wbs/core';
+import { withinClaimFixture } from '@wbs/core/testing/current-claim-observation';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { openDatabase, openDrizzle } from './db';
 import { EnterpriseConnectionRepository } from './enterprise-connection';
 import { OPEN } from './gate';
-import { runMigrations } from './migrate';
 import { SqliteOrganizationAuditLog } from './organization-audit-log';
 import { ProvisioningTokenRepository } from './provisioning-token';
 import { ScimUserRepository } from './scim-user';
 import { SessionPolicyRepository } from './session-policy';
+import {
+  type CatalogueFixtureCustody,
+  migrateEmptyCatalogueFixture,
+} from './testing/catalogue-database';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const DAY = 24 * 60 * 60 * 1000;
 /** The audit insert the injected trigger refuses, as drizzle reports it. */
 const AUDIT_FAILED = /Failed query: insert into "organization_audit"/;
@@ -29,13 +32,15 @@ const digest = (seed: string) => seed.repeat(64).slice(0, 64);
  */
 describe('the enterprise SSO stores', () => {
   let dir: string;
+  let custody: CatalogueFixtureCustody;
   let path: string;
   let ids: number;
 
   beforeEach(() => {
+    custody = { hasUnknownOwner: false };
     dir = mkdtempSync(join(tmpdir(), 'wbs-enterprise-sso-stores-'));
     path = join(dir, 'test.db');
-    runMigrations(path, FOLDER);
+    migrateEmptyCatalogueFixture({ path, directory: dir, reportedAt: 1 }, custody);
     ids = 0;
     sql(
       "INSERT INTO users (id, username, password_hash, created_at) VALUES ('ada', 'ada', 'x', 1), ('sam', 'sam', 'x', 1), ('bob', 'bob', 'x', 1), ('carol', 'carol', 'x', 1)",
@@ -66,6 +71,11 @@ describe('the enterprise SSO stores', () => {
   });
 
   afterEach(() => {
+    // Proof: sqlite-cohort2-v244-sso injected a throw after real close
+    // returned. Omission deleted this directory; restoration retained it.
+    // No leaked native handle was injected.
+    if (custody.hasUnknownOwner)
+      throw new Error('SQLite fixture has unknown native custody; retained ' + dir);
     rmSync(dir, { recursive: true, force: true });
   });
 
@@ -833,46 +843,56 @@ describe('the enterprise SSO stores', () => {
 describe('the enterprise SSO stores before activation', () => {
   it('refuse every write and read as inactive', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'wbs-enterprise-sso-inactive-'));
-    try {
-      const path = join(dir, 'test.db');
-      runMigrations(path, FOLDER);
-      const db = openDrizzle(path);
-      const act = { stamp: { at: 1, by: 'ada' }, actor: 'ada', auditId: 'a' };
-      expect(await new EnterpriseConnectionRepository(db, OPEN).list('org-a', { id: 'ada' })).toBe(
-        'inactive',
-      );
-      expect(
-        await new EnterpriseConnectionRepository(db, OPEN).create(
-          'org-a',
-          { id: 'ada' },
-          { domainClaimId: 'c', auth0Connection: 'x', strategy: 'samlp', loginSlug: 'xyz' },
-          'c',
-          act,
-        ),
-      ).toEqual({ kind: 'inactive' });
-      expect(
-        await new ProvisioningTokenRepository(db, OPEN).issue(
-          'org-a',
-          { id: 'ada' },
-          't',
-          digest('d'),
-          act,
-        ),
-      ).toEqual({ kind: 'inactive' });
-      expect(
-        await new SessionPolicyRepository(db, OPEN).set(
-          'org-a',
-          { id: 'ada' },
-          { maxSessionSeconds: 300, reauthenticateAfterSeconds: null },
-          act,
-        ),
-      ).toBe('inactive');
-      expect(
-        await new ProvisioningTokenRepository(db, OPEN).authenticate(digest('d'), 1),
-      ).toBeNull();
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
+    const custody: CatalogueFixtureCustody = { hasUnknownOwner: false };
+    await withinClaimFixture(
+      () => {
+        // Proof: sqlite-cohort2-v244-inactive injected a throw after real close
+        // returned. Omission deleted this directory; restoration retained it.
+        // No leaked native handle was injected.
+        if (custody.hasUnknownOwner)
+          throw new Error('SQLite fixture has unknown native custody; retained ' + dir);
+        rmSync(dir, { recursive: true, force: true });
+        return Promise.resolve();
+      },
+      async () => {
+        const path = join(dir, 'test.db');
+        migrateEmptyCatalogueFixture({ path, directory: dir, reportedAt: 1 }, custody);
+        const db = openDrizzle(path);
+        const act = { stamp: { at: 1, by: 'ada' }, actor: 'ada', auditId: 'a' };
+        expect(
+          await new EnterpriseConnectionRepository(db, OPEN).list('org-a', { id: 'ada' }),
+        ).toBe('inactive');
+        expect(
+          await new EnterpriseConnectionRepository(db, OPEN).create(
+            'org-a',
+            { id: 'ada' },
+            { domainClaimId: 'c', auth0Connection: 'x', strategy: 'samlp', loginSlug: 'xyz' },
+            'c',
+            act,
+          ),
+        ).toEqual({ kind: 'inactive' });
+        expect(
+          await new ProvisioningTokenRepository(db, OPEN).issue(
+            'org-a',
+            { id: 'ada' },
+            't',
+            digest('d'),
+            act,
+          ),
+        ).toEqual({ kind: 'inactive' });
+        expect(
+          await new SessionPolicyRepository(db, OPEN).set(
+            'org-a',
+            { id: 'ada' },
+            { maxSessionSeconds: 300, reauthenticateAfterSeconds: null },
+            act,
+          ),
+        ).toBe('inactive');
+        expect(
+          await new ProvisioningTokenRepository(db, OPEN).authenticate(digest('d'), 1),
+        ).toBeNull();
+      },
+    );
   });
 });
 

@@ -1898,6 +1898,7 @@ async function createForgeLoadedSource(root: string): Promise<{
   ];
   const names = new Set<string>();
   for (const entry of entries) {
+    const compilerCwd = process.cwd();
     const compiled = await Bun.build({
       entrypoints: [join(repository, entry)],
       target: 'bun',
@@ -1922,19 +1923,25 @@ async function createForgeLoadedSource(root: string): Promise<{
         throw new Error('actual core compiler did not retain one entry');
       expect(emitted.kind).toBe('entry-point');
       expect(recorded.imports).toEqual([]);
-      const sdk = Object.entries(recorded.inputs).find(
-        ([path]) => path === 'apps/puni/cli/src/packaging/selection.ts',
+      const contributions = Object.entries(recorded.inputs).filter(
+        ([path]) =>
+          resolvePath(compilerCwd, path) ===
+          resolvePath(repository, 'apps/puni/cli/src/packaging/selection.ts'),
       );
-      if (sdk === undefined) throw new Error('actual emitted core has no SDK contribution');
+      const sdk = contributions.at(0);
+      // Proof: v263 removed this input or added an alias to the same exact SDK in real
+      // successful compiler metadata; the original SDK owner failed this named refusal in both cases.
+      if (contributions.length !== 1 || sdk === undefined)
+        throw new Error('actual emitted core requires one exact SDK contribution');
       expect(sdk[1].bytesInOutput).toBeGreaterThan(0);
       const bytes = Buffer.from(await emitted.text());
       expect(bytes.byteLength).toBe(emitted.size);
     }
     for (const [path, input] of Object.entries(metadata.inputs)) {
-      names.add(isAbsolutePath(path) ? path : resolvePath(repository, path));
+      names.add(isAbsolutePath(path) ? path : resolvePath(compilerCwd, path));
       for (const edge of input.imports)
         if (edge.external !== true && edge.path !== 'bun:wrap')
-          names.add(isAbsolutePath(edge.path) ? edge.path : resolvePath(repository, edge.path));
+          names.add(isAbsolutePath(edge.path) ? edge.path : resolvePath(compilerCwd, edge.path));
     }
   }
   if (names.size === 0 || names.size > 4096)

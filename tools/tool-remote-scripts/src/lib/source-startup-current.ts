@@ -4,7 +4,11 @@ import { type FileHandle, lstat, open, readdir, readlink, realpath } from 'node:
 import { dirname, isAbsolute, join, posix, resolve } from 'node:path';
 
 import { envLayout } from './env';
-import { captureSourcePuniInstallation, decodeSourcePuniSelection, type SourcePuniSelection } from './source-puni-installation';
+import {
+  captureSourcePuniInstallation,
+  decodeSourcePuniSelection,
+  type SourcePuniSelection,
+} from './source-puni-installation';
 import {
   decodeSourceRestorationConfiguration,
   type SourceRestorationConfiguration,
@@ -312,10 +316,21 @@ function checkLinks(entries: readonly SourceEntry[]): void {
   }
 }
 /** Closed declarative mapping; physical installation authority is checked by the retained SDK observation. */
-export function decodeCurrentPuniInstallation(value: unknown, selectionSha256: string): CurrentPuniInstallation {
+export function decodeCurrentPuniInstallation(
+  value: unknown,
+  selectionSha256: string,
+): CurrentPuniInstallation {
   const installation = readFields(value, ['selectionSha256', 'directory', 'entrypoint']);
-  if (readDigest(installation['selectionSha256']) !== readDigest(selectionSha256) || installation['directory'] !== '/opt/puni-dev') fail();
-  return { selectionSha256, directory: '/opt/puni-dev', entrypoint: readPath(installation['entrypoint']) };
+  if (
+    readDigest(installation['selectionSha256']) !== readDigest(selectionSha256) ||
+    installation['directory'] !== '/opt/puni-dev'
+  )
+    fail();
+  return {
+    selectionSha256,
+    directory: '/opt/puni-dev',
+    entrypoint: readPath(installation['entrypoint']),
+  };
 }
 /** Requires canonical compact JSON bytes, fixed slots and exact sorted bounded membership. */
 export function decodeCurrentSourceStartupManifest(
@@ -354,7 +369,10 @@ export function decodeCurrentSourceStartupManifest(
     sourceSha: readSourceSha(manifest['sourceSha']),
     entries: decodeEntries(manifest['entries']),
     configuration: decodeConfigurationPins(manifest['configuration']),
-    puniInstallation: decodeCurrentPuniInstallation(manifest['puniInstallation'], pins.puniSelectionSha256),
+    puniInstallation: decodeCurrentPuniInstallation(
+      manifest['puniInstallation'],
+      pins.puniSelectionSha256,
+    ),
   };
   checkLinks(decoded.entries);
   if (JSON.stringify(decoded) + '\n' !== contents) fail();
@@ -584,7 +602,8 @@ export function assertCurrentSourceEnvironment(
   // Actual pinned Nx module/subprocess tests exercise these exact cache and false-flag spellings.
   for (const [name, expectedValue] of Object.entries(PROFILE))
     if (environment.get(name) !== expectedValue) fail();
-  if (environment.get('PUNI_EXECUTABLE') !== installation.directory + '/' + installation.entrypoint) fail();
+  if (environment.get('PUNI_EXECUTABLE') !== installation.directory + '/' + installation.entrypoint)
+    fail();
 }
 async function scanTree(
   root: string,
@@ -807,147 +826,161 @@ async function readJson(
 /** Exact current package callers and four-tier/two-preparation graph, independently captured from the reviewed source epoch. */
 async function assertLaunchProfile(root: string, deadline: number): Promise<void> {
   const packageJson = await readJson(root, 'package.json', deadline);
-  const scripts = readFields(packageJson['scripts'], Object.keys(readRecordScripts(packageJson['scripts'])));
-  for (const [name, expected] of Object.entries({"dev":"bun --no-env-file --config=/dev/null bin/dev.ts","dev:local-solver":"bun --no-env-file --config=/dev/null bin/dev.ts --local-solver"})) {
-    if (scripts[name] !== expected || Object.hasOwn(scripts, 'pre' + name) || Object.hasOwn(scripts, 'post' + name)) fail();
+  const scripts = readFields(
+    packageJson['scripts'],
+    Object.keys(readRecordScripts(packageJson['scripts'])),
+  );
+  for (const [name, expected] of Object.entries({
+    dev: 'bun --no-env-file --config=/dev/null bin/dev.ts',
+    'dev:local-solver': 'bun --no-env-file --config=/dev/null bin/dev.ts --local-solver',
+  })) {
+    if (
+      scripts[name] !== expected ||
+      Object.hasOwn(scripts, 'pre' + name) ||
+      Object.hasOwn(scripts, 'post' + name)
+    )
+      fail();
   }
   const nx = await readJson(root, 'nx.json', deadline);
   assertSame(nx['plugins'], []);
-  if (nx['useInferencePlugins'] !== false || ['extends', 'tasksRunnerOptions', 'nxCloudId', 'nxCloudAccessToken'].some((key) => Object.hasOwn(nx, key))) fail();
-  const expectedProjects = {
-  "be-01": {
-    "name": "wbs-be-01",
-    "targets": {
-      "serve": {
-        "executor": "nx:run-commands",
-        "continuous": true,
-        "options": {
-          "command": "bun --watch src/main.ts",
-          "cwd": "apps/wbs/be-01"
-        },
-        "cache": false
-      },
-      "serve-local-solver": {
-        "executor": "nx:run-commands",
-        "continuous": true,
-        "options": {
-          "command": "bun --watch src/dev/main.ts",
-          "cwd": "apps/wbs/be-01"
-        },
-        "cache": false
-      },
-      "prepare-mcp-document": {
-        "executor": "nx:run-commands",
-        "cache": false,
-        "inputs": [
-          "mcpAgentRuntime",
-          "^production"
-        ],
-        "options": {
-          "command": "bun apps/wbs/be-01/src/openapi/emit-openapi-cli.ts apps/wbs/mcp-01/src/openapi.json"
-        },
-        "outputs": [
-          "{workspaceRoot}/apps/wbs/mcp-01/src/openapi.json"
-        ]
+  if (
+    nx['useInferencePlugins'] !== false ||
+    ['extends', 'tasksRunnerOptions', 'nxCloudId', 'nxCloudAccessToken'].some((key) =>
+      Object.hasOwn(nx, key),
+    )
+  )
+    fail();
+  const expectedProjects: Readonly<
+    Record<
+      string,
+      {
+        readonly name: string;
+        readonly targets: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
       }
-    }
-  },
-  "gw-01": {
-    "name": "wbs-gw-01",
-    "targets": {
-      "serve": {
-        "executor": "nx:run-commands",
-        "continuous": true,
-        "options": {
-          "command": "bun --watch src/main.ts",
-          "cwd": "apps/wbs/gw-01"
+    >
+  > = {
+    'be-01': {
+      name: 'wbs-be-01',
+      targets: {
+        serve: {
+          executor: 'nx:run-commands',
+          continuous: true,
+          options: {
+            command: 'bun --watch src/main.ts',
+            cwd: 'apps/wbs/be-01',
+          },
+          cache: false,
         },
-        "cache": false
+        'serve-local-solver': {
+          executor: 'nx:run-commands',
+          continuous: true,
+          options: {
+            command: 'bun --watch src/dev/main.ts',
+            cwd: 'apps/wbs/be-01',
+          },
+          cache: false,
+        },
+        'prepare-mcp-document': {
+          executor: 'nx:run-commands',
+          cache: false,
+          inputs: ['mcpAgentRuntime', '^production'],
+          options: {
+            command:
+              'bun apps/wbs/be-01/src/openapi/emit-openapi-cli.ts apps/wbs/mcp-01/src/openapi.json',
+          },
+          outputs: ['{workspaceRoot}/apps/wbs/mcp-01/src/openapi.json'],
+        },
       },
-      "serve-local-solver": {
-        "executor": "nx:run-commands",
-        "continuous": true,
-        "options": {
-          "command": "bun --watch src/main.ts",
-          "cwd": "apps/wbs/gw-01"
+    },
+    'gw-01': {
+      name: 'wbs-gw-01',
+      targets: {
+        serve: {
+          executor: 'nx:run-commands',
+          continuous: true,
+          options: {
+            command: 'bun --watch src/main.ts',
+            cwd: 'apps/wbs/gw-01',
+          },
+          cache: false,
         },
-        "cache": false
-      }
-    }
-  },
-  "mcp-01": {
-    "name": "wbs-mcp-01",
-    "targets": {
-      "serve": {
-        "executor": "nx:run-commands",
-        "continuous": true,
-        "options": {
-          "command": "bun --watch src/main.ts",
-          "cwd": "apps/wbs/mcp-01"
+        'serve-local-solver': {
+          executor: 'nx:run-commands',
+          continuous: true,
+          options: {
+            command: 'bun --watch src/main.ts',
+            cwd: 'apps/wbs/gw-01',
+          },
+          cache: false,
         },
-        "cache": false,
-        "dependsOn": [
-          "prepare"
-        ]
       },
-      "serve-local-solver": {
-        "executor": "nx:run-commands",
-        "continuous": true,
-        "options": {
-          "command": "bun --watch src/main.ts",
-          "cwd": "apps/wbs/mcp-01"
+    },
+    'mcp-01': {
+      name: 'wbs-mcp-01',
+      targets: {
+        serve: {
+          executor: 'nx:run-commands',
+          continuous: true,
+          options: {
+            command: 'bun --watch src/main.ts',
+            cwd: 'apps/wbs/mcp-01',
+          },
+          cache: false,
+          dependsOn: ['prepare'],
         },
-        "cache": false,
-        "dependsOn": [
-          "prepare"
-        ]
+        'serve-local-solver': {
+          executor: 'nx:run-commands',
+          continuous: true,
+          options: {
+            command: 'bun --watch src/main.ts',
+            cwd: 'apps/wbs/mcp-01',
+          },
+          cache: false,
+          dependsOn: ['prepare'],
+        },
+        prepare: {
+          executor: 'nx:noop',
+          outputs: ['{projectRoot}/src/openapi.json'],
+          cache: false,
+          dependsOn: [
+            {
+              projects: ['wbs-be-01'],
+              target: 'prepare-mcp-document',
+            },
+          ],
+        },
       },
-      "prepare": {
-        "executor": "nx:noop",
-        "outputs": [
-          "{projectRoot}/src/openapi.json"
-        ],
-        "cache": false,
-        "dependsOn": [
-          {
-            "projects": [
-              "wbs-be-01"
-            ],
-            "target": "prepare-mcp-document"
-          }
-        ]
-      }
-    }
-  },
-  "fe-01": {
-    "name": "wbs-fe-01",
-    "targets": {
-      "serve": {
-        "executor": "nx:run-commands",
-        "continuous": true,
-        "options": {
-          "command": "bunx vite",
-          "cwd": "apps/wbs/fe-01"
+    },
+    'fe-01': {
+      name: 'wbs-fe-01',
+      targets: {
+        serve: {
+          executor: 'nx:run-commands',
+          continuous: true,
+          options: {
+            command: 'bunx vite',
+            cwd: 'apps/wbs/fe-01',
+          },
+          cache: false,
         },
-        "cache": false
+        'serve-local-solver': {
+          executor: 'nx:run-commands',
+          continuous: true,
+          options: {
+            command: 'bunx vite',
+            cwd: 'apps/wbs/fe-01',
+          },
+          cache: false,
+        },
       },
-      "serve-local-solver": {
-        "executor": "nx:run-commands",
-        "continuous": true,
-        "options": {
-          "command": "bunx vite",
-          "cwd": "apps/wbs/fe-01"
-        },
-        "cache": false
-      }
-    }
-  }
-};
+    },
+  };
   for (const [tier, expected] of Object.entries(expectedProjects)) {
     const project = await readJson(root, 'apps/wbs/' + tier + '/project.json', deadline);
     if (project['name'] !== expected.name) fail();
     const targets = readRecordScripts(project['targets']);
-    for (const [name, target] of Object.entries(expected.targets)) assertSame(readFields(targets[name], Object.keys(target)), target);
+    for (const [name, target] of Object.entries(expected.targets))
+      assertSame(readFields(targets[name], Object.keys(target)), target);
   }
 }
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -965,7 +998,12 @@ export async function captureCurrentSourceStartupTree(
   selection: SourcePuniSelection,
 ): Promise<() => Promise<void>> {
   assertCurrentSourceDeadline(deadline);
-  const recheckInstallation = await captureSourcePuniInstallation(selection, manifest.puniInstallation, deadline, root);
+  const recheckInstallation = await captureSourcePuniInstallation(
+    selection,
+    manifest.puniInstallation,
+    deadline,
+    root,
+  );
   try {
     const parents = await captureAncestors(root);
     const initial = await scanTree(root, deadline, manifest.configuration);
@@ -998,7 +1036,12 @@ export async function captureCurrentSourceRestartTree(
   selection: SourcePuniSelection,
 ): Promise<{ inspectCold(): Promise<void>; inspectRunning(): Promise<void> }> {
   readDigest(generatedOpenapiSha256);
-  const recheckInstallation = await captureSourcePuniInstallation(selection, manifest.puniInstallation, deadline, root);
+  const recheckInstallation = await captureSourcePuniInstallation(
+    selection,
+    manifest.puniInstallation,
+    deadline,
+    root,
+  );
   const parents = await captureAncestors(root);
   const initial = await scanTree(root, deadline, manifest.configuration);
   assertSame(initial.entries, manifest.entries);
@@ -1189,7 +1232,11 @@ export async function createCurrentSourceStartupManifest(
     sourceSha: sha,
     entries: observed.entries,
     configuration: pins,
-    puniInstallation: { selectionSha256: selected.sha256, directory: '/opt/puni-dev', entrypoint: selected.record.entrypoint },
+    puniInstallation: {
+      selectionSha256: selected.sha256,
+      directory: '/opt/puni-dev',
+      entrypoint: selected.record.entrypoint,
+    },
   };
   await captureSourcePuniInstallation(selected, manifest.puniInstallation, deadline, root);
   const contents = JSON.stringify(manifest) + '\n';

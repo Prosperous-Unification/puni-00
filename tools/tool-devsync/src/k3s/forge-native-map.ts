@@ -14,10 +14,19 @@ export function readNativeMapping(line: string): NativeMapping {
   // Proof: map-permissions-vocabulary. Allowing z failed
   // `refuses malformed native map records at the production decoder`
   // on r-zp; exact restoration passed.
-  const matched = /^[0-9a-f]+-[0-9a-f]+ ([rwxps-]{4}) [0-9a-f]+ [0-9a-f]+:[0-9a-f]+ ([0-9]+)(?: +(\S.*))? *$/.exec(line);
+  const matched =
+    /^[0-9a-f]+-[0-9a-f]+ ([rwxps-]{4}) [0-9a-f]+ [0-9a-f]+:[0-9a-f]+ ([0-9]+)(?: +(\S.*))? *$/.exec(
+      line,
+    );
   if (matched === null)
-    throw new Error('Forge native map observation is malformed: ' + JSON.stringify({ line: line.slice(0, 4096), characters: line.length }));
-  const permissions = matched.at(1), inode = matched.at(2), encodedPath = matched.at(3);
-  if (permissions === undefined || inode === undefined) throw new Error('Forge native map identity is missing');
+    throw new Error(
+      'Forge native map observation is malformed: ' +
+        JSON.stringify({ line: line.slice(0, 4096), characters: line.length }),
+    );
+  const permissions = matched.at(1),
+    inode = matched.at(2),
+    encodedPath = matched.at(3);
+  if (permissions === undefined || inode === undefined)
+    throw new Error('Forge native map identity is missing');
   return { permissions, inode, encodedPath };
 }

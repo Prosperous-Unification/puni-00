@@ -99,3 +99,8 @@ libs/wbs/adapters/store-sqlite/src/testing/fixtures/resource-use-117/*.window.js
 # Proof: mergedFixtureFormat listed the manifest and both reports without these rules.
 libs/wbs/adapters/store-sqlite/src/testing/fixtures/resource-use-117-merged/*.window.json
 libs/wbs/adapters/store-sqlite/src/testing/fixtures/resource-use-117-merged/manifest.json
+
+# Immutable cold-v2 golden bytes are SHA-256 pinned in dependency-complete-activation.test.ts.
+# Proof: ci-format-v214-golden-red listed this exact file and exited 1 before this rule;
+# its f2478c57656defcf044d199f67d57dd65c6472264a84bf94a42d5ac5d8f34f17 hash is unchanged.
+tools/tool-remote-scripts/src/fixtures/source-cold-v2-manifest.json

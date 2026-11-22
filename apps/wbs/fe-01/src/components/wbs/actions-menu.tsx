@@ -158,6 +158,7 @@ export function menuShift(box: { left: number; right: number }, viewportWidth: n
   return 0;
 }
 
+/** Keeps complete labels inside the viewport gutters, including the menu's padding and borders. */
 const menuBox = (align: 'left' | 'right'): CSSProperties => ({
   position: 'absolute',
   top: '100%',
@@ -166,6 +167,9 @@ const menuBox = (align: 'left' | 'right'): CSSProperties => ({
   flexDirection: 'column',
   alignItems: 'stretch',
   minWidth: 140,
+  width: 'max-content',
+  maxWidth: `calc(100vw - ${String(GUTTER_PX * 2)}px)`,
+  boxSizing: 'border-box',
   padding: 4,
   background: 'var(--popover)',
   color: 'var(--popover-foreground)',
@@ -184,7 +188,8 @@ const ITEM: CSSProperties = {
   borderRadius: 'var(--radius-sm)',
   padding: '3px 6px',
   cursor: 'pointer',
-  whiteSpace: 'nowrap',
+  whiteSpace: 'normal',
+  overflowWrap: 'anywhere',
 };
 
 /**

@@ -2,6 +2,7 @@ import { cp, lstat, mkdir, readdir, readFile, rename, stat, writeFile } from 'no
 import { join } from 'node:path';
 
 import { runMigrations } from '@wbs/store-sqlite/migrate';
+import { migrateEmptyCatalogueFixture } from '@wbs/store-sqlite/testing/catalogue-database';
 
 import { AUTHORITY_FIXTURE_PROGRAM } from '../../test/installed-authority-fixture';
 import type { CompleteActivationTransports } from '../lib/complete-dependency-exclusion';
@@ -18,6 +19,7 @@ import { SOLVER_EDGE_STATE } from '../lib/solver-host';
 import type { SourceConfigSlot } from '../lib/source-startup-manifest';
 import { createNamespaceFixture } from './namespace-audit';
 import { sourceDatabaseFixture } from './source-database-binding';
+import { roots } from './source-startup';
 
 const migrationsDirectory = new URL('../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 export async function completeActivationFixture(
@@ -47,8 +49,32 @@ export async function completeActivationFixture(
   );
   await Bun.write(base.prodPath, '');
   await Bun.write(base.devPath, '');
-  runMigrations(base.prodPath, preparedDirectory);
-  runMigrations(base.devPath, preparedDirectory);
+  if (preparedDirectory === migrationsDirectory) {
+    const custody = { hasUnknownOwner: false };
+    try {
+      for (const [environment, path] of [
+        ['prod', base.prodPath],
+        ['dev', base.devPath],
+      ] as const) {
+        const directory = join(base.root, environment + '-catalogue-fixture');
+        await mkdir(directory, { mode: 0o700 });
+        migrateEmptyCatalogueFixture({ path, directory, reportedAt: 100 }, custody);
+      }
+    } catch (cause: unknown) {
+      if (!custody.hasUnknownOwner) throw cause;
+      // Proof: omitting this exact-root retention deleted the owned database in
+      // dependency-complete-fixture.test.ts's close-uncertainty case after shared cleanup.
+      // The real close completed before injected uncertainty; this proves retention, not a leak.
+      for (let index = roots.length - 1; index >= 0; index--)
+        if (roots[index] === base.root) roots.splice(index, 1);
+      throw new Error('default catalogue fixture ownership is unknown; retain ' + base.root, {
+        cause,
+      });
+    }
+  } else {
+    runMigrations(base.prodPath, preparedDirectory);
+    runMigrations(base.devPath, preparedDirectory);
+  }
   base.backend.HostConfig.RestartPolicy.Name = 'always';
   Object.assign(base.backend.State, {
     Running: true,
