@@ -2,21 +2,20 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { Step, WorkItem, WorkPackage, WriteStamp } from '@wbs/core';
+import type { WorkItem, WriteStamp } from '@wbs/core';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
 import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { openDatabase, openDrizzle } from './db';
 import { OPEN } from './gate';
-import { runMigrations } from './migrate';
 import { StepMeasureRepository } from './step-measure';
-import { seedLegacyPackageParent } from './testing/legacy-package-parent';
+import { seedCurrentProjectFixture } from './testing/current-project-fixture';
 import { UserRepository } from './user';
 import { WorkItemRepository } from './work-item';
 import { WorkPackageRepository } from './work-package';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+const custody = { hasUnknownOwner: false };
 
 let dir: string;
 let path: string;
@@ -58,48 +57,48 @@ const revisionOf = async (id: string): Promise<number> => {
 beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-measure-'));
   path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
-  seedLegacyPackageParent(path, 'fixture-legacy-org', 'fixture-project');
+  custody.hasUnknownOwner = false;
+  ownerId = crypto.randomUUID();
+  workPackageId = crypto.randomUUID();
+  // Key order must differ from authored order to prove the real step projection.
+  devId = `z-dev-${crypto.randomUUID()}`;
+  qaId = `a-qa-${crypto.randomUUID()}`;
+  await seedCurrentProjectFixture(
+    {
+      path,
+      directory: dir,
+      organizationId: 'fixture-legacy-org',
+      projectId: 'fixture-project',
+      stamp: wrote(),
+      definitions: [
+        {
+          id: devId,
+          code: 'dev',
+          name: 'Dev',
+          position: 10,
+          defaultAllowancePercent: 0,
+          defaultEstimateUnit: 'workdays',
+        },
+        {
+          id: qaId,
+          code: 'qa',
+          name: 'QA',
+          position: 20,
+          defaultAllowancePercent: 0,
+          defaultEstimateUnit: 'workdays',
+        },
+      ],
+    },
+    custody,
+  );
   const db = openDrizzle(path);
   repo = new StepMeasureRepository(db, OPEN);
   workItems = new WorkItemRepository(db, OPEN);
-
-  ownerId = crypto.randomUUID();
-  await new UserRepository(db, OPEN).create(
-    { id: ownerId, username: 'owner', passwordHash: 'x', createdAt: 1 },
+  await new WorkPackageRepository(db, OPEN).create(
+    workPackageRow({ id: workPackageId, projectId: 'fixture-project' }),
+    [],
     wrote(),
   );
-  workPackageId = crypto.randomUUID();
-  // Ids chosen so that sorting them disagrees with step order, exactly as
-  // `actual.test.ts` does: `Dev` runs first and sorts last, so a read that fell
-  // back to the primary key's own order hands back `QA` first.
-  devId = `z-dev-${crypto.randomUUID()}`;
-  qaId = `a-qa-${crypto.randomUUID()}`;
-  const workPackage: WorkPackage = workPackageRow({
-    id: workPackageId,
-    projectId: 'fixture-project',
-  });
-  const steps: Step[] = [
-    {
-      id: devId,
-      workPackageId,
-      name: 'Dev',
-      position: 10,
-      code: 'dev',
-      allowancePercent: 0,
-      estimateUnit: 'workdays' as const,
-    },
-    {
-      id: qaId,
-      workPackageId,
-      name: 'QA',
-      position: 20,
-      code: 'qa',
-      allowancePercent: 0,
-      estimateUnit: 'workdays' as const,
-    },
-  ];
-  await new WorkPackageRepository(db, OPEN).create(workPackage, steps, wrote());
 
   stripId = crypto.randomUUID();
   sandId = crypto.randomUUID();
@@ -108,7 +107,7 @@ beforeEach(async () => {
 });
 
 afterEach(() => {
-  rmSync(dir, { recursive: true, force: true });
+  if (!custody.hasUnknownOwner) rmSync(dir, { recursive: true, force: true });
 });
 
 describe('StepMeasureRepository', () => {
@@ -382,7 +381,6 @@ describe('StepMeasureRepository', () => {
 
   it('answers one work package only, so another plan’s figures are never in the list', async () => {
     const otherWorkPackage = crypto.randomUUID();
-    const otherStep = crypto.randomUUID();
     const otherItem = crypto.randomUUID();
     const db = openDrizzle(path);
     const owner = crypto.randomUUID();
@@ -398,17 +396,7 @@ describe('StepMeasureRepository', () => {
         name: 'Another shed',
         projectId: 'fixture-project',
       }),
-      [
-        {
-          id: otherStep,
-          workPackageId: otherWorkPackage,
-          name: 'Dev',
-          position: 10,
-          code: 'dev',
-          allowancePercent: 0,
-          estimateUnit: 'workdays' as const,
-        },
-      ],
+      [],
       wroteElsewhere,
     );
     await new WorkItemRepository(db, OPEN).insert(
@@ -424,7 +412,7 @@ describe('StepMeasureRepository', () => {
     await repo.set(
       {
         workItemId: otherItem,
-        stepId: otherStep,
+        stepId: devId,
         metric: 'token_actual',
         value: 9,
         recordedAt: 1,
@@ -545,33 +533,34 @@ describe('StepMeasureRepository', () => {
     expect(await repo.listByWorkPackage(workPackageId)).toEqual([]);
   });
 
-  it('refuses to leave a step that still holds a figure, rather than emptying it quietly', async () => {
-    // `step_measure.step_id` deliberately carries **no** cascade, which is what
-    // makes a step delete that forgot the measures fail loudly.
-    // `StepRepository.remove` is the caller that will say so explicitly (task
-    // 6.3); this is the constraint underneath it, asserted so that a later
-    // migration cannot add a cascade without a red test.
-    await repo.set(
-      {
-        workItemId: stripId,
-        stepId: devId,
-        metric: 'token_actual',
-        value: 4,
-        recordedAt: 1,
-      },
-      wrote(),
-    );
-
+  it('refuses step definition deletion while a figure still references it', async () => {
+    expect(
+      await repo.set(
+        { workItemId: stripId, stepId: devId, metric: 'token_actual', value: 4, recordedAt: 1 },
+        wrote(),
+      ),
+    ).toBe('written');
     const db = openDatabase(path);
     try {
       db.run('PRAGMA foreign_keys = ON');
-      expect(() => {
-        db.run(`DELETE FROM step WHERE id = '${devId}'`);
-      }).toThrow(/FOREIGN KEY constraint failed/);
+      db.run('BEGIN');
+      try {
+        db.run('DELETE FROM step_binding WHERE step_id=?', [devId]);
+        db.run('DELETE FROM work_package_step WHERE step_id=?', [devId]);
+        expect(() => db.run('DELETE FROM step_definition WHERE id=?', [devId])).toThrow(
+          /FOREIGN KEY constraint failed/,
+        );
+        expect(db.query('SELECT value FROM step_measure WHERE step_id=?').get(devId)).toEqual({
+          value: 4,
+        });
+        db.run('DELETE FROM step_measure WHERE step_id=?', [devId]);
+        expect(db.run('DELETE FROM step_definition WHERE id=?', [devId]).changes).toBe(1);
+      } finally {
+        db.run('ROLLBACK');
+      }
     } finally {
       db.close();
     }
-
     expect(await repo.listByWorkPackage(workPackageId)).toHaveLength(1);
   });
 });

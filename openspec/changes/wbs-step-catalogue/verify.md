@@ -2202,3 +2202,11 @@ are removed. Targeted reads use real current definitions and retain separate
 missing and inapplicable step refusals. Both malformed money cases now first
 assert successful writes of the affected rows. The final reader suite and
 SQLite Nx typecheck passed.
+
+Focused SQLite Nx verification passed 55 cases across typed dependencies,
+claim leases, solver admission, audit and step measures. The wrong-package
+dependency test proves the rejected step exists in the sibling package.
+The claim fixtures inherit authored steps through scoped package creation.
+The audit check compares the recorded historical row and exact ledger after
+refusal. Current measure retention isolates the physical foreign key before
+deleting the referenced row. The SQLite Nx typecheck passed.

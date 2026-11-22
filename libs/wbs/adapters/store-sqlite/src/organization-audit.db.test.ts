@@ -10,11 +10,13 @@ import { openDatabase, openDrizzle } from './db';
 import { OPEN } from './gate';
 import { runMigrations } from './migrate';
 import { rollbackTo } from './migrate-down';
+import { migrateEmptyCatalogueFixture } from './testing/catalogue-database';
 import { seedPackageParent } from './testing/legacy-package-parent';
+import { copyRecoveryPrefix } from './testing/recovery-state';
 import { UserRepository } from './user';
 import { WorkPackageRepository } from './work-package';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+const custody = { hasUnknownOwner: false };
 const FREEZE = '20260927200000_freeze_organization_ownership';
 const wrote: WriteStamp = { at: 1, by: 'ada' };
 const creationAudit = {
@@ -35,7 +37,8 @@ describe('the organization audit', () => {
   beforeEach(async () => {
     dir = mkdtempSync(join(tmpdir(), 'wbs-organization-audit-'));
     path = join(dir, 'test.db');
-    runMigrations(path, FOLDER);
+    custody.hasUnknownOwner = false;
+    migrateEmptyCatalogueFixture({ path, directory: dir, reportedAt: 1 }, custody);
     raw((sqlite) =>
       sqlite.run("INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1)"),
     );
@@ -62,7 +65,7 @@ describe('the organization audit', () => {
   });
 
   afterEach(() => {
-    rmSync(dir, { recursive: true, force: true });
+    if (!custody.hasUnknownOwner) rmSync(dir, { recursive: true, force: true });
   });
 
   function raw<T>(use: (db: ReturnType<typeof openDatabase>) => T): T {
@@ -99,16 +102,48 @@ describe('the organization audit', () => {
     ).toThrow();
   });
 
+  function migrateHistoricalAudit(through: string) {
+    const directory = mkdtempSync(join(dir, 'history-'));
+    const historicalPath = join(directory, 'audit.db');
+    const migrations = copyRecoveryPrefix(directory, through);
+    runMigrations(historicalPath, migrations);
+    return { historicalPath, migrations };
+  }
+
   it('refuses to roll back over a recorded act', () => {
-    insert('restricted_work_package_recovery', 'work_package');
-    expect(() => rollbackTo(path, FOLDER, FREEZE)).toThrow();
-    expect(raw((db) => db.query('SELECT COUNT(*) AS n FROM organization_audit').get())).toEqual({
-      n: 1,
-    });
+    const { historicalPath, migrations } = migrateHistoricalAudit(
+      '20260927220000_add_organization_audit',
+    );
+    const sqlite = openDatabase(historicalPath);
+    try {
+      sqlite.run("INSERT INTO users(id,username,created_at) VALUES ('sam','Sam',1)");
+      sqlite.run("INSERT INTO organization(id,name,created_at) VALUES ('org-a','A',1)");
+      sqlite.run(
+        `INSERT INTO organization_audit(id,organization_id,actor_id,action,subject_kind,subject_id,detail,created_at)
+         VALUES ('audit','org-a','sam','restricted_project_recovery','project','p1','{}',1)`,
+      );
+      const acts = sqlite.query('SELECT * FROM organization_audit').all();
+      const ledger = sqlite
+        .query('SELECT name,hash,created_at FROM __drizzle_migrations ORDER BY name')
+        .all();
+      expect(() => rollbackTo(historicalPath, migrations, FREEZE)).toThrow(
+        'organization_audit_must_be_empty',
+      );
+      expect(acts).toHaveLength(1);
+      expect(sqlite.query('SELECT * FROM organization_audit').all()).toEqual(acts);
+      expect(
+        sqlite.query('SELECT name,hash,created_at FROM __drizzle_migrations ORDER BY name').all(),
+      ).toEqual(ledger);
+    } finally {
+      sqlite.close();
+    }
   });
 
   it('rolls back while nothing is recorded', () => {
-    expect(rollbackTo(path, FOLDER, FREEZE)).toEqual([
+    const { historicalPath, migrations } = migrateHistoricalAudit(
+      '20261103110000_add_initial_access_offers',
+    );
+    expect(rollbackTo(historicalPath, migrations, FREEZE)).toEqual([
       '20261103110000_add_initial_access_offers',
       '20261102130000_widen_organization_audit_access',
       '20261102120000_add_access_grants',
@@ -127,9 +162,9 @@ describe('the organization audit', () => {
       '20261023140000_add_measure',
       '20261023100000_add_claim_lease',
       '20261022213000_add_optimization_boundary_certificates',
-      '20261022212000_add_cross_work_package_dependency_activation',
+      '20261022212000_add_cross_project_dependency_activation',
       '20261022211000_add_external_dependencies',
-      '20261022210000_add_work_package_abbreviations',
+      '20261022210000_add_project_abbreviations',
       '20261022140100_widen_organization_audit_compute_providers',
       '20261022140000_add_resource_provider',
       '20261022130100_widen_organization_audit_organization_limits',
@@ -159,13 +194,13 @@ describe('the organization audit', () => {
       '20261011120000_add_browser_auth_lifecycle',
       '20261005110000_add_shared_people',
       '20261001010000_add_browser_credential_revocations',
-      '20260929180000_add_work_package_rank',
+      '20260929180000_add_project_rank',
       '20260929100000_add_spaces',
       '20260928200000_add_work_item_status_facts',
       '20260928040000_add_email_challenge',
       '20260928030000_add_delegation_use',
       '20260928020000_add_email_verification',
-      '20260928010000_add_work_package_solution',
+      '20260928010000_add_project_solution',
       '20260927220000_add_organization_audit',
       '20260927213000_add_typed_dependency',
     ]);

@@ -18,12 +18,11 @@ import { sql } from 'drizzle-orm';
 
 import { ConsentCredentialRepository } from './consent-credential';
 import { MachineCredentialAdministrationRepository } from './machine-credential-administration';
-import { runMigrations } from './migrate';
 import { openSqliteSource, type SqliteSource } from './source';
+import { migrateEmptyCatalogueFixture } from './testing/catalogue-database';
 import { CAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
-import { seedOrganizationPackage, seedPackageParent } from './testing/legacy-package-parent';
+import { seedPackageParent } from './testing/legacy-package-parent';
 
-const folder = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const DEFAULTS = {
   maxAgentPersons: 50,
   maxConcurrentClaims: 200,
@@ -60,22 +59,31 @@ function principalOf(pin: CredentialPin | null): AuthenticatedUser {
 
 let directory: string;
 let source: SqliteSource;
+let opened: SqliteSource | undefined;
+let custody = { hasUnknownOwner: false };
 let now = T;
 
 beforeEach(() => {
   directory = mkdtempSync(join(tmpdir(), 'claim-lease-'));
   const dbPath = join(directory, 'plan.db');
-  runMigrations(dbPath, folder);
+  opened = undefined;
+  custody = { hasUnknownOwner: false };
+  migrateEmptyCatalogueFixture({ path: dbPath, directory, reportedAt: T }, custody);
+  custody.hasUnknownOwner = true;
   source = openSqliteSource({
     dbPath,
     dependencyCapability: CAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
     organizationDefaultLimits: DEFAULTS,
   });
+  opened = source;
+  custody.hasUnknownOwner = false;
   now = T;
 });
 
 afterEach(async () => {
-  await source.close();
+  await opened?.close();
+  if (custody.hasUnknownOwner)
+    throw new Error('uncertain lease fixture owner; retained ' + directory);
   rmSync(directory, { recursive: true, force: true });
 });
 
@@ -126,14 +134,32 @@ async function seeded(cap = 40) {
     dependencyContext: createLocalDependencyContext(source.stores),
   };
   const graph = servicesOver(source.stores, options);
-  const created = await seedOrganizationPackage(
-    source.stores.workPackages,
-    options.clock,
-    'org-a',
-    'fixture-project',
-    'dany',
-    'Leases',
-  );
+  for (const [position, name] of ['Dev', 'QA'].entries()) {
+    const id = name.toLowerCase();
+    const defined = await source.stores.stepCatalogue.defineAndBindStep(
+      'org-a',
+      {
+        id,
+        code: id,
+        name,
+        position: position + 1,
+        defaultEstimateUnit: 'workdays',
+        defaultAllowancePercent: 0,
+      },
+      {
+        bindingId: id + '-binding',
+        scopeKind: 'project',
+        scopeId: 'fixture-project',
+        workItemTypeId: null,
+        position: position + 1,
+      },
+      { at: now, by: 'dany' },
+    );
+    if (!defined.ok) throw new Error('lease fixture step refused: ' + defined.reason);
+  }
+  const birth = await graph.workPackages.createWithin('Leases', 'fixture-project', 'dany', admin);
+  if (!birth.ok) throw new Error('lease fixture package refused: ' + birth.reason);
+  const created = birth.value;
   const workPackageId = created.workPackage.id;
 
   const runner = createPlanCommandRunner({

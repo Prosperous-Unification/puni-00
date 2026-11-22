@@ -5,25 +5,31 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'bun:test';
 
 import { openDatabase, openDrizzle } from './db';
-import { runMigrations } from './migrate';
 import { bindSolverSlot, heartbeatSolverSlot, reserveSolverSlot } from './optimization-admission';
 import { allocateGeneration } from './optimization-generation';
 import { optimizationGeneration, solverSlot } from './schema';
+import {
+  type CatalogueFixtureCustody,
+  migrateEmptyCatalogueFixture,
+} from './testing/catalogue-database';
+import { seedLegacyPackageParent } from './testing/legacy-package-parent';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const CONTRACT = '7+0.1.0';
 const BUDGET = 60_000;
-const dirs: string[] = [];
+const dirs: { dir: string; custody: CatalogueFixtureCustody }[] = [];
 
 afterEach(() => {
-  for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
+  for (const { dir, custody } of dirs.splice(0))
+    if (!custody.hasUnknownOwner) rmSync(dir, { recursive: true, force: true });
 });
 
 function prepared() {
   const dir = mkdtempSync(join(tmpdir(), 'wbs-optimization-admission-'));
-  dirs.push(dir);
+  const custody = { hasUnknownOwner: false };
+  dirs.push({ dir, custody });
   const path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
+  migrateEmptyCatalogueFixture({ path, directory: dir, reportedAt: 1 }, custody);
+  seedLegacyPackageParent(path, 'fixture-legacy-org', 'fixture-project');
   const raw = openDatabase(path);
   try {
     raw.run(
@@ -31,9 +37,9 @@ function prepared() {
        VALUES ('u-1', 'owner', 'hash', 1)`,
     );
     raw.run(
-      `INSERT INTO work_package (id, name, owner_id, restricted, revision, created_at,
+      `INSERT INTO work_package (id, name, created_by, project_id, restricted, revision, created_at,
                             optimization_enabled, schedule_engine, schedule_objective)
-       VALUES ('p-1', 'Plan', 'u-1', 0, 0, 1, 1, 'optimized', 'pri')`,
+       VALUES ('p-1', 'Plan', 'u-1', 'fixture-project', 0, 0, 1, 1, 'optimized', 'pri')`,
     );
   } finally {
     raw.close();

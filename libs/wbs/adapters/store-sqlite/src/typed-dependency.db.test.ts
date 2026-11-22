@@ -8,17 +8,19 @@ import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { eq } from 'drizzle-orm';
 
-import { type Drizzle, openDatabase, openDrizzle } from './db';
+import { type Connection, type Drizzle, openConnection, openDatabase } from './db';
 import { OPEN } from './gate';
-import { runMigrations } from './migrate';
 import { workItem } from './schema';
-import { seedLegacyPackageParent } from './testing/legacy-package-parent';
+import { StepCatalogueRepository } from './step-catalogue';
+import { seedCurrentProjectFixture } from './testing/current-project-fixture';
+import { seedPackageParent } from './testing/legacy-package-parent';
 import { TypedDependencyRepository } from './typed-dependency';
-import { UserRepository } from './user';
 import { WorkItemRepository } from './work-item';
 import { WorkPackageRepository } from './work-package';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+const ORGANIZATION = 'fixture-legacy-org';
+const PROJECT = 'fixture-project';
+let owner: { hasUnknownOwner: boolean; connection?: Connection };
 let dir: string;
 let path: string;
 let db: Drizzle;
@@ -32,37 +34,49 @@ const wrote = (): WriteStamp => ({ at: 1, by: ownerId });
 beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-typed-repo-'));
   path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
-  seedLegacyPackageParent(path, 'fixture-legacy-org', 'fixture-project');
-  db = openDrizzle(path);
-  repo = new TypedDependencyRepository(db, OPEN);
-  workItems = new WorkItemRepository(db, OPEN);
+  owner = { hasUnknownOwner: false };
   ownerId = crypto.randomUUID();
-  await new UserRepository(db, OPEN).create(
-    { id: ownerId, username: 'owner', passwordHash: 'x', createdAt: 1 },
-    wrote(),
-  );
   workPackageId = crypto.randomUUID();
   devStepId = crypto.randomUUID();
-  await new WorkPackageRepository(db, OPEN).create(
-    workPackageRow({ id: workPackageId, projectId: 'fixture-project' }),
-    [
-      {
-        id: devStepId,
-        workPackageId,
-        name: 'Dev',
-        position: 10,
-        code: 'dev',
-        allowancePercent: 0,
-        estimateUnit: 'workdays' as const,
-      },
-    ],
-    wrote(),
+  await seedCurrentProjectFixture(
+    {
+      path,
+      directory: dir,
+      organizationId: ORGANIZATION,
+      projectId: PROJECT,
+      stamp: wrote(),
+      definitions: [
+        {
+          id: devStepId,
+          name: 'Dev',
+          code: 'dev',
+          position: 10,
+          defaultAllowancePercent: 0,
+          defaultEstimateUnit: 'workdays',
+        },
+      ],
+    },
+    owner,
   );
+  const connection = openConnection(path);
+  owner.connection = connection;
+  db = connection.db;
+  repo = new TypedDependencyRepository(db, OPEN);
+  workItems = new WorkItemRepository(db, OPEN);
+  await createPackage(workPackageId, PROJECT);
 });
 afterEach(() => {
-  rmSync(dir, { recursive: true, force: true });
+  owner.connection?.close();
+  if (!owner.hasUnknownOwner) rmSync(dir, { recursive: true, force: true });
 });
+
+async function createPackage(id: string, projectId: string) {
+  const packages = new WorkPackageRepository(db, OPEN);
+  expect(await packages.create(workPackageRow({ id, projectId }), [], wrote())).toMatchObject({
+    id,
+    projectId,
+  });
+}
 
 async function addWorkItem(
   name: string,
@@ -145,21 +159,32 @@ describe('TypedDependencyRepository', () => {
   it('refuses an endpoint outside the work package or in the wrong shape', async () => {
     const otherWorkPackage = crypto.randomUUID();
     const otherStep = crypto.randomUUID();
-    await new WorkPackageRepository(db, OPEN).create(
-      workPackageRow({ id: otherWorkPackage, projectId: 'fixture-project' }),
-      [
-        {
-          id: otherStep,
-          workPackageId: otherWorkPackage,
-          name: 'Dev',
-          position: 10,
-          code: 'dev',
-          allowancePercent: 0,
-          estimateUnit: 'workdays' as const,
-        },
-      ],
+    const siblingProject = 'sibling-project';
+    seedPackageParent(path, ORGANIZATION, siblingProject);
+    const bound = await new StepCatalogueRepository(db, OPEN, 'owned').defineAndBindStep(
+      ORGANIZATION,
+      {
+        id: otherStep,
+        name: 'Review',
+        code: 'review',
+        position: 10,
+        defaultAllowancePercent: 0,
+        defaultEstimateUnit: 'workdays',
+      },
+      {
+        bindingId: 'review-binding',
+        scopeKind: 'project',
+        scopeId: siblingProject,
+        workItemTypeId: null,
+        position: 10,
+      },
       wrote(),
     );
+    expect(bound.ok).toBe(true);
+    await createPackage(otherWorkPackage, siblingProject);
+    expect(
+      (await new WorkPackageRepository(db, OPEN).stepsOf(otherWorkPackage)).map((step) => step.id),
+    ).toEqual([otherStep]);
     const leaf = await addWorkItem('Leaf');
     const parent = await addWorkItem('Parent');
     await addWorkItem('Child', parent);
@@ -262,21 +287,7 @@ describe('TypedDependencyRepository', () => {
     const row = link(a, b);
     await repo.add(row, wrote());
     const otherWorkPackage = crypto.randomUUID();
-    await new WorkPackageRepository(db, OPEN).create(
-      workPackageRow({ id: otherWorkPackage, projectId: 'fixture-project' }),
-      [
-        {
-          id: crypto.randomUUID(),
-          workPackageId: otherWorkPackage,
-          name: 'Dev',
-          position: 10,
-          code: 'dev',
-          allowancePercent: 0,
-          estimateUnit: 'workdays' as const,
-        },
-      ],
-      wrote(),
-    );
+    await createPackage(otherWorkPackage, PROJECT);
     const destinationPredecessor = await addWorkItem(
       'Destination predecessor',
       null,
@@ -397,7 +408,9 @@ describe('TypedDependencyRepository', () => {
     const sqlite = openDatabase(path);
     try {
       const step = sqlite
-        .query<{ id: string }, [string]>('SELECT id FROM step WHERE work_package_id = ?')
+        .query<{ id: string }, [string]>(
+          'SELECT step_id AS id FROM work_package_step WHERE work_package_id = ?',
+        )
         .get(workPackageId);
       if (step === null) throw new Error('work package step is missing');
       sqlite.run('PRAGMA ignore_check_constraints = ON');
