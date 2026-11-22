@@ -184,9 +184,6 @@ export default ({
         // Proof: dash-policy-exact-runtime-scope-boundary.test.ts: removing the exact scope-boundary test public-contract admission.
         // 'the effective production and test boundaries > Dash runtime history consumes only the public WBS contract at seven exact paths' failed; exact restoration passed.
         'apps/twilight-structure/twilight-dash/cli/src/runs/runtime-scope-boundary.test.ts',
-        // Proof: dash-policy-exact-recovery-codecs.ts: removing the exact recovery-codec public-contract admission.
-        // 'the effective production and test boundaries > Dash runtime history consumes only the public WBS contract at seven exact paths' failed; exact restoration passed.
-        'apps/twilight-structure/twilight-dash/cli/src/runs/recovery-codecs.ts',
         'apps/twilight-structure/twilight-dash/cli/src/runs/testing/runtime-history-contract.ts',
         // Proof: dash-policy-exact-runtime-rename.db.test.ts: removing the exact native compatibility-test public-contract admission.
         // 'the effective production and test boundaries > Dash runtime history consumes only the public WBS contract at seven exact paths' failed; exact restoration passed.
@@ -205,6 +202,12 @@ export default ({
       // 'the effective production and test boundaries > Dash runtime history consumes only the public WBS contract at seven exact paths' failed; exact restoration passed.
       // Structural options equality, not observed nonbuildable-library admission.
       rules: boundary(['^@wbs/contracts$']),
+    },
+    {
+      files: ['apps/twilight-structure/twilight-dash/cli/src/runs/recovery-codecs.ts'],
+      // Proof: restoring the barrel grant rejected the retained-history admission. Adding the
+      // barrel alongside the narrow alias failed its denial in the effective Dash runtime test.
+      rules: boundary(['^@wbs/contracts/runtime-state-history$']),
     },
     {
       files: [

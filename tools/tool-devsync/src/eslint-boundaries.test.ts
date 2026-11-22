@@ -422,6 +422,8 @@ describe('the effective production and test boundaries', () => {
   }, 30_000);
 
   it('Dash runtime history consumes only the public WBS contract at seven exact paths', async () => {
+    const publicAlias = '@wbs/contracts';
+    const retainedStateAlias = '@wbs/contracts/runtime-state-history';
     const peers = [
       'apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts',
       'apps/twilight-structure/twilight-dash/cli/src/runs/plan-runtime.ts',
@@ -430,26 +432,28 @@ describe('the effective production and test boundaries', () => {
     ];
     const peerOptions = boundaryOf(await lint.calculateConfigForFile(peers[0]))[1];
     if (!isRecord(peerOptions)) throw new Error('Dash peer boundary options are malformed');
-    for (const path of [
-      'apps/twilight-structure/twilight-dash/cli/src/runs/runtime-records.ts',
-      'apps/twilight-structure/twilight-dash/cli/src/runs/runtime-codecs.ts',
-      'apps/twilight-structure/twilight-dash/cli/src/runs/runtime-receipt.ts',
-      'apps/twilight-structure/twilight-dash/cli/src/runs/runtime-scope-boundary.test.ts',
-      'apps/twilight-structure/twilight-dash/cli/src/runs/recovery-codecs.ts',
-      'apps/twilight-structure/twilight-dash/cli/src/runs/testing/runtime-history-contract.ts',
-      'apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/runtime-rename.db.test.ts',
-    ]) {
+    const admissions = {
+      'apps/twilight-structure/twilight-dash/cli/src/runs/runtime-records.ts': publicAlias,
+      'apps/twilight-structure/twilight-dash/cli/src/runs/runtime-codecs.ts': publicAlias,
+      'apps/twilight-structure/twilight-dash/cli/src/runs/runtime-receipt.ts': publicAlias,
+      'apps/twilight-structure/twilight-dash/cli/src/runs/runtime-scope-boundary.test.ts':
+        publicAlias,
+      'apps/twilight-structure/twilight-dash/cli/src/runs/recovery-codecs.ts': retainedStateAlias,
+      'apps/twilight-structure/twilight-dash/cli/src/runs/testing/runtime-history-contract.ts':
+        publicAlias,
+      'apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/runtime-rename.db.test.ts':
+        publicAlias,
+    };
+    for (const [path, allowedAlias] of Object.entries(admissions)) {
       const options = boundaryOf(await lint.calculateConfigForFile(path))[1];
       if (!isRecord(options)) throw new Error('Dash runtime boundary options are malformed');
-      const [admission] = await lint.lintText(
-        "import type { RuntimeScope1 } from '@wbs/contracts';\nconst scope: RuntimeScope1 = { organizationId: 'o', projectId: 'p', personId: 'a' };\nvoid scope;",
-        { filePath: path },
-      );
+      const [admission] = await lint.lintText(`import '${allowedAlias}';`, { filePath: path });
       expect(admission.fatalErrorCount).toBe(0);
       expect(admission.messages.map((message) => message.ruleId)).not.toContain(
         '@nx/enforce-module-boundaries',
       );
       for (const alias of [
+        allowedAlias === publicAlias ? retainedStateAlias : publicAlias,
         '@wbs/store-memory',
         '@wbs/contracts/solver/supervisor-protocol',
         relative(dirname(path), 'libs/wbs/domain/contracts/src/index.ts'),
@@ -461,21 +465,24 @@ describe('the effective production and test boundaries', () => {
           '@nx/enforce-module-boundaries',
         );
       }
-      expect(options['allow']).toEqual(['^@wbs/contracts$']);
+      expect(options['allow']).toEqual([`^${allowedAlias}$`]);
       const withoutRuntimeAlias: Readonly<Record<string, unknown>> = { ...options, allow: [] };
       expect(withoutRuntimeAlias).toEqual(peerOptions);
       const source = await readFile(join(workspace, path), 'utf8');
-      expect(importsAlias(source, '@wbs/contracts')).toBe(true);
+      expect(importsAlias(source, allowedAlias)).toBe(true);
       const [actual] = await lint.lintText(source, { filePath: path });
       expect(actual.fatalErrorCount).toBe(0);
       expect(
         actual.messages.filter((message) => message.ruleId === '@nx/enforce-module-boundaries'),
       ).toEqual([]);
     }
-    for (const path of peers)
-      expect(await ruleIds(path, "await import('@wbs/contracts');")).toContain(
-        '@nx/enforce-module-boundaries',
-      );
+    for (const path of peers) {
+      for (const alias of [publicAlias, retainedStateAlias]) {
+        expect(await ruleIds(path, `await import('${alias}');`)).toContain(
+          '@nx/enforce-module-boundaries',
+        );
+      }
+    }
   }, 30_000);
 
   it('Dash claim builder consumes only the exact public encoder at its source path', async () => {
