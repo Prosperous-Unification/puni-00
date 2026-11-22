@@ -172,12 +172,15 @@ table. No conversation is reproduced here.
 | 2026-11-22 | CI is orchestrated by Argo Workflows and Argo Events with Dagger; the host pool is not used on the new capacity                                                                    | R31, CI change    |
 | 2026-11-22 | Everything is orchestratable by the `puni-user-platform` and multitenant                                                                                                           | R48               |
 | 2026-11-22 | Tailscale is the access path; platform services are not exposed to the internet                                                                                                    | R47               |
+| 2026-11-22 | Rancher Manager is included in the plan                                                                                                                                            | R54               |
+| 2026-11-22 | The platform server is bought at 8 vCPUs, 32 GB and 200 GB, and a bastion at 1 vCPU and 2 GB; servers are named by his scheme                                                      | R2, R3            |
 
 Set for him by the planning session, each with its alternative in design.md, for him to
 overrule by id: R34 (dev's delivery is a follow-up), R35 (the CI cluster is one trust zone),
-R49 (break-glass by the provider's console), R50 (the CI server's size), R51 (no public
-webhook), R52 (Tailnet Lock, `sshd` login), and the controller on the operator's laptop only
-(decision 10).
+R49 (break-glass through the bastion, then the provider's console), R50 (the CI server's
+size), R51 (no public webhook), R52 (Tailnet Lock, `sshd` login), R55 (the bastion as the
+SSH path, Tailscale kept as the target for the interfaces), and the controller on the
+operator's laptop only (decision 10).
 
 ## Read-only readings
 
@@ -511,3 +514,52 @@ on the new cluster's overlay, which slice 3.5's owner renders; the busy timeout'
 against a real migration of the tracker; and the drizzle migrator's transaction
 boundaries, on which the survival of a concurrent edit rests. The rehearsal reads the
 last two.
+
+## Rancher and the servers that exist (2026-11-22)
+
+**What this pass changed.** R54 and R55 are new; R2, R3, R17, R47, R49 and R52 are
+reworded; decision 14 is new, and decisions 1, 2, 3, 5, 6, 7, 9, 11, 12 and 13 are amended;
+slices 1.9 and 2.11, rules 2.4(x) and (y), and steps A26 to A28 are new; A1, A3, A4, A6,
+A7 and A24 are amended; two requirements are new and one is amended. `h5plat` reads
+`m1plat1` throughout, in this change and in `host-postgres`, whose platform-node margins
+are recounted. No host was read or changed, and nothing outside the plan files.
+
+**The servers, as the owner stated them.** m1plat1: 8 vCPUs, 32 GB, 200 GB, Ubuntu
+26.04.1, 10.10.1.11, `free -g` showing 31 GiB, no host firewall, public SSH closed in the
+panel firewall. m2bast1: 1 vCPU, 2 GB, 10.10.1.12; a `jump` user with no shell and a
+`PermitOpen` of each server's private address and port 22; nftables admitting SSH in and
+sending anything out. The private network 10.10.1.0/24 has an MTU of 1442. The panel
+firewall refuses outbound traffic it does not allow once attached. The provider, the
+public addresses and the prices are not written here.
+
+**Read on 2026-11-22 for Rancher.**
+
+| Read                                                                                                                                                                                                                                                                                                                                     | Where                                                                                   |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| Twelve version lines; the newest is 2.15.x, whose newest page is v2.15.3                                                                                                                                                                                                                                                                 | https://www.suse.com/suse-rancher/support-matrix/all-supported-versions/                |
+| "Supported Kubernetes Platforms for Rancher Manager": k3s lowest v1.34, highest v1.36; downstream K3s 1.34 to 1.36 provisioned and imported; Ubuntu 26.04 listed for K3s provisioned through Rancher; minors only, no patch builds                                                                                                       | https://www.suse.com/suse-rancher/support-matrix/all-supported-versions/rancher-v2-15-3 |
+| The same table for v2.14.7: k3s v1.33 to v1.35                                                                                                                                                                                                                                                                                           | https://www.suse.com/suse-rancher/support-matrix/all-supported-versions/rancher-v2-14-7 |
+| The stable chart index: chart 2.15.3, app v2.15.3, created 2026-10-29, `kubeVersion: < 1.37.0-0`; 2.15.2 and 2.15.1 before it                                                                                                                                                                                                            | `https://releases.rancher.com/server-charts/stable/index.yaml`                          |
+| GitHub releases: v2.15.3 published 2026-10-29, not a prerelease; v2.14.7 the same day                                                                                                                                                                                                                                                    | the `rancher/rancher` releases API                                                      |
+| The archive `rancher-2.15.3.tgz`: SHA-256 `343888c66421a9f5666b562cdfeca751d63da994edbe7b1b36752f8ffcf5ecd4`                                                                                                                                                                                                                             | downloaded to a scratch directory, not committed                                        |
+| `values.yaml`: `replicas: 3` by default; `networkExposure.type` `ingress`, `gateway` or `none`; `ingress.enabled`; `tls` `ingress` or `external`; `useBundledSystemChart`; `bootstrapPassword`; `extraTolerations`; `extraNodeSelectorTerms`; `webhook` and `fleet` values handed to those charts; `postDelete.enabled`; `resources: {}` | the archive                                                                             |
+| `templates/secret.yaml` renders `bootstrap-secret` only when a password is in the values or found by `lookup`; `templates/deployment.yaml` sets `CATTLE_BOOTSTRAP_PASSWORD` only when the value is set; the default toleration is `cattle.io/os=linux` alone                                                                             | the archive                                                                             |
+| `templates/ingate/issuer-rancher.yaml` renders a cert-manager Issuer only when TLS is not external and the source is `rancher`; the cert-manager check is a warning under `helm template`                                                                                                                                                | the archive                                                                             |
+
+**Not read.** Rancher's source for how it finds the bootstrap password when the variable
+is unset; which charts `useBundledSystemChart` covers on 2.15; whether Rancher's webhook
+refuses writes while it is down; Rancher's upgrade path between minors; its memory on
+this cluster. Decision 14 and slice 2.11 name what shows each.
+
+**Budget arithmetic.** 32,768 × 15,602 / 16,384 = 31,204 MiB. Platform limits 8,554 +
+4,096 = 12,650; with reservations of 2,816, 15,466; margin 15,738. With `host-postgres`'s
+512, 2,304 and 256: 12,666 while the dump runs; with its drill's 1,280 as well: 11,386.
+On 15,602 the same rows would have left 136 before `platform-db` and been 2,936 short
+with it. Disk: (40 + 30 + 30 + 10 + 30 + 5) / 0.8 = 181.25, so 182 GiB; 200 × 10⁹ bytes is
+186.3 GiB.
+
+**Set by the planning session on this pass, for the owner to overrule.** R55; Rancher's
+chart version, values, order, budget and Fleet rule (R54's assumed part); the names of
+the servers not yet bought left as placeholders; that a rehearsal on m1plat1 is followed
+by a reinstall rather than a new server (A1); the 5 GiB for Rancher's images and the 182
+GiB floor; the interim forward of the platform API through the bastion.

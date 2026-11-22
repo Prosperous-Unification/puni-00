@@ -262,6 +262,39 @@ MUST NOT render a Flux object, read a remote base, or hold a Secret, encrypted o
 - **WHEN** a wrapper chart's release name differs from the release it replaces
 - **THEN** the render-equality test fails
 
+### Requirement: Rancher manages and Argo CD delivers
+
+Rancher Manager SHALL run in the platform cluster as one replica on the platform node,
+delivered by Argo CD, with no public route. Its bundled Fleet SHALL hold no `GitRepo`, and
+no object of the `fleet.cattle.io` group SHALL be in the tree. The k3s version SHALL be one
+whose minor the locked Rancher version certifies for a cluster that hosts it.
+
+#### Scenario: A Fleet object in the tree
+
+- **WHEN** a unit under `infra/argocd` holds an object of the `fleet.cattle.io` group
+- **THEN** the `delivery` check fails and names it
+
+#### Scenario: A GitRepo in the cluster
+
+- **WHEN** a `GitRepo` exists in the platform cluster
+- **THEN** `tool-fleet:health` fails and names it
+
+#### Scenario: A chart installed beside Argo CD
+
+- **WHEN** the cluster holds a Helm release that is not on the list of Rancher's own
+- **THEN** `tool-fleet:health` fails and names the release
+
+#### Scenario: k3s bumped past Rancher
+
+- **WHEN** the k3s pin's minor is not among the minors the Rancher lock certifies
+- **THEN** the toolchain check fails and names both versions
+
+#### Scenario: Rancher rendered off its shape
+
+- **WHEN** the `rancher` render has more than one replica, an Ingress, a bootstrap value in
+  its values, or placement values without the platform toleration and capability
+- **THEN** the `delivery` check fails and names the value
+
 ### Requirement: Secrets come from OpenBao
 
 OpenBao SHALL be the first service synced after Argo CD and the units it runs under. Only the
@@ -890,20 +923,51 @@ serve.
 ### Requirement: New hosts admit nothing public but what they serve
 
 A host of the new inventories SHALL admit on its public interface only the ports its
-inventory lists, which MUST be none unless the host carries `ingress`, and SHALL admit SSH
-and the Kubernetes API on the tailnet interface only. An existing inventory's rendered
-firewall SHALL NOT change.
+inventory lists, which MUST be none unless the host carries `ingress` or is the bastion,
+whose one public port is SSH. It SHALL admit SSH and the Kubernetes API on the tailnet
+interface, SSH on the private interface from the bastion's address alone, and the
+cluster's own ports on the private interface from the private network's range alone. An
+existing inventory's rendered firewall SHALL NOT change.
 
 #### Scenario: Public SSH on a new host
 
-- **WHEN** the rendered firewall of a host of the new inventories admits port 22 on its
-  public interface
+- **WHEN** the rendered firewall of a host of the new inventories other than the bastion
+  admits port 22 on its public interface
+- **THEN** the role's test fails
+
+#### Scenario: SSH from another private address
+
+- **WHEN** the rendered firewall of a server admits SSH on its private interface from an
+  address other than the bastion's
 - **THEN** the role's test fails
 
 #### Scenario: An old inventory
 
 - **WHEN** the firewall is rendered for an existing inventory
 - **THEN** it is byte-equal to the rendering before this change
+
+### Requirement: The bastion forwards SSH and holds nothing
+
+The bastion SHALL be in no k3s group and in no `gate_hosts`, and its forwarding user SHALL
+have no login shell. That user's `PermitOpen` SHALL list each inventoried server's private
+address at port 22 and nothing else, except the platform server's Kubernetes API while the
+inventory's interim flag is set.
+
+#### Scenario: A forward to another port
+
+- **WHEN** the rendered `PermitOpen` names a port other than 22 and the entry is not the
+  platform API under the interim flag
+- **THEN** the role's test fails and names the entry
+
+#### Scenario: A server left out
+
+- **WHEN** a server of the inventory is missing from the rendered `PermitOpen`
+- **THEN** the role's test fails and names the server
+
+#### Scenario: The bastion as a node
+
+- **WHEN** the inventory lists the bastion in a k3s group or in `gate_hosts`
+- **THEN** the placement check fails and names the host
 
 ### Requirement: Access rules are one tested policy file
 

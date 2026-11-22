@@ -37,7 +37,7 @@ which they extend.
       `database` is the control-plane node, or carries nothing else (design decision 1).
       In the `k3s_agent` template: an agent with
       `database` also writes the taint `puni.dev/role=database:NoSchedule` (PG2); the server
-      template writes no second taint. The inventory revision that gives h5plat `database`
+      template writes no second taint. The inventory revision that gives m1plat1 `database`
       precedes PG-A4 and is applied by the core's capability
       play (slice 1.7); the one for `h10db` follows PG-A1, as slice 1.3 does for every
       server, with the reservations of design decision 2. Each raises its floor. Test:
@@ -203,8 +203,8 @@ which they extend.
       `database`, and `puni-retain` otherwise; which one is a value of the unit's overlay,
       checked by rule (o) against the inventory. During PG-A2 the check admits the
       classes of the move in progress, which the inventory names: on the restore path
-      the source's static class on h5plat together with `puni-retain` on `h10db` while
-      h5plat still carries `database`, and on the replica path a static class on both;
+      the source's static class on m1plat1 together with `puni-retain` on `h10db` while
+      m1plat1 still carries `database`, and on the replica path a static class on both;
       after the move it admits the class of the node that carries `database`, which is
       a static one after a switchover and `puni-retain` after a restore. A class
       outside the move the inventory names is refused (fault: drop the move from the
@@ -248,7 +248,7 @@ server (design decision 4) and are not run before its trigger.
       only pods on it are the three node agents; then one of two paths, chosen before the
       move and recorded. The replica path: the inventory sets it for `h10db`, PG-S6's
       role is applied there so that a volume of the server's static class exists; a
-      marker row is written on h5plat before the switchover; and the receipt is that
+      marker row is written on m1plat1 before the switchover; and the receipt is that
       volume, a replica caught up on it, a switchover, and the marker row read on
       `h10db` through the apps' database endpoint. The
       restore path, taken if the replica path is not chosen or the operator places no
@@ -264,7 +264,7 @@ server (design decision 4) and are not run before its trigger.
       decision 4, its start and end noted, the restore point's name and LSN, the
       archived segment and the row. Either way: with the schedule still suspended, one
       attended drill pinned to `h10db` is run and seen; the weekly schedule is resumed
-      only after the capability play has taken `database` from h5plat. Stop: validation fails, another pod is scheduled there, a restore would
+      only after the capability play has taken `database` from m1plat1. Stop: validation fails, another pod is scheduled there, a restore would
       start without the owner's word on the hour, the segment is not in the archive,
       or recovery ends before the restore point; writes are not reopened and the
       source is not removed in either case. Rollback: as A13, which deletes the
@@ -273,7 +273,7 @@ server (design decision 4) and are not run before its trigger.
       repaired there. If the server has to go all the same, the writers are stopped
       first, another primary is proven to hold its final commits by the same restore
       point, WAL switch and archived segment, and to serve the apps, and only then is
-      `h10db` deleted. The instance and volume on h5plat are removed only after the
+      `h10db` deleted. The instance and volume on m1plat1 are removed only after the
       new one serves with its path's row read and that attended drill has run on
       `h10db`.
 - [ ] PG-A3 The operator, the plugin and the non-production cluster, after A17, stage 3's
@@ -293,7 +293,7 @@ server (design decision 4) and are not run before its trigger.
       hand for long enough to see the WAL rule fire, follow the runbook's response to
       that alert, then sync the unit, which restores the policy. After 24 hours read each container's working set
       and `memory.stat`. Receipt: the three units Synced and Healthy; the operator and
-      plugin pods on h5plat; the instance on the node that carries `nonproduction`, h7obs in
+      plugin pods on m1plat1; the instance on the node that carries `nonproduction`, h7obs in
       the minimal profile, with its claim bound on `puni-retain`,
       and its job pods admitted there; the host timer active on that node before the
       drill ran; both canary databases present and the role of one
@@ -318,14 +318,14 @@ server (design decision 4) and are not run before its trigger.
 - [ ] PG-A4 The production cluster, on the platform node in the minimal profile (PG8),
       or on the database server by PG-S6's stop, when the owner says so, after A17, PG-A3's receipt and slices PG-S5 and PG-S6. Who:
       operator; owner for the values. Commands: merge the inventory revision of PG-S1 and
-      run `playbooks/capabilities.yml` limited to h5plat; apply the storage
-      role of PG-S6 limited to h5plat; the owner writes the production database bucket's key
+      run `playbooks/capabilities.yml` limited to m1plat1; apply the storage
+      role of PG-S6 limited to m1plat1; the owner writes the production database bucket's key
       and the canary passwords; merge the `platform-db` Application; sync `secret-sync` and
       `platform-db`; create one on-demand `Backup`; run the dump job once; apply by hand a
       pod in `postgres` with the `product` selector. After 24 hours read memory as in PG-A3
-      and `kubectl top node h5plat`. Receipt: h5plat carries `database`; the drill CronJob
+      and `kubectl top node m1plat1`. Receipt: m1plat1 carries `database`; the drill CronJob
       suspended; the bounded filesystem mounted and the instance's claim bound to
-      its volume; the unit Synced and Healthy; the instance and its sidecar on h5plat; the
+      its volume; the unit Synced and Healthy; the instance and its sidecar on m1plat1; the
       platform pods there with unchanged restart counts; a first
       recoverability point, a completed base backup and one dump object per database; the
       hand-applied pod denied; every PostgreSQL rule loaded and none firing; the memory
@@ -343,7 +343,7 @@ server (design decision 4) and are not run before its trigger.
       first marker present and the second absent, and `canary-b` unchanged; the time from
       the start of the restore to the copy's end, which replaces PG6's two hours in
       design.md by a commit; the drill's series present and its alert quiet; the drill's
-      throwaway instance seen on the node that carries `database`, h5plat in the
+      throwaway instance seen on the node that carries `database`, m1plat1 in the
       minimal profile, with the platform pods' restart counts unchanged; no throwaway
       cluster or claim left, the receipt of `drill-verify` and the host reading both clean, that node's disk back to its reading
       before, and its highest reading during the drill, which stayed under 80%. Stop: a restore fails, the copy changes `canary-b`, the disk does not
