@@ -760,6 +760,153 @@ GitHub's acceptance of the PATCH or its rate limits.
 
 The recorder is removed once #963's cause is fixed.
 
+### Amendment, 2026-11-22: disk ruled out, and the losses follow the hosting cloud
+
+Main `5f52c9eb2` (run 44967184073, push) lost `gate workspace-heavy (tool-fleet)` again: job
+137038867722 ran from 00:33:47Z to 01:40:47Z, 67m00s. The step had `MemoryMax=12G`,
+`TasksMax=4096` and `AllowedCPUs=0-2`, which keeps CPU 3 free for the runner agent. The annotation
+is the same, with no step conclusion, no log and no artifact. This is the seventeenth loss and the
+fifth on main for this leaf, and all five lasted from 67m00s to 67m03s, job start to failure:
+
+| Job          | Commit      | Run         | Scope                                  | Duration |
+| ------------ | ----------- | ----------- | -------------------------------------- | -------- |
+| 136708786587 | `e8e568784` | 44859286080 | none                                   | 67m03s   |
+| 136887016810 | `b7ad74ab4` | 44917747487 | `MemoryMax=12G`                        | 67m03s   |
+| 136901170790 | `b17861f83` | 44922395238 | `MemoryMax`, `TasksMax`, `AllowedCPUs` | 67m01s   |
+| 137001840799 | `01f001a9c` | 44955226448 | `MemoryMax`, `TasksMax`, `AllowedCPUs` | 67m03s   |
+| 137038867722 | `5f52c9eb2` | 44967184073 | `MemoryMax`, `TasksMax`, `AllowedCPUs` | 67m00s   |
+
+Counted by attempt, main has lost 16 jobs since 2026-11-18: 10 `gate workspace`, 1 single
+`gate workspace-heavy` and these 5 leaves. Three of them were earlier attempts of runs whose
+latest attempt is counted below: 136177983041 and 136408071558 of run 44703647201, and
+136583725221 (74m01s) of run 44821587380.
+
+**Ruled out or unlikely.** Each of these would have left a log under the caps, or does not fit
+the measurements:
+
+- **Memory.** The cap OOM-kills inside the scope, with `exit=1` and the kernel's lines.
+- **Tasks.** `TasksMax=4096` would refuse a fork storm with `EAGAIN` inside the scope.
+- **CPU starvation of the agent.** CPU 3 is outside the scope's cpuset.
+- **Disk.** Every start and end record read shows a 145 GB root with 82 to 85 GB free:
+  `/dev/root 145G 63G 82G 44%` at the start of run 44797660117's workspace phase, and
+  `/dev/mapper/cow-root 145G 60G 85G 42%` at both ends of run 44967184073's workspace phase and of
+  run 44849226664's 61-minute heavy phase, which ran `tool-fleet:test` in full. Filling 85 GB in
+  an hour needs about 21 MB/s, sustained, and used space in the surviving runs moved by 1 GB or
+  less.
+
+A steady accumulation would not repeat to the second across three regimes either. The trigger
+looks fixed: a point in the job, or a deadline on the host.
+
+**A healthy leaf finishes in about 40 minutes.** Main run 44972618306 (`ae79ba936`) ran its
+`tool-fleet` leaf (job 137055572828) on an Azure host, as this amendment predicted before it
+ended. It succeeded in 39m27s (01:41:46Z to 02:21:13Z), and its #963 final report read `exit=0`
+and `pidsPeak=67`. A peer's run 44973329598 also passed its leaf on Azure, in 31.6 minutes. These
+are the first survivals of the leaf on its own. A lost leaf therefore hangs for about 27 minutes
+past the point where a healthy one has finished.
+
+**The losses follow the hosting cloud.** Each job's `Set up job` log names its runner image and
+its provider (`Runner Image Provisioner`, `Cloud: AWS` or `Cloud: Azure`). The image version maps
+one-to-one to the cloud: `20261111.127.1` and `20261116.133.1` run on AWS, while `20261101.360.1`,
+`20261111.370.1` and `20261116.376.1` run on Azure. AWS-backed runners first appear in this
+repository's gate jobs on 2026-11-12. The runner agent stayed at 2.338.2 throughout, and every
+heap limit read was 4345298944. `ci.yml` did not change between 2026-11-08 and 2026-11-20, and the
+first loss came on 2026-11-18 at 02:28Z.
+
+The 2026-11-16 images rolled out gradually, cloud by cloud:
+
+- The first surviving AWS job on `20261116.133.1` is run 44393042208, at 2026-11-18 20:38Z.
+- The first surviving Azure job on `20261116.376.1` is run 44797660117, at 2026-11-20 18:58Z.
+- The provisioner moved from `20261103.629` to `20261111.635` along with each image.
+- The first three losses came at 02:28Z, 05:22Z and 14:01Z on 2026-11-18. In those runs (44223434187,
+  44243790538, 44319636759) the surviving AWS job, `gate remote`, still ran `20261111.127.1` on
+  provisioner `20261103.629`.
+
+The lost jobs' own images are unknown, so the image roll is not tied to the losses.
+
+The surviving gate jobs of the latest attempts of the 31 main runs from 2026-11-17 22:40Z to
+2026-11-22 01:41Z show the skew. A lost job keeps no log, so its cloud is unknown. The table
+counts survivors only and leaves out earlier attempts:
+
+| Surviving jobs since 2026-11-17 | AWS | Azure |
+| ------------------------------- | --- | ----- |
+| Ran `tool-fleet:test`           | 2   | 14    |
+| Every other gate job            | 62  | 31    |
+
+The jobs that ran `tool-fleet:test` are the pre-split workspace jobs, the single heavy job and the
+`tool-fleet` leaf. The AWS workspace job of run 44519931198 failed after 3 minutes, before any test,
+and is left out. Against the two-thirds AWS share of every other job, two or fewer AWS survivors
+out of 16 has a binomial probability of about 1e-5. Survivors that ran the suite are therefore
+mostly on Azure. The two AWS survivors (workspace run 44393042208 and heavy run 44849226664, both
+on `20261116.133.1`) show that AWS does not lose the suite every time.
+
+A consistency check: suppose all 13 latest-attempt losses were on AWS. Then 15 of the 29 jobs that
+ran the suite were on AWS, 52% against the 67% base. `P[X ≤ 15 | n = 29, p = 0.667]` is about 0.07,
+so that reading is consistent with how the pool assigns jobs. It is still inference.
+
+**Remaining candidates**, all on the hosted side:
+
+- **Network breakage on AWS hosts.** tool-fleet's native tests run `bwrap` sandboxes and an
+  in-namespace `dockerd` (`bridge: none`, `iptables: false`, the `vfs` storage driver). If one of
+  them disturbs the host's network or the agent's connection on that platform, GitHub would lose
+  the runner with no log.
+- **A signal to the runner**, from the host side or from the suite.
+- **A platform regression on the AWS pool.** No lost job's image is known, so the 2026-11-16
+  image roll is a weaker lead than the cloud itself.
+
+**The lever (A-CI-LEAF-DISK-1).** It is telemetry only:
+
+- Every `runtime headroom sample` line ends with four fields: `rootAvailKiB`, `mntAvailKiB`,
+  `tmpAvailKiB` and `dockerRootAvailKiB`. These are the free KiB from `df --output=avail -k` on /, /mnt,
+  `${TMPDIR:-/tmp}` and the data root that `docker info -f '{{.DockerRootDir}}'` names. A missing
+  mount, a failed df, a non-count answer or a host without a daemon reads `unavailable` for that
+  field alone, and the sample never fails.
+- The tool-fleet leaf's #963 report gains a `disk` section: the data root, then one `df -h` line
+  each for /, /mnt, `$TMPDIR` and the data root, or `unavailable`. df's own status decides each
+  line, with no pipeline. With the samples' free KiB, the last tick before a loss shows the disk
+  trend.
+- The start record and the #963 header name the host's cloud from
+  `/sys/class/dmi/id/sys_vendor` and `product_name`: `cloud=azure` ("Microsoft Corporation"),
+  `cloud=aws` ("Amazon EC2") or `cloud=other:VENDOR`, then `dmiProduct=…`. An absent or unreadable
+  file gives `cloud=unavailable dmiProduct=unavailable`, and the record never fails on it. The next
+  AWS loss's last #963 tick will name both the cloud and the hanging test.
+
+A low-disk watchdog that stops the scope below 2 GiB was considered and dropped. With 82 to 85 GB
+free and no measured growth, it would guard an implausible failure with untested code on the
+shared step. tool-fleet's in-namespace Docker data roots live in test scratch under the process's
+`os.tmpdir()`, which is `/tmp` on the runner's root disk. That is harmless at these figures.
+
+`pr-merge-base.test.ts` runs the production step and functions with three fakes:
+
+- a fake `df` that scripts free KiB per path, where `absent` fails every form, as a missing mount
+  does;
+- a fake `docker`;
+- a scratch DMI root bound through the step's `dmi_root=` line, with Azure, AWS, other, absent and
+  unreadable cases.
+
+Each of these faults failed a test:
+
+- Dropping `mntAvailKiB` or the `sample_disk` call failed the disk test and the headroom tests'
+  sample patterns.
+- Dropping `disk_avail`'s count check passed a `12G` answer through.
+- Dropping `disk_avail`'s or the Docker branch's `unavailable` fallback left an empty field.
+- Changing the heavy-leaf copy alone failed the byte-equality test.
+- Dropping the recorder's disk section, its per-path `unavailable` line or the header's cloud field
+  failed the living-comment test.
+- Dropping the cloud field from the start record failed the cloud test and the start-record and
+  heap-limit patterns. Dropping the "Amazon EC2" mapping failed the aws case.
+
+**Proof plan and the next lever.**
+
+- **An AWS leaf.** A leaf whose start record and #963 header read `cloud=aws` should be lost
+  near 67 minutes, with healthy disk fields. Its last tick names the hanging test. If the disk
+  fields fall instead, disk is back in.
+- **Refutation.** An Azure leaf lost the same way refutes the cloud hypothesis.
+- **If the hypothesis is confirmed,** skipping the native tests on AWS hosts would hide the fault.
+  Under R5 that is not sound unless the skip is loud and the gate hosts run those tests instead.
+  "Fail fast and re-queue" has no primitive in GitHub Actions. The sound levers are:
+  - run that leaf's native tests on the gate hosts;
+  - give the leaf a runner label that keeps it off the AWS pool, if GitHub offers one.
+
 ## Checks kept without a reachable negative
 
 This section is outside the mapped payload region below: it is new prose, not a block preserved

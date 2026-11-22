@@ -304,3 +304,12 @@ scope. The leaf is lost about 20 minutes after its work should have ended.
 A-CI-LEAF-RECORDER-1 changes no budget. Every 120 s the `tool-fleet` leaf PATCHes a comment on
 issue #963 with `phaseElapsedSeconds` and the log tail, so even a lost run keeps a timing trail
 ([R5-32](checks-that-cannot-fail.md#a-lost-hosted-runner-leaves-no-step-conclusion-and-no-log)).
+
+## Disk fields, 2026-11-22
+
+A-CI-LEAF-DISK-1 changes no budget. Each 30-second sample adds four `df --output=avail` calls and
+one `docker info`, bounded by a 10-second `timeout`, and the #963 report adds one `df -h` per path.
+The five main `tool-fleet` losses lasted 67m00s to 67m03s from job start, inside the leaf's
+90-minute job limit, while healthy leaves on Azure finished in 39m27s (job 137055572828) and 31.6
+minutes (run 44973329598). No budget explains the losses
+([R5-32](checks-that-cannot-fail.md#a-lost-hosted-runner-leaves-no-step-conclusion-and-no-log)).
