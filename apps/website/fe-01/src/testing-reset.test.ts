@@ -229,3 +229,59 @@ test('a same-document reset failure is sanitized without a successful remount', 
     unbind();
   }
 });
+
+test('fresh chat fragment is cleared before the command and leaves unrelated fragments alone', async () => {
+  const page = browser('https://request.puni.dev/?x=1#reset-chat');
+  let calls = 0;
+  const reset = () => {
+    calls += 1;
+    expect(page.location.href).toBe('https://request.puni.dev/?x=1');
+    return Promise.resolve();
+  };
+  const pending = testingReset.consumeChatReset(page, reset);
+  expect(pending).not.toBeNull();
+  await pending;
+  expect(calls).toBe(1);
+  expect(testingReset.consumeChatReset(page, reset)).toBeNull();
+});
+
+test('fresh chat removes draft and proposal state without clearing analytics preferences', () => {
+  const page = browser('https://request.puni.dev/');
+  for (const key of [
+    'puni_pending_proposal',
+    'puni_proposal_key',
+    'puni_editor:previous',
+    'consent',
+  ])
+    page.sessionStorage.setItem(key, 'fixture');
+  testingReset.clearChatState(page.sessionStorage);
+  expect(Object.keys(page.sessionStorage)).toEqual(['consent']);
+});
+
+test('a signed-in chat reset needs explicit confirmation before the mutation', async () => {
+  const page = browser('https://request.puni.dev/');
+  const visited: string[] = [];
+  const confirm = () => {
+    visited.push('confirm');
+    return false;
+  };
+  const readCsrf = () => {
+    visited.push('authenticate');
+    return Promise.resolve('csrf-fixture');
+  };
+  const command = () => {
+    visited.push('mutate');
+    return Promise.resolve();
+  };
+  const browserApi = {
+    confirm,
+    location: { assign: () => visited.push('navigate') },
+    sessionStorage: page.sessionStorage,
+  };
+  page.sessionStorage.setItem('puni_proposal_key', 'previous');
+  expect(
+    await testingReset.executeChatReset(browserApi, 'https://puni.dev', readCsrf, command),
+  ).toBe(false);
+  expect(visited).toEqual(['authenticate', 'confirm']);
+  expect(page.sessionStorage.getItem('puni_proposal_key')).toBe('previous');
+});

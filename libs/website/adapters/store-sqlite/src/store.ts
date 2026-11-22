@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { mkdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
@@ -506,15 +506,20 @@ export class WebsiteStore {
   }
 
   /**
-   * Authorized preview-only mutation. Fences any active operation at its reservation before
-   * establishing sequence baselines and reopening the claimed conversation. History and every
-   * site financial/concurrency record survive. Only this operator boundary may rebind a draft.
-   * Returns false only when the supplied claim has no live draft; malformed registry state throws.
+   * Fences the claimed draft's active attempt at its reservation and resets scoped allowance.
+   * A fresh browser invalidates the old draft claim while retaining the draft and conversation.
+   * The preview resume path can reopen a live draft and returns false for a stale claim.
    */
-  resetBrowserAllowance(claimHash: string | null, browserHash: string, now: number): boolean {
+  resetBrowserAllowance(
+    claimHash: string | null,
+    browserHash: string,
+    now: number,
+    mode: 'resume' | 'fresh' = 'resume',
+  ): boolean {
     return this.database
       .transaction(() => {
-        if (!this.hasBrowserClaim(browserHash, now))
+        if (mode === 'fresh') this.registerBrowserClaim(browserHash, now);
+        else if (!this.hasBrowserClaim(browserHash, now))
           throw new Error('Reset browser claim is not registered');
         const draft =
           claimHash === null
@@ -524,7 +529,7 @@ export class WebsiteStore {
                   'SELECT id FROM intake_draft WHERE claim_hash = ? AND consumed_at IS NULL AND expires_at > ?',
                 )
                 .get(claimHash, now);
-        if (claimHash !== null && draft === null) return false;
+        if (mode === 'resume' && claimHash !== null && draft === null) return false;
         const conversation = draft ? findConversation(this.database, draft.id) : null;
         if (conversation) {
           const inflight = this.database
@@ -544,18 +549,25 @@ export class WebsiteStore {
           )
           .get();
         if (position === null) throw new Error('Missing reset accounting position');
-        if (draft)
+        // Proof: retaining the previous claim let the mounted API read the old chat after reset.
+        if (mode === 'fresh' && draft)
+          this.database
+            .query('UPDATE intake_draft SET claim_hash = ? WHERE id = ?')
+            .run(randomBytes(32).toString('hex'), draft.id);
+        // Proof: rebinding in fresh mode replaced the old browser in the fresh-reset fixture.
+        if (mode === 'resume' && draft)
           this.database
             .query(
               'INSERT INTO intake_draft_browser (draft_id, browser_hash) VALUES (?, ?) ON CONFLICT(draft_id) DO UPDATE SET browser_hash = excluded.browser_hash',
             )
             .run(draft.id, browserHash);
+        // Proof: resetting to sequence zero left the new browser rate limited in the fresh-reset fixture.
         this.database
           .query(
             'INSERT INTO testing_allowance (browser_hash, after_sequence, reset_at) VALUES (?, ?, ?) ON CONFLICT(browser_hash) DO UPDATE SET after_sequence = excluded.after_sequence, reset_at = excluded.reset_at',
           )
           .run(browserHash, position.sequence, now);
-        if (conversation) {
+        if (mode === 'resume' && conversation) {
           const turns = listConversationTurns(this.database, conversation.id).filter(
             (turn) => turn.role === 'user',
           ).length;

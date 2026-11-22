@@ -28,7 +28,12 @@ import { FunnelPanel } from './funnel-panel';
 import { GuardrailsPanel } from './guardrails-panel';
 import { ArrivalChoice, PrivacyChoices } from './privacy-choices';
 import { clearRequestEditor, RequestEditor } from './request-editor';
-import { bindTestingReset, consumeTestingReset } from './testing-reset';
+import {
+  bindTestingReset,
+  consumeChatReset,
+  consumeTestingReset,
+  executeChatReset,
+} from './testing-reset';
 
 interface Submission {
   id: string;
@@ -738,7 +743,41 @@ const resetTestingAllowance = (secret: string) =>
     headers: { 'X-Puni-Test-Reset': secret },
     signal: AbortSignal.timeout(10_000),
   });
+/** Reads the same operator CSRF token used by the inbox commands. */
+async function readResetCsrf(): Promise<string> {
+  try {
+    const session = await requestJson<{ csrfToken: string }>('/operator/session', {
+      signal: AbortSignal.timeout(10_000),
+    });
+    return session.csrfToken;
+  } catch (error) {
+    if (error instanceof ApiFailure && error.status === 401)
+      throw new Error('Sign in at /operator, then open the chat reset URL again.', {
+        cause: error,
+      });
+    throw error;
+  }
+}
+
+const resetChat = () =>
+  executeChatReset(window, siteOrigin, readResetCsrf, (csrfToken) =>
+    sendCommand('/operator/chat/reset', {
+      method: 'POST',
+      headers: { 'X-Puni-CSRF': csrfToken },
+      signal: AbortSignal.timeout(10_000),
+    }),
+  );
+
 bindTestingReset(window, resetTestingAllowance, remountApp, showResetFailure);
+window.addEventListener('hashchange', () => {
+  const reset = consumeChatReset(window, resetChat);
+  if (reset !== null) void reset.catch(showResetFailure);
+});
 const testingReset = consumeTestingReset(window, resetTestingAllowance);
-if (testingReset === null) mountApp();
+const chatReset = consumeChatReset(window, resetChat);
+if (chatReset !== null)
+  void chatReset.then((restarted) => {
+    if (!restarted) mountApp();
+  }, showResetFailure);
+else if (testingReset === null) mountApp();
 else void testingReset.then(remountApp, showResetFailure);

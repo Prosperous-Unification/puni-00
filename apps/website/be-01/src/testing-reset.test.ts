@@ -248,10 +248,11 @@ test('reset reopens the claimed exhausted conversation and retains its complete 
   }
 });
 
-test('reset immediately aborts its active provider and retains the full charged reservation', async () => {
+async function verifyActiveReset(mode: 'preview' | 'operator'): Promise<void> {
   let signal: AbortSignal | null = null;
   const settings = config({
     demoAuth: false,
+    operatorPassword: 'operator-reset-fixture',
     openRouterEnabled: true,
     openRouterKey: 'fixture-only',
     openRouterModel: 'openai/gpt-4.1-mini',
@@ -295,6 +296,23 @@ test('reset immediately aborts its active provider and retains the full charged 
   });
   const api = createWebsiteApi(settings);
   try {
+    const login =
+      mode === 'operator'
+        ? await api.fetch(
+            new Request('http://localhost:3101/operator/session', {
+              method: 'POST',
+              headers: {
+                origin: 'http://localhost:4201',
+                'content-type': 'application/json',
+              },
+              body: JSON.stringify({ password: settings.operatorPassword }),
+            }),
+            '127.0.0.1',
+          )
+        : null;
+    if (login !== null) expect(login.status).toBe(201);
+    const operator = login?.headers.getSetCookie()[0]?.split(';')[0];
+    const operatorSession = login === null ? null : ((await login.json()) as { csrfToken: string });
     const intake = await api.fetch(
       new Request('http://localhost:3101/intakes', {
         method: 'POST',
@@ -355,7 +373,16 @@ test('reset immediately aborts its active provider and retains the full charged 
       text += new TextDecoder().decode(chunk.value);
     }
     const resetResponse = await api.fetch(
-      reset(secret, 'http://localhost:4201', cookie),
+      operatorSession && operator
+        ? new Request('http://localhost:3101/operator/chat/reset', {
+            method: 'POST',
+            headers: {
+              origin: 'http://localhost:4201',
+              cookie: `${operator}; ${cookie}`,
+              'X-Puni-CSRF': operatorSession.csrfToken,
+            },
+          })
+        : reset(secret, 'http://localhost:4201', cookie),
       '127.0.0.1',
     );
     expect(resetResponse.status).toBe(204);
@@ -373,9 +400,99 @@ test('reset immediately aborts its active provider and retains the full charged 
       expect(charged?.state).toBe('unknown');
       expect(charged?.settled).toBeGreaterThan(0);
       expect(charged?.settled).toBe(charged?.reserved);
+      if (mode === 'operator') {
+        expect(database.query('SELECT * FROM testing_conversation').all()).toHaveLength(0);
+        expect(database.query('SELECT after_sequence FROM testing_allowance').get()).toEqual({
+          after_sequence: 1,
+        });
+      }
     } finally {
       database.close();
     }
+  } finally {
+    api.close();
+  }
+}
+
+test.each(['preview', 'operator'] as const)(
+  '%s reset aborts its active provider and retains the full charged reservation',
+  verifyActiveReset,
+);
+
+test.each([
+  ['https://dev.puni.dev', 'https://dev.request.puni.dev'],
+  ['https://puni.dev', 'https://request.puni.dev'],
+])('operator chat reset is authenticated and starts fresh on %s', async (site, app) => {
+  const settings = config({
+    publicOrigin: site,
+    appOrigin: app,
+    appManualUrl: `${app}/manual`,
+    demoAuth: false,
+    secureCookies: true,
+    trustedProxyHops: 0,
+    operatorPassword: 'operator-reset-fixture',
+    testingResetSecret: undefined,
+  });
+  const api = createWebsiteApi(settings);
+  const send = (path: string, init: RequestInit) =>
+    api.fetch(new Request(`${site}${path}`, init), '127.0.0.1');
+  try {
+    const login = await send('/operator/session', {
+      method: 'POST',
+      headers: { origin: app, 'content-type': 'application/json' },
+      body: JSON.stringify({ password: settings.operatorPassword }),
+    });
+    expect(login.status).toBe(201);
+    const operator = login.headers
+      .getSetCookie()
+      .map((value) => value.split(';')[0])
+      .join('; ');
+    const { csrfToken } = (await login.json()) as { csrfToken: string };
+    const intake = await send('/intakes', {
+      method: 'POST',
+      headers: { origin: site, 'content-type': 'application/json' },
+      body: JSON.stringify({ description: 'The earlier request' }),
+    });
+    expect(intake.status).toBe(201);
+    const oldClaim = intake.headers
+      .getSetCookie()
+      .map((value) => value.split(';')[0])
+      .join('; ');
+    const resetChat = (cookie: string, csrf: string, origin = app) =>
+      send('/operator/chat/reset', {
+        method: 'POST',
+        headers: { origin, cookie, 'X-Puni-CSRF': csrf },
+      });
+    expect((await resetChat(oldClaim, csrfToken)).status).toBe(401);
+    expect((await resetChat(`${operator}; ${oldClaim}`, 'wrong')).status).toBe(403);
+    expect((await resetChat(`${operator}; ${oldClaim}`, csrfToken, site)).status).toBe(403);
+    expect(rows(settings.databasePath, 'testing_allowance')).toBe(0);
+    const response = await resetChat(`${operator}; ${oldClaim}`, csrfToken);
+    expect(response.status).toBe(204);
+    const cookies = response.headers.getSetCookie();
+    expect(cookies).toHaveLength(3);
+    expect(cookies[0]).toMatch(/^__Host-puni_browser=[a-f0-9]{64};.*Secure$/);
+    expect(cookies[1]).toMatch(/^__Host-puni_draft=;.*Max-Age=0/);
+    expect(cookies[2]).toMatch(/^__Host-puni_replay=;.*Max-Age=0/);
+    expect(rows(settings.databasePath, 'testing_allowance')).toBe(1);
+    expect(rows(settings.databasePath, 'intake_draft')).toBe(1);
+    const old = await send('/conversation', { headers: { origin: app, cookie: oldClaim } });
+    expect(old.status).toBe(401);
+    const freshBrowser = response.headers.getSetCookie()[0]?.split(';')[0] ?? '';
+    const newIntake = await send('/intakes', {
+      method: 'POST',
+      headers: { origin: site, cookie: freshBrowser, 'content-type': 'application/json' },
+      body: JSON.stringify({ description: 'A different, fresh request' }),
+    });
+    expect(newIntake.status).toBe(201);
+    const current = newIntake.headers
+      .getSetCookie()
+      .map((value) => value.split(';')[0])
+      .join('; ');
+    const fresh = await send('/conversation', { headers: { origin: app, cookie: current } });
+    expect(fresh.status).toBe(200);
+    expect(await fresh.json()).toMatchObject({ turns: [], visitorTurnsRemaining: 8 });
+    expect(rows(settings.databasePath, 'intake_draft')).toBe(2);
   } finally {
     api.close();
   }

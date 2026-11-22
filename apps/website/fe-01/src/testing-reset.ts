@@ -62,3 +62,49 @@ export function consumeTestingReset(
     throw new Error('The testing reset could not be completed. Check the link and try again.');
   });
 }
+
+/** Consumes only the explicit chat reset fragment before the authenticated command starts. */
+export function consumeChatReset<T>(
+  browser: ResetBrowser,
+  reset: () => Promise<T>,
+): Promise<T> | null {
+  if (browser.location.hash !== '#reset-chat') return null;
+  // Proof: removing this scrub left the reset fragment visible inside the command test.
+  browser.history.replaceState(null, '', `${browser.location.pathname}${browser.location.search}`);
+  return reset();
+}
+
+/** Clears this tab's old chat recovery and editor state while preserving other preferences. */
+export function clearChatState(storage: Storage): void {
+  storage.removeItem('puni_pending_proposal');
+  // Proof: omitting removal left the previous proposal key in the chat storage test.
+  storage.removeItem('puni_proposal_key');
+  for (const key of Object.keys(storage)) {
+    if (key.startsWith('puni_editor:')) storage.removeItem(key);
+  }
+}
+
+interface ChatResetBrowser {
+  confirm(message: string): boolean;
+  sessionStorage: Storage;
+  location: { assign(url: URL): void };
+}
+
+/** Checks operator intent before sending the reset and returns to the ordinary public intake. */
+export async function executeChatReset(
+  browser: ChatResetBrowser,
+  siteOrigin: string,
+  readCsrf: () => Promise<string>,
+  command: (csrfToken: string) => Promise<void>,
+): Promise<boolean> {
+  const csrfToken = await readCsrf();
+  // Proof: omitting confirmation let a cancelled reset issue the command.
+  // A cross-site link can open the fragment in an already signed-in browser.
+  if (!browser.confirm('Reset this browser’s chat and start again from the PUNI site?'))
+    return false;
+  const storage = browser.sessionStorage;
+  await command(csrfToken);
+  clearChatState(storage);
+  browser.location.assign(new URL('/', siteOrigin));
+  return true;
+}

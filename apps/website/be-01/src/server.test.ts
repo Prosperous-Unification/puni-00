@@ -561,6 +561,7 @@ const operatorRoutes = [
   ['POST', '/operator/inference/pause'],
   ['POST', '/operator/inference/resume'],
   ['POST', '/operator/retention/events'],
+  ['POST', '/operator/chat/reset'],
   ['PATCH', '/operator/submissions/0000'],
   ['DELETE', '/operator/session'],
 ] as const;
